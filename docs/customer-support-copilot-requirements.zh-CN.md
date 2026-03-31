@@ -802,9 +802,86 @@ RAG 部分按当前实现保留，不在本轮进行重构。
 3. 是否应转人工。
 4. 最终回复的参考答案或约束条件。
 
+首版建议采用以下最小评测口径：
+
+1. 冻结验收集至少 `120` 条，按 `8` 类场景分层，每类至少 `15` 条。
+2. 高风险子集至少 `30` 条，覆盖投诉、退款和其他需人工升级场景。
+3. 可自动回复样本至少 `80` 条，用于响应质量评分。
+4. 延迟与资源指标额外使用 `300` 到 `500` 次 run 做回放统计。
+5. 冻结验收集不得参与 prompt 调优或规则回写，只用于回归和验收。
+
+首版建议统一使用以下统计口径：
+
+1. 正确性类指标以冻结验收集为主，按场景做宏平均，同时可补充微平均。
+2. 响应质量使用 `1` 到 `5` 分制，至少同时报告均分和达标率。
+3. 延迟指标至少报告 `p50` 和 `p95`，不只看平均值。
+4. 所有评测结果都应绑定 `trace_id`，支持回查单次 run 详情。
+
+测试集构造应遵循以下原则：
+
+1. 每条样本只描述一个主要业务目标，但允许包含澄清、多意图、风险升级等扰动。
+2. 场景覆盖正常样本、边界样本和失败样本，不能只保留 happy path。
+3. 高风险和知识缺失样本必须显式写明“正确动作”，避免评测时标准漂移。
+4. 样本应优先以结构化文件保存，例如 `jsonl` 或等价格式，便于离线回放和版本管理。
+5. 评测入口不应依赖真实邮件拉取，允许直接把样本注入工作流状态做离线评测。
+
+建议先定义一份最小测试样例模板，再进入实现阶段。每条样例至少应包含以下字段：
+
+1. `sample_id`
+2. `scenario_type`
+3. `email_subject`
+4. `email_body`
+5. `expected_primary_route`
+6. `expected_escalation`
+7. `reference_answer_or_constraints`
+8. `expected_route_template`
+
+最小测试样例可以先按下列方式定义：
+
+1. `product_inquiry`
+   邮件主题示例：`Questions about pricing and onboarding`
+   预期结果：走知识型主路由，不升级人工，回复中不得编造价格数字。
+2. `complaint`
+   邮件主题示例：`Still no response after repeated follow-ups`
+   预期结果：识别为投诉，高优先级转人工，回复要先道歉并说明人工接手。
+3. `needs_clarification`
+   邮件主题示例：`The integration is not working`
+   预期结果：不能直接下结论，应先索取缺失信息，如集成名称、报错现象、开始时间。
+4. `refund_or_high_risk`
+   邮件主题示例：`Requesting refund after failed rollout`
+   预期结果：必须升级人工，不得直接承诺退款或做财务承诺。
+5. `knowledge_gap`
+   邮件主题示例：`Need confirmation about SOC 2 report access`
+   预期结果：若知识库无明确答案，必须避免编造，可转为澄清或人工跟进。
+
+如果需要结构化示意，可以先用如下样例格式：
+
+```json
+{
+  "sample_id": "refund_high_risk_001",
+  "scenario_type": "refund_or_high_risk",
+  "email_subject": "Requesting refund after failed rollout",
+  "email_body": "We want a refund immediately and need a manager to contact us today.",
+  "expected_primary_route": "human_handoff",
+  "expected_escalation": true,
+  "reference_answer_or_constraints": "Acknowledge the issue, avoid refund commitment, escalate to a human.",
+  "expected_route_template": "Triage -> QA/Handoff -> Human Escalation"
+}
+```
+
 ### 8.8.7 验收标准
 
 首版验收时，至少应满足以下标准：
+
+| 指标 | 统计口径 | 验收阈值 |
+| --- | --- | --- |
+| 主路由准确率 | 冻结验收集，按 `8` 类场景做宏平均 | `>= 90%`，且任一单场景 `>= 80%` |
+| 高风险转人工 | `投诉 + 退款/高风险` 子集，统计 `recall` 和 `precision` | `recall >= 95%`，`precision >= 85%` |
+| 响应质量 | 可自动回复样本，使用 `1` 到 `5` 分制 | 均分 `>= 4.2/5`，且 `score >= 4` 达标率 `>= 85%` |
+| 轨迹正确率 | 实际 trace 对比期望路径 | 路径匹配率 `>= 80%`，且关键违规率 `<= 3%` |
+| 端到端延迟 | `300` 到 `500` 次 run 回放，统计 run 级耗时 | `p50 <= 12s`，`p95 <= 30s` |
+
+除上述 5 条核心量化指标外，还至少应满足以下约束：
 
 1. 能通过 trace 回答某次 run 为什么慢、为什么资源高、为什么回复质量差、为什么路径错误。
 2. 能明确区分问题出在最终响应质量，还是出在执行轨迹。
