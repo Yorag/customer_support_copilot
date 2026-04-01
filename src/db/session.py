@@ -4,19 +4,30 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Iterator
 
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.config import get_settings
 
 
 def build_engine(database_url: str, *, echo: bool = False) -> Engine:
-    return create_engine(
+    engine = create_engine(
         database_url,
         future=True,
         echo=echo,
         pool_pre_ping=True,
     )
+    if engine.dialect.name == "sqlite":
+        _enable_sqlite_foreign_keys(engine)
+    return engine
+
+
+def _enable_sqlite_foreign_keys(engine: Engine) -> None:
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 @lru_cache(maxsize=1)
