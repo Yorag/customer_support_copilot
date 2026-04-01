@@ -95,7 +95,7 @@
 | P0 | 基础设施 | 非 spec | 立住配置、provider、测试、DB 基础设施 | 已完成 | 无 | `src/`, `tests/`, 启动与配置文件 |
 | S01 | Spec | `docs/specs/01-core-schema.zh-CN.md` | 落地核心实体和 repository | 已完成 | P0 | 数据模型、repository |
 | S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 已完成 | S01 | 消息模型、消息读写 |
-| S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 未开始 | S01, S06 | 状态迁移、worker 控制 |
+| S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 已完成 | S01, S06 | 状态迁移、worker 控制 |
 | S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 未开始 | P0, S01 | 结构化输出、triage agent |
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 未开始 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
 | S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 未开始 | S03, X1 | trace、metrics、eval |
@@ -231,10 +231,10 @@
 
 | 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S02.1 | `2`, `3`, `6` | 实现 `business_status` 迁移校验 | 未开始 | S01.4, S06.3 | 业务状态机服务 | 非法迁移会被拒绝 |
-| S02.2 | `4`, `5`, `7` | 实现 `processing_status`、lease、领取、续租、回收 | 未开始 | S02.1 | worker 状态控制 | 中断后能重新领取 |
-| S02.3 | `10`, `11` | 实现重试、失败恢复和 reopen 状态转换 | 未开始 | S02.1, S02.2, S06.3 | retry/reopen 逻辑 | 自动重试边界符合 spec |
-| S02.4 | `8`, `9` | 实现 Gmail draft 幂等和人工动作前置状态校验 | 未开始 | S02.1, S06.2 | draft idempotency 与前置校验 | 同一轮执行不重复造草稿 |
+| S02.1 | `2`, `3`, `6` | 实现 `business_status` 迁移校验 | 已完成 | S01.4, S06.3 | 业务状态机服务 | 非法迁移会被拒绝 |
+| S02.2 | `4`, `5`, `7` | 实现 `processing_status`、lease、领取、续租、回收 | 已完成 | S02.1 | worker 状态控制 | 中断后能重新领取 |
+| S02.3 | `10`, `11` | 实现重试、失败恢复和 reopen 状态转换 | 已完成 | S02.1, S02.2, S06.3 | retry/reopen 逻辑 | 自动重试边界符合 spec |
+| S02.4 | `8`, `9` | 实现 Gmail draft 幂等和人工动作前置状态校验 | 已完成 | S02.1, S06.2 | draft idempotency 与前置校验 | 同一轮执行不重复造草稿 |
 
 ### S04. Routing Decision Table
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `S02.1 实现 business_status 迁移校验`
+1. `S04.1 定义 triage 结构化输出模型`
 
 ---
 
@@ -381,3 +381,5 @@
 | 2026-04-01 | 完成 `S01.4`：新增 `src/db/repositories.py`，为 `Ticket`、`TicketRun`、`DraftArtifact`、`HumanReview`、`TraceEvent`、`CustomerMemoryProfile`、`CustomerMemoryEvent` 提供最小可复用 repository 接口与 SQLAlchemy 实现；同时扩展 `TicketStoreProtocol` 和 `SqlAlchemyTicketStore` 暴露 repository bundle，并通过 `tests/test_repositories.py` 验证上层可以不直接写 SQL。 |
 | 2026-04-01 | 完成 `S06.1`：在 `src/core_schema.py` 新增消息方向与消息类型枚举以及 `tm_` 前缀；在 `src/db/models.py` 新增 `TicketMessage` 持久化模型、唯一约束和字段校验，并把 `ticket_messages` repository 接入 `RepositoryBundle`；新增 migration `20260401_0004_ticket_message_schema.py` 与 `tests/test_ticket_messages.py`，验证消息模型可独立持久化。 |
 | 2026-04-01 | 完成 `S06.2/S06.3`：新增 `src/message_log.py`，实现入站客户邮件与草稿类消息的幂等入库、`attachments` 元数据持久化、关闭线程 reopen 时创建新 Ticket 并递增 `reopen_count`，以及按 `message_timestamp asc` 读取 Drafting/QA/Memory 所需消息上下文；通过 `tests/test_message_log_service.py` 覆盖命中激活 Ticket、reopen、新老消息读取与草稿消息日志。 |
+| 2026-04-01 | 完成 `S02.1`：新增 `src/ticket_state_machine.py`，落地 `business_status` 迁移图、非法迁移异常、版本递增、`closed_at` 收口和 `failed -> triaged` 清错规则，并补充 `TicketStateService` 作为后续 API/Graph 的统一迁移入口；通过 `tests/test_ticket_state_machine.py` 覆盖允许迁移、拒绝非法迁移、乐观锁版本校验与服务层按 `ticket_id` 迁移。 |
+| 2026-04-01 | 完成 `S02.2/S02.3/S02.4`：扩展 `src/ticket_state_machine.py`，补齐 `processing_status` 迁移图、领取/续租/启动/租约回收、失败收口与自动重试边界、`failed -> triaged` 恢复、Gmail draft 幂等键复用、以及 `approve/edit_and_approve/reject_for_rewrite/escalate/close` 的前置状态校验与人工动作副作用；同时把路由同步规则收进状态服务，避免只在 ORM flush 时生效。通过 `tests/test_ticket_state_machine.py` 覆盖 lease 冲突、过期回收、失败恢复、自动重试上限、draft 幂等、人工审核动作和编辑后批准新增草稿，最终 `pytest -q` 全量 `64 passed`。 |
