@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from src.db.repositories import RepositoryBundle, build_repository_bundle
 from src.db.session import (
     create_session_factory,
     get_engine,
@@ -38,3 +39,6 @@ class SqlAlchemyTicketStore(TicketStoreProtocol):
 
     def session_scope(self):
         return session_scope(self.session_factory)
+
+    def repositories(self, session: Session) -> RepositoryBundle:
+        return build_repository_bundle(session)

@@ -5,6 +5,8 @@ from typing import Any, ContextManager, Protocol, Sequence
 
 from sqlalchemy.orm import Session
 
+from src.db.repositories import RepositoryBundle
+
 
 @dataclass(frozen=True)
 class KnowledgeAnswer:
@@ -47,4 +49,7 @@ class TicketStoreProtocol(Protocol):
         ...
 
     def session_scope(self) -> ContextManager[Session]:
+        ...
+
+    def repositories(self, session: Session) -> RepositoryBundle:
         ...
