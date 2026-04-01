@@ -93,8 +93,8 @@
 | ID | 类型 | 对应文档 | 当前目标 | 状态 | 前置项 | 主代码范围 |
 | --- | --- | --- | --- | --- | --- | --- |
 | P0 | 基础设施 | 非 spec | 立住配置、provider、测试、DB 基础设施 | 已完成 | 无 | `src/`, `tests/`, 启动与配置文件 |
-| S01 | Spec | `docs/specs/01-core-schema.zh-CN.md` | 落地核心实体和 repository | 未开始 | P0 | 数据模型、repository |
-| S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 未开始 | S01 | 消息模型、消息读写 |
+| S01 | Spec | `docs/specs/01-core-schema.zh-CN.md` | 落地核心实体和 repository | 已完成 | P0 | 数据模型、repository |
+| S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 已完成 | S01 | 消息模型、消息读写 |
 | S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 未开始 | S01, S06 | 状态迁移、worker 控制 |
 | S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 未开始 | P0, S01 | 结构化输出、triage agent |
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 未开始 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
@@ -113,12 +113,12 @@
 
 | 文档 | 覆盖任务 | 当前覆盖状态 | 说明 |
 | --- | --- | --- | --- |
-| `01-core-schema` | `S01`, `S06`, `S02`, `S03`, `X1` | 已建任务，未开始实施 | 这是所有后续实现的基础契约 |
+| `01-core-schema` | `S01`, `S06`, `S02`, `S03`, `X1` | `S01` 已完成，后续依赖可继续推进 | 这是所有后续实现的基础契约 |
 | `02-ticket-state-machine` | `S02`, `S03`, `X1` | 已建任务，未开始实施 | 状态迁移、lease、幂等、重试都在这里落地 |
 | `03-api-contract` | `S03`, `S05`, `X1` | 已建任务，未开始实施 | 覆盖 ticket、memory、trace、metrics 接口，部分接口依赖 graph 和 trace 成型 |
 | `04-routing-decision-table` | `S04`, `X1` | 已建任务，未开始实施 | 先产出 triage 结构化输出，再挂入 graph |
 | `05-trace-and-eval` | `S05`, `X2` | 已建任务，未开始实施 | trace 依赖 API 和 graph 成型后接入 |
-| `06-message-log-schema` | `S06`, `S02`, `S03` | 已建任务，未开始实施 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
+| `06-message-log-schema` | `S06`, `S02`, `S03` | `S06` 已完成，消息持久化基础已具备 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
 
 结论：
 
@@ -196,10 +196,10 @@
 
 | 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S01.1 | `2`, `3`, `4`, `5`, `6`, `7` | 落地全局规则、枚举、ID、时间、版本约束 | 未开始 | P0.4 | 公共类型、枚举、校验逻辑 | 字段和枚举与 spec 对齐，`source_channel` 固定为 `gmail`，并落实 `multi_intent/tags/secondary_routes` 同步规则 |
-| S01.2 | `3`, `4`, `5`, `6`, `7` | 落地 `Ticket`、`TicketRun`、`DraftArtifact`、`HumanReview`、`TraceEvent` | 未开始 | S01.1 | ORM 或 schema 定义 | 唯一约束和必填字段符合 spec，且 `response_quality`、`trajectory_evaluation` 使用 spec 固定结构键，不引入自定义总分键 |
-| S01.3 | `8`, `9` | 落地 `CustomerMemoryProfile`、`CustomerMemoryEvent` 和 `customer_id` 规则 | 未开始 | S01.1 | 记忆数据模型和生成规则 | `customer_id` 推导和空值规则正确，`profile`、`business_flags`、`historical_case_refs` 固定键与结构符合 spec |
-| S01.4 | `10`, `11` | 为核心实体建立 repository 接口与实现 | 未开始 | S01.2, S01.3 | repositories | 上层模块不直接写 SQL |
+| S01.1 | `2`, `3`, `4`, `5`, `6`, `7` | 落地全局规则、枚举、ID、时间、版本约束 | 已完成 | P0.4 | 公共类型、枚举、校验逻辑 | 字段和枚举与 spec 对齐，`source_channel` 固定为 `gmail`，并落实 `multi_intent/tags/secondary_routes` 同步规则 |
+| S01.2 | `3`, `4`, `5`, `6`, `7` | 落地 `Ticket`、`TicketRun`、`DraftArtifact`、`HumanReview`、`TraceEvent` | 已完成 | S01.1 | ORM 或 schema 定义 | 唯一约束和必填字段符合 spec，且 `response_quality`、`trajectory_evaluation` 使用 spec 固定结构键，不引入自定义总分键 |
+| S01.3 | `8`, `9` | 落地 `CustomerMemoryProfile`、`CustomerMemoryEvent` 和 `customer_id` 规则 | 已完成 | S01.1 | 记忆数据模型和生成规则 | `customer_id` 推导和空值规则正确，`profile`、`business_flags`、`historical_case_refs` 固定键与结构符合 spec |
+| S01.4 | `10`, `11` | 为核心实体建立 repository 接口与实现 | 已完成 | S01.2, S01.3 | repositories | 上层模块不直接写 SQL |
 
 ### S06. Message Log Schema
 
@@ -214,9 +214,9 @@
 
 | 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S06.1 | `2`, `3` | 落地 `TicketMessage` schema、唯一约束、字段和枚举 | 未开始 | S01.4 | `TicketMessage` 模型 | 消息模型可独立持久化 |
-| S06.2 | `4` | 实现入站客户邮件和草稿消息入库规则 | 未开始 | S06.1 | 消息写入服务 | 同一消息可幂等入库，并保留 `attachments` 元数据或可复用引用，不在 V1 引入图片内容理解 |
-| S06.3 | `5`, `6`, `7` | 实现 reopen 判定和 Drafting/QA/Memory 的消息读取规则 | 未开始 | S06.2 | 消息查询接口 | 不再把 Gmail 当唯一消息来源 |
+| S06.1 | `2`, `3` | 落地 `TicketMessage` schema、唯一约束、字段和枚举 | 已完成 | S01.4 | `TicketMessage` 模型 | 消息模型可独立持久化 |
+| S06.2 | `4` | 实现入站客户邮件和草稿消息入库规则 | 已完成 | S06.1 | 消息写入服务 | 同一消息可幂等入库，并保留 `attachments` 元数据或可复用引用，不在 V1 引入图片内容理解 |
+| S06.3 | `5`, `6`, `7` | 实现 reopen 判定和 Drafting/QA/Memory 的消息读取规则 | 已完成 | S06.2 | 消息查询接口 | 不再把 Gmail 当唯一消息来源 |
 
 ### S02. Ticket State Machine
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `S01.1 落地全局规则、枚举、ID、时间、版本约束`
+1. `S02.1 实现 business_status 迁移校验`
 
 ---
 
@@ -375,3 +375,9 @@
 | 2026-03-31 | 完成 `P0.1`：新增统一配置层 `src/config.py`，集中管理 Gmail、LLM、知识库、Postgres、LangSmith、API 配置，并将 `main.py`、`deploy_api.py`、`create_index.py`、`src/tools/GmailTools.py`、`src/agents.py` 切换为通过配置模块读取。 |
 | 2026-03-31 | 完成 `P0.2/P0.3/P0.4`：新增 `gmail_client`、`knowledge_provider`、`policy_provider`、`ticket_store` provider 骨架与服务容器；将 `Nodes` 改为通过 provider 访问 Gmail/知识/策略/存储；新增 `tests/`、fixture、样本与最小 `pytest` 测试；引入 `SQLAlchemy + Alembic + psycopg` 的 Postgres 基础设施、首个 bootstrap migration 和 `scripts/init_db.py`。 |
 | 2026-04-01 | 将 LLM 接入统一切换为 OpenAI-compatible 协议：配置改为 `LLM_API_KEY/LLM_BASE_URL/LLM_CHAT_MODEL/LLM_EMBEDDING_MODEL`，生成与嵌入都支持自定义模型；同步更新 `.env.example`、`README.md`、需求文档和技术设计文档，并移除对 `GROQ_API_KEY`、`GOOGLE_API_KEY` 的实现依赖。 |
+| 2026-04-01 | 完成 `S01.1`：新增 `src/core_schema.py`，集中定义 V1 核心枚举、`t_/run_/trace_/draft_/review_/me_` 前缀 ID 生成与校验、时区感知时间工具、版本校验与乐观锁冲突异常；同时补充 `multi_intent/tags/secondary_routes` 同步校验测试，并将默认下一任务推进到 `S01.2`。 |
+| 2026-04-01 | 完成 `S01.2`：在 `src/db/models.py` 新增 `Ticket`、`TicketRun`、`DraftArtifact`、`HumanReview`、`TraceEvent` 五个核心实体及其唯一约束、必填字段、固定 JSON 结构和最小事件元数据校验；新增 Alembic migration `20260401_0002_core_schema_entities.py`，并补充 `tests/test_core_models.py` 覆盖唯一约束、路由同步规则和端到端持久化。 |
+| 2026-04-01 | 完成 `S01.3`：在 `src/core_schema.py` 新增邮箱规范化、alias 归并和 `customer_id` 推导工具；在 `src/db/models.py` 新增 `CustomerMemoryProfile`、`CustomerMemoryEvent` 及固定键/幂等约束；新增 migration `20260401_0003_customer_memory_entities.py`，并通过 `tests/test_customer_memory.py` 验证长期记忆结构、alias 归并和空 `customer_id` 场景。 |
+| 2026-04-01 | 完成 `S01.4`：新增 `src/db/repositories.py`，为 `Ticket`、`TicketRun`、`DraftArtifact`、`HumanReview`、`TraceEvent`、`CustomerMemoryProfile`、`CustomerMemoryEvent` 提供最小可复用 repository 接口与 SQLAlchemy 实现；同时扩展 `TicketStoreProtocol` 和 `SqlAlchemyTicketStore` 暴露 repository bundle，并通过 `tests/test_repositories.py` 验证上层可以不直接写 SQL。 |
+| 2026-04-01 | 完成 `S06.1`：在 `src/core_schema.py` 新增消息方向与消息类型枚举以及 `tm_` 前缀；在 `src/db/models.py` 新增 `TicketMessage` 持久化模型、唯一约束和字段校验，并把 `ticket_messages` repository 接入 `RepositoryBundle`；新增 migration `20260401_0004_ticket_message_schema.py` 与 `tests/test_ticket_messages.py`，验证消息模型可独立持久化。 |
+| 2026-04-01 | 完成 `S06.2/S06.3`：新增 `src/message_log.py`，实现入站客户邮件与草稿类消息的幂等入库、`attachments` 元数据持久化、关闭线程 reopen 时创建新 Ticket 并递增 `reopen_count`，以及按 `message_timestamp asc` 读取 Drafting/QA/Memory 所需消息上下文；通过 `tests/test_message_log_service.py` 覆盖命中激活 Ticket、reopen、新老消息读取与草稿消息日志。 |
