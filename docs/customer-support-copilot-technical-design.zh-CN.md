@@ -509,15 +509,20 @@ proofreader 是当前流程里唯一的质量控制节点。
 
 当前代码里初始化了两类模型：
 
-1. `ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.1)`
-2. `ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1)`
+1. 生成模型曾使用供应商专属 chat SDK。
+2. 嵌入模型曾使用供应商专属 embedding SDK。
 
-实际使用上：
+这类实现的问题是：
 
-1. `llama` 负责分类、查询生成、写作、校对。
-2. Gemini Embedding 负责向量化。
+1. 配置层直接耦合供应商名称。
+2. 切换到 OpenRouter、兼容网关或私有代理时需要改代码。
+3. 聊天模型和嵌入模型分别走不同协议，运维面不统一。
 
-代码里虽然定义了 `gemini` 对话模型实例，但当前主流程没有真正使用它。
+当前设计已统一收敛为：
+
+1. 生成模型统一走 OpenAI-compatible chat 协议。
+2. 嵌入模型统一走 OpenAI-compatible embeddings 协议。
+3. 通过 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_CHAT_MODEL`、`LLM_EMBEDDING_MODEL` 控制，不在 agent 和 node 中写死具体供应商。
 
 ### 2.6.2 分类链
 
@@ -776,7 +781,7 @@ Gmail 查询条件是：
 3. 参数为：
    - `chunk_size = 300`
    - `chunk_overlap = 50`
-4. 使用 Gemini Embedding 向量化。
+4. 使用 OpenAI-compatible embeddings 接口向量化。
 5. 存入本地 Chroma `db/`。
 
 ## 2.9.2 运行期检索

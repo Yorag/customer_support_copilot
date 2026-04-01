@@ -9,6 +9,7 @@ V1 固定技术选择：
 1. 运行追踪：`LangSmith`
 2. 质量评估：`LLM-as-a-judge`
 3. 轨迹评估：规则脚本为主
+4. 生成模型与嵌入模型：OpenAI-compatible 协议，支持自定义 `base_url` 和自定义 `model`
 
 不再保留 `LangSmith` 与 `Langfuse` 二选一表述。
 

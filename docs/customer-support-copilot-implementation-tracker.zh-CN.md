@@ -92,7 +92,7 @@
 
 | ID | 类型 | 对应文档 | 当前目标 | 状态 | 前置项 | 主代码范围 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0 | 基础设施 | 非 spec | 立住配置、provider、测试、DB 基础设施 | 进行中 | 无 | `src/`, `tests/`, 启动与配置文件 |
+| P0 | 基础设施 | 非 spec | 立住配置、provider、测试、DB 基础设施 | 已完成 | 无 | `src/`, `tests/`, 启动与配置文件 |
 | S01 | Spec | `docs/specs/01-core-schema.zh-CN.md` | 落地核心实体和 repository | 未开始 | P0 | 数据模型、repository |
 | S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 未开始 | S01 | 消息模型、消息读写 |
 | S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 未开始 | S01, S06 | 状态迁移、worker 控制 |
@@ -178,10 +178,10 @@
 | 子任务 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- |
 | P0.0 | 冻结本轮实施边界并建立跟踪文档 | 已完成 | 无 | 本文档初版与 spec-first 重排 | 已明确仅做 V1，已建立主跟踪表 |
-| P0.1 | 引入统一配置层 | 未开始 | P0.0 | 配置模块、环境变量校验 | 代码不再到处直接读取环境变量，并为 Gmail、LLM、DB、`LangSmith` 预留统一配置入口 |
-| P0.2 | 引入 provider 接口骨架 | 未开始 | P0.1 | `gmail_client`、`knowledge_provider`、`policy_provider`、`ticket_store` 抽象 | Graph/Agent 不直接依赖 Gmail/Chroma 细节，`knowledge_provider` 默认保留当前本地 RAG，实现上预留未来 `RAG MCP` 接口而不重写知识层 |
-| P0.3 | 建立测试骨架与样本目录 | 未开始 | P0.0 | `tests/`、fixture、假数据 | 最小 `pytest` 可运行，后续测试有落点 |
-| P0.4 | 建立数据库和 migration 基础设施 | 未开始 | P0.1, P0.2 | `Postgres` 初始化、migration 工具与首个 migration | V1 存储唯一选型固定为 `Postgres`，本地可以初始化数据库，不靠手工 SQL 粘贴 |
+| P0.1 | 引入统一配置层 | 已完成 | P0.0 | 配置模块、环境变量校验 | 代码不再到处直接读取环境变量，并为 Gmail、LLM、DB、`LangSmith` 预留统一配置入口 |
+| P0.2 | 引入 provider 接口骨架 | 已完成 | P0.1 | `gmail_client`、`knowledge_provider`、`policy_provider`、`ticket_store` 抽象 | Graph/Agent 不直接依赖 Gmail/Chroma 细节，`knowledge_provider` 默认保留当前本地 RAG，实现上预留未来 `RAG MCP` 接口而不重写知识层 |
+| P0.3 | 建立测试骨架与样本目录 | 已完成 | P0.0 | `tests/`、fixture、假数据 | 最小 `pytest` 可运行，后续测试有落点 |
+| P0.4 | 建立数据库和 migration 基础设施 | 已完成 | P0.1, P0.2 | `Postgres` 初始化、migration 工具与首个 migration | V1 存储唯一选型固定为 `Postgres`，本地可以初始化数据库，不靠手工 SQL 粘贴 |
 
 ### S01. Core Schema
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `P0.1 引入统一配置层`
+1. `S01.1 落地全局规则、枚举、ID、时间、版本约束`
 
 ---
 
@@ -372,3 +372,6 @@
 | 2026-03-31 | 补齐 `LangSmith` 固定选型、API 通用请求头与标准错误码、以及 `memory_updates` 抽取/校验链路要求。 |
 | 2026-03-31 | 明确主跟踪表不作为执行顺序来源，默认推进改为按第 6 节子任务顺序；同时把 `Postgres`、本地 RAG 默认实现和剩余标准错误码补成硬约束。 |
 | 2026-03-31 | 将 `attachments`、`multi_intent` 同步规则，以及 `response_quality`、`trajectory_evaluation`、`profile`、`business_flags` 等固定结构补入验收标准。 |
+| 2026-03-31 | 完成 `P0.1`：新增统一配置层 `src/config.py`，集中管理 Gmail、LLM、知识库、Postgres、LangSmith、API 配置，并将 `main.py`、`deploy_api.py`、`create_index.py`、`src/tools/GmailTools.py`、`src/agents.py` 切换为通过配置模块读取。 |
+| 2026-03-31 | 完成 `P0.2/P0.3/P0.4`：新增 `gmail_client`、`knowledge_provider`、`policy_provider`、`ticket_store` provider 骨架与服务容器；将 `Nodes` 改为通过 provider 访问 Gmail/知识/策略/存储；新增 `tests/`、fixture、样本与最小 `pytest` 测试；引入 `SQLAlchemy + Alembic + psycopg` 的 Postgres 基础设施、首个 bootstrap migration 和 `scripts/init_db.py`。 |
+| 2026-04-01 | 将 LLM 接入统一切换为 OpenAI-compatible 协议：配置改为 `LLM_API_KEY/LLM_BASE_URL/LLM_CHAT_MODEL/LLM_EMBEDDING_MODEL`，生成与嵌入都支持自定义模型；同步更新 `.env.example`、`README.md`、需求文档和技术设计文档，并移除对 `GROQ_API_KEY`、`GOOGLE_API_KEY` 的实现依赖。 |

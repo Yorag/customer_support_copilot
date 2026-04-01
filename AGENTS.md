@@ -23,4 +23,4 @@ No automated test suite is checked in yet. For new work, add `pytest` tests unde
 Recent history uses short imperative commit messages such as `Updated README` and `Updated prompts and naming`. Keep that style, but make messages more specific, for example: `Add technical issue clarification template`. PRs should include a clear summary, affected paths, config changes, manual test notes, and screenshots only when UI or diagrams change.
 
 ## Security & Configuration Tips
-Do not commit `.env`, `credentials.json`, `token.json`, or real customer data. Required environment variables include `MY_EMAIL`, `GROQ_API_KEY`, and `GOOGLE_API_KEY`. Treat `db/` as local development state unless a change explicitly requires regenerating the index.
+Do not commit `.env`, `credentials.json`, `token.json`, or real customer data. Required environment variables include `MY_EMAIL` and `LLM_API_KEY`; `LLM_BASE_URL` plus model names are configurable for OpenAI-compatible providers. Treat `db/` as local development state unless a change explicitly requires regenerating the index.

@@ -30,6 +30,13 @@ V1 存储唯一选型固定为 `Postgres`。
 2. 所有更新都必须做乐观锁校验
 3. 版本冲突统一返回 `409 conflict`
 
+### 2.4 LLM 接入约束
+
+1. V1 的生成模型与嵌入模型统一通过 OpenAI-compatible 协议访问。
+2. 必须支持通过配置指定 `base_url`。
+3. 必须支持通过配置指定 chat `model` 与 embedding `model`。
+4. 持久化和 trace 中只记录实际 `model` 标识，不把具体供应商名称写死为 schema 常量。
+
 ---
 
 ## 3. Ticket

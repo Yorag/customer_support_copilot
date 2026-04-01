@@ -56,7 +56,7 @@ This is the detailed flow of the system:
 
 * Langchain & Langgraph: for developing AI agents workflow.
 * Langserve: simplify API development & deployment (using FastAPI).
-* Groq and Gemini APIs: for LLMs access.
+* OpenAI-compatible API: for chat and embedding access.
 * Google Gmail API
 
 ## How to Run
@@ -64,8 +64,8 @@ This is the detailed flow of the system:
 ### Prerequisites
 
 - Python 3.7+
-- Groq api key
-- Google Gemini api key (for embeddings)
+- OpenAI-compatible API key
+- Optional custom OpenAI-compatible base URL
 - Gmail API credentials
 - Necessary Python libraries (listed in `requirements.txt`)
 
@@ -93,12 +93,14 @@ This is the detailed flow of the system:
 
 4. **Set up environment variables:**
 
-   Create a `.env` file in the root directory of the project and add your GMAIL address, we are using the Groq llama-3.1-70b model and the Google gemini embedding model so you must also get API keys to access them:
+   Create a `.env` file in the root directory of the project and add your GMAIL address. The project now uses an OpenAI-compatible protocol for both chat generation and embeddings, and supports custom `base_url` and custom model names:
 
    ```env
    MY_EMAIL=your_email@gmail.com
-   GROQ_API_KEY=your_groq_api_key
-   GOOGLE_API_KEY=your_gemini_api_key
+   LLM_API_KEY=your_api_key
+   LLM_BASE_URL=https://api.openai.com/v1
+   LLM_CHAT_MODEL=gpt-4o-mini
+   LLM_EMBEDDING_MODEL=text-embedding-3-small
    ```
 
 5. **Ensure Gmail API is enabled:**
