@@ -33,6 +33,50 @@ class VersionConflictError(CoreSchemaError):
         self.actual = actual
 
 
+class InvalidStateTransitionError(CoreSchemaError):
+    """Raised when a persisted state transition violates the workflow spec."""
+
+    def __init__(
+        self,
+        *,
+        entity: str,
+        current_status: str,
+        target_status: str,
+        reason: str | None = None,
+        allowed_transitions: Sequence[str] | None = None,
+    ) -> None:
+        message = (
+            f"{entity} cannot transition from `{current_status}` to "
+            f"`{target_status}`."
+        )
+        if allowed_transitions:
+            allowed_text = ", ".join(allowed_transitions)
+            message = f"{message} Allowed transitions: {allowed_text}."
+        if reason:
+            message = f"{message} {reason}"
+        super().__init__(message)
+        self.entity = entity
+        self.current_status = current_status
+        self.target_status = target_status
+        self.reason = reason
+        self.allowed_transitions = tuple(allowed_transitions or ())
+
+
+class LeaseConflictError(CoreSchemaError):
+    """Raised when a worker attempts to act on a ticket without a valid lease."""
+
+    def __init__(
+        self,
+        *,
+        ticket_id: str,
+        message: str,
+        lease_owner: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.ticket_id = ticket_id
+        self.lease_owner = lease_owner
+
+
 class EntityIdPrefix(StringEnum):
     TICKET = "t"
     RUN = "run"
