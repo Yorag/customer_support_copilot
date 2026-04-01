@@ -1,14 +1,11 @@
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from dotenv import load_dotenv
-
-# Load environment variables from a .env file
-load_dotenv()
+from src.config import INDEX_REQUIRED_SETTINGS, validate_required_settings
+from src.llm import build_chat_model, build_embedding_model
 
 RAG_SEARCH_PROMPT_TEMPLATE = """
 Using the following pieces of retrieved context, answer the question comprehensively and concisely.
@@ -22,35 +19,46 @@ Question: {question}
 Context: {context}
 """
 
-print("Loading & Chunking Docs...")
-loader = TextLoader("./data/agency.txt")
-docs = loader.load()
+def main() -> None:
+    settings = validate_required_settings(INDEX_REQUIRED_SETTINGS)
 
-doc_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-doc_chunks = doc_splitter.split_documents(docs)
+    print("Loading & Chunking Docs...")
+    loader = TextLoader(str(settings.knowledge.source_document_path))
+    docs = loader.load()
 
-print("Creating vector embeddings...")
-embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    doc_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+    doc_chunks = doc_splitter.split_documents(docs)
 
-vectorstore = Chroma.from_documents(doc_chunks, embeddings, persist_directory="db")
+    print("Creating vector embeddings...")
+    embeddings = build_embedding_model()
 
-# Semantic vector search
-vectorstore_retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    vectorstore = Chroma.from_documents(
+        doc_chunks,
+        embeddings,
+        persist_directory=str(settings.knowledge.chroma_persist_directory),
+    )
 
-# Test RAG chain
-print("Test RAG chain...")
-prompt = ChatPromptTemplate.from_template(RAG_SEARCH_PROMPT_TEMPLATE)
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1)
+    vectorstore_retriever = vectorstore.as_retriever(
+        search_kwargs={"k": settings.knowledge.retriever_k}
+    )
 
-rag_chain = (
-    {"context": vectorstore_retriever, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+    print("Test RAG chain...")
+    prompt = ChatPromptTemplate.from_template(RAG_SEARCH_PROMPT_TEMPLATE)
+    llm = build_chat_model(temperature=0.1)
 
-query = "What are your pricing options?"
-result = rag_chain.invoke(query)
-print(f"Question: {query}")
-print(f"Answer: {result}")
+    rag_chain = (
+        {"context": vectorstore_retriever, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    query = "What are your pricing options?"
+    result = rag_chain.invoke(query)
+    print(f"Question: {query}")
+    print(f"Answer: {result}")
+
+
+if __name__ == "__main__":
+    main()
 

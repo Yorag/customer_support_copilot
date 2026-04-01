@@ -3,10 +3,10 @@ from .state import GraphState
 from .nodes import Nodes
 
 class Workflow():
-    def __init__(self):
+    def __init__(self, nodes=None):
         # initiate graph state & nodes
         workflow = StateGraph(GraphState)
-        nodes = Nodes()
+        nodes = nodes or Nodes()
 
         # define all graph nodes
         workflow.add_node("load_inbox_emails", nodes.load_new_emails)

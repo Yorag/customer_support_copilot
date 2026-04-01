@@ -1,8 +1,7 @@
 langchain-core
 langchain_community 
 langgraph 
-langchain-groq 
-langchain_google_genai
+langchain-openai
 langchain_chroma
 chromadb
 google-api-python-client
@@ -16,3 +15,7 @@ sse_starlette
 uvicorn
 gunicorn
 fastapi
+sqlalchemy
+alembic
+psycopg[binary]
+pytest

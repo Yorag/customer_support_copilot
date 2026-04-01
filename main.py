@@ -1,26 +1,18 @@
 from colorama import Fore, Style
+from src.config import RUNTIME_REQUIRED_SETTINGS, validate_required_settings
 from src.graph import Workflow
-from dotenv import load_dotenv
 
-# Load all env variables
-load_dotenv()
 
-# config 
-config = {'recursion_limit': 100}
-
-workflow = Workflow()
-app = workflow.app
-
-initial_state = {
+INITIAL_STATE = {
     "emails": [],
     "current_email": {
-      "id": "",
-      "threadId": "",
-      "messageId": "",
-      "references": "",
-      "sender": "",
-      "subject": "",
-      "body": ""
+        "id": "",
+        "threadId": "",
+        "messageId": "",
+        "references": "",
+        "sender": "",
+        "subject": "",
+        "body": "",
     },
     "email_category": "",
     "generated_email": "",
@@ -28,13 +20,23 @@ initial_state = {
     "retrieved_documents": "",
     "writer_messages": [],
     "sendable": False,
-    "trials": 0
+    "trials": 0,
 }
 
-# Run the automation
-print(Fore.GREEN + "Starting workflow..." + Style.RESET_ALL)
-for output in app.stream(initial_state, config):
-    for key, value in output.items():
-        print(Fore.CYAN + f"Finished running: {key}:" + Style.RESET_ALL)
+
+def main() -> None:
+    settings = validate_required_settings(RUNTIME_REQUIRED_SETTINGS)
+    config = {"recursion_limit": settings.app.graph_recursion_limit}
+    workflow = Workflow()
+    app = workflow.app
+
+    print(Fore.GREEN + "Starting workflow..." + Style.RESET_ALL)
+    for output in app.stream(INITIAL_STATE, config):
+        for key, value in output.items():
+            print(Fore.CYAN + f"Finished running: {key}:" + Style.RESET_ALL)
+
+
+if __name__ == "__main__":
+    main()
 
 

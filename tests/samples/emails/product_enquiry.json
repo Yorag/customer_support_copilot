@@ -1,0 +1,9 @@
+{
+  "id": "email_001",
+  "threadId": "thread_001",
+  "messageId": "<message_001@example.com>",
+  "references": "",
+  "sender": "customer@example.com",
+  "subject": "Pricing question",
+  "body": "Can you explain the pricing options for annual billing?"
+}
