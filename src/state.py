@@ -16,6 +16,7 @@ class GraphState(TypedDict):
     emails: List[Email]
     current_email: Email
     email_category: str
+    triage_result: dict
     generated_email: str
     rag_queries: List[str]
     retrieved_documents: str

@@ -96,7 +96,7 @@
 | S01 | Spec | `docs/specs/01-core-schema.zh-CN.md` | 落地核心实体和 repository | 已完成 | P0 | 数据模型、repository |
 | S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 已完成 | S01 | 消息模型、消息读写 |
 | S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 已完成 | S01, S06 | 状态迁移、worker 控制 |
-| S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 未开始 | P0, S01 | 结构化输出、triage agent |
+| S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 已完成 | P0, S01 | 结构化输出、triage agent |
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 未开始 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
 | S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 未开始 | S03, X1 | trace、metrics、eval |
 | X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 未开始 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
@@ -116,7 +116,7 @@
 | `01-core-schema` | `S01`, `S06`, `S02`, `S03`, `X1` | `S01` 已完成，后续依赖可继续推进 | 这是所有后续实现的基础契约 |
 | `02-ticket-state-machine` | `S02`, `S03`, `X1` | 已建任务，未开始实施 | 状态迁移、lease、幂等、重试都在这里落地 |
 | `03-api-contract` | `S03`, `S05`, `X1` | 已建任务，未开始实施 | 覆盖 ticket、memory、trace、metrics 接口，部分接口依赖 graph 和 trace 成型 |
-| `04-routing-decision-table` | `S04`, `X1` | 已建任务，未开始实施 | 先产出 triage 结构化输出，再挂入 graph |
+| `04-routing-decision-table` | `S04`, `X1` | `S04` 已完成，`X1` 可继续推进 | 已产出 triage 结构化输出、规则决策服务、prompt 与样例测试 |
 | `05-trace-and-eval` | `S05`, `X2` | 已建任务，未开始实施 | trace 依赖 API 和 graph 成型后接入 |
 | `06-message-log-schema` | `S06`, `S02`, `S03` | `S06` 已完成，消息持久化基础已具备 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
 
@@ -249,10 +249,10 @@
 
 | 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S04.1 | `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `11` | 定义 triage 结构化输出模型 | 未开始 | P0.2, S01.2 | 新输出模型 | 输出字段与 JSON 模板一致 |
-| S04.2 | `3`, `4`, `5`, `6`, `7`, `8`, `9` | 实现决策服务和规则解释层 | 未开始 | S04.1 | 路由决策服务 | 主路由、优先级、澄清、升级判断一致 |
-| S04.3 | `10`, `11`, `12` | 改造 `Triage Agent` prompt 与结构化输出 | 未开始 | S04.1, S04.2 | 新 triage agent | 边界样例可跑通 |
-| S04.4 | `10`, `12` | 增加 triage 样例测试和冲突优先级测试 | 未开始 | S04.3, P0.3 | 路由测试 | 多条件冲突时路径稳定 |
+| S04.1 | `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `11` | 定义 triage 结构化输出模型 | 已完成 | P0.2, S01.2 | 新输出模型 | 输出字段与 JSON 模板一致 |
+| S04.2 | `3`, `4`, `5`, `6`, `7`, `8`, `9` | 实现决策服务和规则解释层 | 已完成 | S04.1 | 路由决策服务 | 主路由、优先级、澄清、升级判断一致 |
+| S04.3 | `10`, `11`, `12` | 改造 `Triage Agent` prompt 与结构化输出 | 已完成 | S04.1, S04.2 | 新 triage agent | 边界样例可跑通 |
+| S04.4 | `10`, `12` | 增加 triage 样例测试和冲突优先级测试 | 已完成 | S04.3, P0.3 | 路由测试 | 多条件冲突时路径稳定 |
 
 ### S03. API Contract
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `S04.1 定义 triage 结构化输出模型`
+1. `S03.1 搭建 FastAPI 业务骨架、DTO 校验、请求头处理、错误格式、版本控制与幂等处理约定`
 
 ---
 
@@ -383,3 +383,5 @@
 | 2026-04-01 | 完成 `S06.2/S06.3`：新增 `src/message_log.py`，实现入站客户邮件与草稿类消息的幂等入库、`attachments` 元数据持久化、关闭线程 reopen 时创建新 Ticket 并递增 `reopen_count`，以及按 `message_timestamp asc` 读取 Drafting/QA/Memory 所需消息上下文；通过 `tests/test_message_log_service.py` 覆盖命中激活 Ticket、reopen、新老消息读取与草稿消息日志。 |
 | 2026-04-01 | 完成 `S02.1`：新增 `src/ticket_state_machine.py`，落地 `business_status` 迁移图、非法迁移异常、版本递增、`closed_at` 收口和 `failed -> triaged` 清错规则，并补充 `TicketStateService` 作为后续 API/Graph 的统一迁移入口；通过 `tests/test_ticket_state_machine.py` 覆盖允许迁移、拒绝非法迁移、乐观锁版本校验与服务层按 `ticket_id` 迁移。 |
 | 2026-04-01 | 完成 `S02.2/S02.3/S02.4`：扩展 `src/ticket_state_machine.py`，补齐 `processing_status` 迁移图、领取/续租/启动/租约回收、失败收口与自动重试边界、`failed -> triaged` 恢复、Gmail draft 幂等键复用、以及 `approve/edit_and_approve/reject_for_rewrite/escalate/close` 的前置状态校验与人工动作副作用；同时把路由同步规则收进状态服务，避免只在 ORM flush 时生效。通过 `tests/test_ticket_state_machine.py` 覆盖 lease 冲突、过期回收、失败恢复、自动重试上限、draft 幂等、人工审核动作和编辑后批准新增草稿，最终 `pytest -q` 全量 `64 passed`。 |
+| 2026-04-01 | 完成 `S04.1`：重写 `src/structure_outputs.py`，新增 `TriageOutput` 结构化输出模型并复用 `src/core_schema.py` 中的 `primary_route/secondary_routes/tags/response_strategy/priority` 枚举；补齐 `secondary_routes <= 2`、`tags <= 5`、`intent_confidence` 区间、`multi_intent` 与 `multi_intent` 标签同步、`needs_clarification/needs_escalation` 标签同步、低置信强制升级、以及 `needs_clarification` 仅适用于 `technical_issue` 等校验；新增 `tests/test_triage_outputs.py` 覆盖 spec 示例、多意图去重与关键非法样例，并通过 `pytest -q` 全量 `71 passed`。 |
+| 2026-04-02 | 完成 `S04.2/S04.3/S04.4`：新增 `src/triage.py`，实现基于 spec 的 `TriageDecisionService`、冲突优先级、标签生成、`needs_clarification`/`needs_escalation`/`priority` 规则与解释层；在 `src/prompts.py`/`src/agents.py` 增加 `Triage Agent` prompt、`triage_email` 结构化输出链和本地规则兜底入口；在 `src/nodes.py`/`src/state.py` 增加最小 triage 挂点与旧分类兼容映射，并扩展 `src/tools/policy_provider.py` 支持新路由枚举；新增 `tests/samples/triage_cases.json`、`tests/test_triage_service.py`、`tests/test_triage_outputs.py` 和 `tests/test_nodes.py` 覆盖边界样例、冲突优先级与挂点兼容性，最终 `pytest -q` 全量 `86 passed`。 |

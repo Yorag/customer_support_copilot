@@ -1,6 +1,7 @@
 from colorama import Fore, Style
 from .state import GraphState, Email
 from .tools.service_container import get_service_container
+from .triage import TriageContext
 
 
 class Nodes:
@@ -50,6 +51,30 @@ class Nodes:
             "current_email": current_email
         }
 
+    def triage_email(self, state: GraphState) -> GraphState:
+        """Runs the V1 triage decision service and returns structured routing data."""
+        print(Fore.YELLOW + "Running structured triage...\n" + Style.RESET_ALL)
+        current_email = state["emails"][-1]
+        decision = self.agents.triage_email_with_rules(
+            subject=current_email.subject,
+            email=current_email.body,
+            context=TriageContext(),
+        )
+        triage_output = decision.output.model_dump(mode="json")
+        print(
+            Fore.MAGENTA
+            + f"Triage route: {triage_output['primary_route']}"
+            + Style.RESET_ALL
+        )
+
+        return {
+            "current_email": current_email,
+            "triage_result": triage_output,
+            "email_category": self._map_route_to_legacy_category(
+                triage_output["primary_route"]
+            ),
+        }
+
     def route_email_based_on_category(self, state: GraphState) -> str:
         """Routes the email based on its category."""
         print(Fore.YELLOW + "Routing email based on category...\n" + Style.RESET_ALL)
@@ -60,6 +85,16 @@ class Nodes:
             return "unrelated"
         else:
             return "not product related"
+
+    def route_email_based_on_triage(self, state: GraphState) -> str:
+        """Routes the email using the spec-aligned triage primary route."""
+        print(Fore.YELLOW + "Routing email based on triage...\n" + Style.RESET_ALL)
+        primary_route = state["triage_result"]["primary_route"]
+        if primary_route == "knowledge_request":
+            return "product related"
+        if primary_route == "unrelated":
+            return "unrelated"
+        return "not product related"
 
     def construct_rag_queries(self, state: GraphState) -> GraphState:
         """Constructs RAG queries based on the email content."""
@@ -166,3 +201,14 @@ class Nodes:
         print("Skipping unrelated email...\n")
         state["emails"].pop()
         return state
+
+    def _map_route_to_legacy_category(self, primary_route: str) -> str:
+        if primary_route == "knowledge_request":
+            return "product_enquiry"
+        if primary_route == "technical_issue":
+            return "customer_complaint"
+        if primary_route == "commercial_policy_request":
+            return "customer_complaint"
+        if primary_route == "feedback_intake":
+            return "customer_feedback"
+        return "unrelated"

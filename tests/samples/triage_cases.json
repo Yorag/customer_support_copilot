@@ -1,0 +1,81 @@
+[
+  {
+    "name": "knowledge_sso_support",
+    "subject": "SSO support",
+    "body": "Professional edition supports SSO? How do I configure it?",
+    "expected": {
+      "primary_route": "knowledge_request",
+      "secondary_routes": [],
+      "response_strategy": "answer",
+      "needs_clarification": false,
+      "needs_escalation": false
+    }
+  },
+  {
+    "name": "technical_sso_failure",
+    "subject": "SSO login keeps failing",
+    "body": "I followed your SSO docs and configured SAML, but login keeps failing for our workspace. I expected team members to sign in, but instead we get an error page.",
+    "expected": {
+      "primary_route": "technical_issue",
+      "secondary_routes": [],
+      "response_strategy": "troubleshooting",
+      "needs_clarification": false
+    }
+  },
+  {
+    "name": "billing_question",
+    "subject": "Why is my bill higher?",
+    "body": "Why is this month's bill higher than last month? Please explain the charges on my invoice.",
+    "expected": {
+      "primary_route": "commercial_policy_request",
+      "secondary_routes": [],
+      "response_strategy": "policy_constrained",
+      "tags_contains": ["billing_question"]
+    }
+  },
+  {
+    "name": "billing_plus_technical_conflict",
+    "subject": "Upgrade error and duplicate charge",
+    "body": "When I upgraded our plan the page failed and I was charged twice. Please explain the bill and fix the upgrade issue.",
+    "expected": {
+      "primary_route": "commercial_policy_request",
+      "secondary_routes": ["technical_issue"],
+      "response_strategy": "policy_constrained",
+      "multi_intent": true,
+      "tags_contains": ["billing_question", "multi_intent", "needs_escalation"]
+    }
+  },
+  {
+    "name": "feedback_feature_request",
+    "subject": "Report filters are frustrating",
+    "body": "The new report page is hard to use and frustrating. Please add region filters.",
+    "expected": {
+      "primary_route": "feedback_intake",
+      "secondary_routes": [],
+      "response_strategy": "acknowledgement",
+      "tags_contains": ["feature_request", "complaint"]
+    }
+  },
+  {
+    "name": "unrelated_partnership",
+    "subject": "SEO partnership",
+    "body": "We provide overseas SEO services and would like to discuss a partnership with your team.",
+    "expected": {
+      "primary_route": "unrelated",
+      "secondary_routes": [],
+      "response_strategy": "acknowledgement"
+    }
+  },
+  {
+    "name": "technical_missing_diagnostics",
+    "subject": "API issue",
+    "body": "Your API is broken and not working for us.",
+    "expected": {
+      "primary_route": "technical_issue",
+      "secondary_routes": [],
+      "response_strategy": "troubleshooting",
+      "needs_clarification": true,
+      "tags_contains": ["needs_clarification"]
+    }
+  }
+]

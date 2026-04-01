@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from src.nodes import Nodes
 from src.state import Email
 from src.tools.types import KnowledgeAnswer
+from src.structure_outputs import TriageOutput
 
 
 class FakeGmailClient:
@@ -49,6 +50,20 @@ class FakeAgents:
         self.categorize_email = SimpleNamespace(
             invoke=lambda _: SimpleNamespace(category=SimpleNamespace(value="product_enquiry"))
         )
+        self.triage_email = SimpleNamespace(
+            invoke=lambda _: TriageOutput(
+                primary_route="knowledge_request",
+                secondary_routes=[],
+                tags=[],
+                response_strategy="answer",
+                multi_intent=False,
+                intent_confidence=0.91,
+                priority="medium",
+                needs_clarification=False,
+                needs_escalation=False,
+                routing_reason="Customer asks about product usage.",
+            )
+        )
         self.design_rag_queries = SimpleNamespace(
             invoke=lambda _: SimpleNamespace(queries=["pricing", "annual billing"])
         )
@@ -59,6 +74,22 @@ class FakeAgents:
         )
         self.email_proofreader = SimpleNamespace(
             invoke=lambda _: SimpleNamespace(send=True, feedback="looks good")
+        )
+
+    def triage_email_with_rules(self, *, subject, email, context=None):
+        return SimpleNamespace(
+            output=TriageOutput(
+                primary_route="knowledge_request",
+                secondary_routes=[],
+                tags=[],
+                response_strategy="answer",
+                multi_intent=False,
+                intent_confidence=0.91,
+                priority="medium",
+                needs_clarification=False,
+                needs_escalation=False,
+                routing_reason="Customer asks about product usage.",
+            )
         )
 
 
@@ -106,3 +137,40 @@ def test_create_draft_response_uses_gmail_provider(sample_email_payload):
 
     assert result == {"retrieved_documents": "", "trials": 0}
     assert gmail_client.created_drafts == [(email, "Here is the answer")]
+
+
+def test_triage_email_returns_structured_output_and_legacy_category(sample_email_payload):
+    gmail_client = FakeGmailClient(emails=[sample_email_payload])
+    nodes = Nodes(agents=FakeAgents(), service_container=FakeServices(gmail_client))
+
+    result = nodes.triage_email({"emails": [Email(**sample_email_payload)]})
+
+    assert result["current_email"].subject == "Pricing question"
+    assert result["triage_result"]["primary_route"] == "knowledge_request"
+    assert result["email_category"] == "product_enquiry"
+
+
+def test_route_email_based_on_triage_uses_primary_route():
+    nodes = Nodes(
+        agents=FakeAgents(),
+        service_container=FakeServices(FakeGmailClient()),
+    )
+
+    assert (
+        nodes.route_email_based_on_triage(
+            {"triage_result": {"primary_route": "knowledge_request"}}
+        )
+        == "product related"
+    )
+    assert (
+        nodes.route_email_based_on_triage(
+            {"triage_result": {"primary_route": "unrelated"}}
+        )
+        == "unrelated"
+    )
+    assert (
+        nodes.route_email_based_on_triage(
+            {"triage_result": {"primary_route": "feedback_intake"}}
+        )
+        == "not product related"
+    )
