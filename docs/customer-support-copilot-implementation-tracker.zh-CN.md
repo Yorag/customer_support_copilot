@@ -97,9 +97,9 @@
 | S06 | Spec | `docs/specs/06-message-log-schema.zh-CN.md` | 落地消息日志与 reopen 读写规则 | 已完成 | S01 | 消息模型、消息读写 |
 | S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 已完成 | S01, S06 | 状态迁移、worker 控制 |
 | S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 已完成 | P0, S01 | 结构化输出、triage agent |
-| S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 进行中 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
+| S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 已完成 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
 | S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 已完成 | S03, X1 | trace、metrics、eval |
-| X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 进行中 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
+| X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 已完成 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
 | X2 | 交付 | 跨 spec | 完成 README、流程图、Demo | 未开始 | S03, S05, X1 | `README.md`, `docs/`, 演示材料 |
 
 说明：
@@ -114,10 +114,10 @@
 | 文档 | 覆盖任务 | 当前覆盖状态 | 说明 |
 | --- | --- | --- | --- |
 | `01-core-schema` | `S01`, `S06`, `S02`, `S03`, `X1` | `S01` 已完成，后续依赖可继续推进 | 这是所有后续实现的基础契约 |
-| `02-ticket-state-machine` | `S02`, `S03`, `X1` | 已建任务，未开始实施 | 状态迁移、lease、幂等、重试都在这里落地 |
-| `03-api-contract` | `S03`, `S05`, `X1` | `S03` 进行中，`S05/X1` 仍待补齐 | 覆盖 ticket、memory、trace、metrics 接口，部分接口依赖 graph 和 trace 成型 |
-| `04-routing-decision-table` | `S04`, `X1` | `S04` 已完成，`X1` 可继续推进 | 已产出 triage 结构化输出、规则决策服务、prompt 与样例测试 |
-| `05-trace-and-eval` | `S05`, `X2` | 已建任务，未开始实施 | trace 依赖 API 和 graph 成型后接入 |
+| `02-ticket-state-machine` | `S02`, `S03`, `X1` | `S02` 已完成，相关 API 与 graph 集成已完成 | 状态迁移、lease、幂等、重试都已落地 |
+| `03-api-contract` | `S03`, `S05`, `X1` | `S03` 已完成，`S05/X1` 已完成 | ticket、memory、trace、metrics 接口已对齐当前 V1 契约 |
+| `04-routing-decision-table` | `S04`, `X1` | `S04` 已完成，`X1` 已完成 | 已产出 triage 结构化输出、规则决策服务、prompt 与样例测试 |
+| `05-trace-and-eval` | `S05`, `X2` | `S05` 已完成，`X2` 待开始 | trace、指标和离线评测已可用，后续进入交付整理 |
 | `06-message-log-schema` | `S06`, `S02`, `S03` | `S06` 已完成，消息持久化基础已具备 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
 
 结论：
@@ -272,8 +272,8 @@
 | S03.3 | `4`, `14` | 实现 `POST /tickets/{ticket_id}/run` | 已完成 | S03.1, S02.2, X1.3 | run 接口 | 可以触发真正的 ticket 执行流，并返回 run 结果摘要 |
 | S03.4 | `5`, `6`, `7`, `8`, `9`, `14` | 实现人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close` | 已完成 | S03.2, S03.3, S02.4, X1.4 | 人工动作接口 | 所有前置状态、版本与返回体符合契约 |
 | S03.5 | `12` | 实现 `GET /customers/{customer_id}/memory` | 已完成 | S01.3, X1.4, S03.1 | memory 查询接口 | 返回 `profile`、`risk_tags`、`business_flags`、`historical_case_refs`、`version` |
-| S03.6 | `11`, `14` | 实现 `GET /tickets/{ticket_id}/trace` | 进行中 | S03.1, S05.2 | trace 查询接口 | 返回 `trace_id`、延迟、资源、质量、轨迹评估和事件明细 |
-| S03.7 | `13` | 实现 `GET /metrics/summary` | 进行中 | S03.1, S05.3 | metrics 汇总接口 | 可按时间窗口和 route 输出 latency、resources、response_quality、trajectory_evaluation 汇总 |
+| S03.6 | `11`, `14` | 实现 `GET /tickets/{ticket_id}/trace` | 已完成 | S03.1, S05.2 | trace 查询接口 | 返回 `trace_id`、延迟、资源、质量、轨迹评估和事件明细 |
+| S03.7 | `13` | 实现 `GET /metrics/summary` | 已完成 | S03.1, S05.3 | metrics 汇总接口 | 可按时间窗口和 route 输出 latency、resources、response_quality、trajectory_evaluation 汇总 |
 
 ### S05. Trace And Eval
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `S03.4 实现人工动作接口：approve、edit-and-approve、rewrite、escalate、close`
+1. `X2.1 重写 README，更新定位、架构、启动方式、V1/V2 边界`
 
 ---
 
@@ -391,3 +391,4 @@
 | 2026-04-02 | 完成 `S03.3/X1.4`：确认 `POST /tickets/{ticket_id}/run` 已触发真实 ticket workflow 后，将跟踪状态回填为 `S03.3 已完成`；新增 `src/customer_memory.py`，实现 `collect_case_context -> extract_memory_updates -> validate_memory_updates -> apply_memory_updates`，并在 `src/graph.py`/`src/nodes.py` 将其接入 `create_gmail_draft`、`clarify_request`、`escalate_to_human`、`close_ticket` 收尾路径，同时在 `src/api/services.py` 为 `escalate` 与 `close` 动作补充长期记忆回写；同步扩展 `tests/test_nodes.py`、`tests/test_api_contract.py` 覆盖 `memory_updates` 与 memory 演进行为，最终 `pytest -q` 全量 `104 passed`。 |
 | 2026-04-02 | 完成 `S03.4/S03.5`：收紧人工动作 API 契约，要求 `approve/edit-and-approve/rewrite/escalate/close` 显式提供 `X-Actor-Id`，为人工动作补齐 `Idempotency-Key` 去重与标准 `duplicate_request` 返回，并让 `close` 也以真实 actor 记录 `human_action` run；同时在 DTO 层增加空字符串/空列表校验，避免宽松请求体绕过契约。补强 `GET /customers/{customer_id}/memory` 的 API 断言，确保固定返回 `profile`、`risk_tags`、`business_flags`、`historical_case_refs`、`version` 结构。同步修复 `validation_error` 的 JSON 序列化兜底，并扩展 `tests/test_api_contract.py` 覆盖人工动作主路径、缺失 actor、重复幂等键和 memory 查询；最终 `pytest -q tests/test_api_contract.py tests/test_ticket_state_machine.py tests/test_customer_memory.py` 全量 `39 passed`。 |
 | 2026-04-02 | 完成 `S05`：新增 `src/observability.py` 统一 trace/metrics/eval 层，接入可选 `LangSmith` `RunTree` 上报，并将 `src/nodes.py`/`src/graph.py`/`src/api/services.py` 串到同一条 trace 生命周期；为 ticket workflow 补齐 `13` 个必采集节点、`4` 个必采集决策、`node/llm/tool` 延迟、token 统计、固定 schema 的响应质量评估和规则式轨迹评估，使 `/tickets/{id}/trace` 与 `/metrics/summary` 读取的都是实际 run 数据；新增 `tests/samples/eval/customer_support_eval.jsonl`、`scripts/run_offline_eval.py`、`tests/test_observability.py`，并将 `.env.example`/`requirements.txt` 补齐 `LangSmith` 配置与依赖，最终 `pytest -q` 全量 `111 passed`。 |
+| 2026-04-02 | 完成 `S03.6/S03.7`：收紧 `GET /metrics/summary` 查询契约，新增时间窗口先后校验与 `route` 固定枚举校验，避免非法过滤条件绕过 API 层；同时扩展 `tests/test_api_contract.py` 覆盖最近 run 与显式 `run_id` 的 trace 查询、跨工单 `run_id` 拒绝、`route` 过滤生效、非法 `route` 与反向时间窗口返回 `validation_error`。同步将主跟踪表中的 `S03`、`X1` 状态回填为 `已完成`，并确认 `pytest -q tests/test_api_contract.py tests/test_observability.py` 全量 `17 passed`。 |
