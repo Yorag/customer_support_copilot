@@ -198,6 +198,7 @@ class TicketApiService:
         draft_id: str,
         comment: str | None,
         actor_id: str,
+        idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
         return self._apply_manual_action(
             ticket_id=ticket_id,
@@ -206,6 +207,7 @@ class TicketApiService:
             draft_id=draft_id,
             comment=comment,
             actor_id=actor_id,
+            idempotency_key=idempotency_key,
         )
 
     def edit_and_approve_ticket(
@@ -217,8 +219,16 @@ class TicketApiService:
         comment: str | None,
         edited_content_text: str,
         actor_id: str,
+        idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
+        key_to_use = idempotency_key or (
+            f"manual:{ticket_id}:{HumanReviewAction.EDIT_AND_APPROVE.value}:"
+            f"{ticket_version}:{draft_id}:{actor_id}"
+        )
         with self._store.session_scope() as session:
+            idempotency = IdempotencyService(session)
+            if idempotency_key is not None:
+                idempotency.ensure_available(key_to_use)
             repositories = self._store.repositories(session)
             state_service = TicketStateService(session, repositories=repositories)
             ticket = repositories.tickets.get(ticket_id)
@@ -248,6 +258,17 @@ class TicketApiService:
             run.latency_metrics = {
                 "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
             }
+            session.flush()
+            idempotency.record(
+                key_to_use,
+                {
+                    "ticket_id": updated.ticket_id,
+                    "review_id": review.review_id,
+                    "run_id": run.run_id,
+                    "trace_id": run.trace_id,
+                    "action": HumanReviewAction.EDIT_AND_APPROVE.value,
+                },
+            )
             return updated, review.review_id
 
     def rewrite_ticket(
@@ -259,6 +280,7 @@ class TicketApiService:
         comment: str | None,
         rewrite_reasons: list[str],
         actor_id: str,
+        idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
         return self._apply_manual_action(
             ticket_id=ticket_id,
@@ -268,6 +290,7 @@ class TicketApiService:
             comment=comment,
             rewrite_reasons=rewrite_reasons,
             actor_id=actor_id,
+            idempotency_key=idempotency_key,
         )
 
     def escalate_ticket(
@@ -278,6 +301,7 @@ class TicketApiService:
         comment: str | None,
         target_queue: str,
         actor_id: str,
+        idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
         return self._apply_manual_action(
             ticket_id=ticket_id,
@@ -286,6 +310,7 @@ class TicketApiService:
             comment=comment,
             target_queue=target_queue,
             actor_id=actor_id,
+            idempotency_key=idempotency_key,
         )
 
     def close_ticket(
@@ -294,8 +319,16 @@ class TicketApiService:
         ticket_id: str,
         ticket_version: int,
         reason: str,
+        actor_id: str,
+        idempotency_key: str | None = None,
     ) -> Ticket:
+        key_to_use = idempotency_key or (
+            f"manual:{ticket_id}:close:{ticket_version}:{reason}:{actor_id}"
+        )
         with self._store.session_scope() as session:
+            idempotency = IdempotencyService(session)
+            if idempotency_key is not None:
+                idempotency.ensure_available(key_to_use)
             repositories = self._store.repositories(session)
             ticket = repositories.tickets.get(ticket_id)
             if ticket is None:
@@ -312,7 +345,7 @@ class TicketApiService:
                 repositories=repositories,
                 ticket=updated,
                 trigger_type=RunTriggerType.HUMAN_ACTION,
-                actor_id="system:close",
+                actor_id=actor_id,
                 state_service=state_service,
             )
             CustomerMemoryService(session, repositories=repositories).apply_stage_updates(
@@ -327,6 +360,16 @@ class TicketApiService:
             run.latency_metrics = {
                 "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
             }
+            session.flush()
+            idempotency.record(
+                key_to_use,
+                {
+                    "ticket_id": updated.ticket_id,
+                    "run_id": run.run_id,
+                    "trace_id": run.trace_id,
+                    "action": "close",
+                },
+            )
             return updated
 
     def get_customer_memory(self, customer_id: str):
@@ -428,8 +471,24 @@ class TicketApiService:
         comment: str | None = None,
         rewrite_reasons: list[str] | None = None,
         target_queue: str | None = None,
+        idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
+        key_parts = [
+            "manual",
+            ticket_id,
+            action.value,
+            str(ticket_version),
+            actor_id,
+            draft_id or "",
+            comment or "",
+            ",".join(rewrite_reasons or []),
+            target_queue or "",
+        ]
+        key_to_use = idempotency_key or ":".join(key_parts)
         with self._store.session_scope() as session:
+            idempotency = IdempotencyService(session)
+            if idempotency_key is not None:
+                idempotency.ensure_available(key_to_use)
             repositories = self._store.repositories(session)
             ticket = repositories.tickets.get(ticket_id)
             if ticket is None:
@@ -468,6 +527,17 @@ class TicketApiService:
             run.latency_metrics = {
                 "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
             }
+            session.flush()
+            idempotency.record(
+                key_to_use,
+                {
+                    "ticket_id": updated.ticket_id,
+                    "review_id": review.review_id,
+                    "run_id": run.run_id,
+                    "trace_id": run.trace_id,
+                    "action": action.value,
+                },
+            )
             return updated, review.review_id
 
     def _create_human_action_run(

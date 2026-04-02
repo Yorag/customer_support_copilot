@@ -21,6 +21,13 @@ class ApiModel(BaseModel):
     )
 
 
+def _require_non_blank(value: str, *, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must not be blank.")
+    return normalized
+
+
 class ErrorPayload(ApiModel):
     code: str
     message: str
@@ -59,7 +66,7 @@ class IngestEmailResponse(ApiModel):
 
 
 class RunTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     trigger_type: str = Field(default="manual_api")
     force_retry: bool = False
 
@@ -72,34 +79,69 @@ class RunTicketResponse(ApiModel):
 
 
 class ApproveTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     draft_id: str
     comment: Optional[str] = None
 
+    @field_validator("draft_id")
+    @classmethod
+    def validate_draft_id(cls, value: str) -> str:
+        return _require_non_blank(value, field_name="draft_id")
+
 
 class EditAndApproveTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     draft_id: str
     comment: Optional[str] = None
     edited_content_text: str
 
+    @field_validator("draft_id", "edited_content_text")
+    @classmethod
+    def validate_required_text(cls, value: str, info) -> str:
+        return _require_non_blank(value, field_name=info.field_name)
+
 
 class RewriteTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     draft_id: str
     comment: Optional[str] = None
     rewrite_reasons: List[str] = Field(default_factory=list)
 
+    @field_validator("draft_id")
+    @classmethod
+    def validate_draft_id(cls, value: str) -> str:
+        return _require_non_blank(value, field_name="draft_id")
+
+    @field_validator("rewrite_reasons")
+    @classmethod
+    def validate_rewrite_reasons(cls, value: List[str]) -> List[str]:
+        if not value:
+            raise ValueError("rewrite_reasons must contain at least one reason.")
+        return [
+            _require_non_blank(item, field_name="rewrite_reasons")
+            for item in value
+        ]
+
 
 class EscalateTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     comment: Optional[str] = None
     target_queue: str
 
+    @field_validator("target_queue")
+    @classmethod
+    def validate_target_queue(cls, value: str) -> str:
+        return _require_non_blank(value, field_name="target_queue")
+
 
 class CloseTicketRequest(ApiModel):
-    ticket_version: int
+    ticket_version: int = Field(ge=1)
     reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        return _require_non_blank(value, field_name="reason")
 
 
 class TicketActionResponse(ApiModel):

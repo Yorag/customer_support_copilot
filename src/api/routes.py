@@ -45,6 +45,18 @@ def get_ticket_api_service(container=Depends(get_container)) -> TicketApiService
     return TicketApiService(container.ticket_store, container=container)
 
 
+def _require_actor_id(context: RequestContext) -> str:
+    actor_id = (context.actor_id or "").strip()
+    if actor_id:
+        return actor_id
+    raise ApiError(
+        code="validation_error",
+        message="X-Actor-Id header is required for manual ticket actions.",
+        status_code=422,
+        details={"header": "X-Actor-Id"},
+    )
+
+
 @router.post(
     "/tickets/ingest-email",
     response_model=IngestEmailResponse,
@@ -168,14 +180,18 @@ def run_ticket(
     )
 
 
-@router.post("/tickets/{ticket_id}/approve", response_model=TicketActionResponse)
+@router.post(
+    "/tickets/{ticket_id}/approve",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
 def approve_ticket(
     ticket_id: str,
     request: ApproveTicketRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketActionResponse:
-    actor_id = context.actor_id or "system:unknown"
+    actor_id = _require_actor_id(context)
     try:
         ticket, review_id = service.approve_ticket(
             ticket_id=ticket_id,
@@ -183,6 +199,7 @@ def approve_ticket(
             draft_id=request.draft_id,
             comment=request.comment,
             actor_id=actor_id,
+            idempotency_key=context.idempotency_key,
         )
     except TicketNotFoundError as exc:
         raise ApiError(
@@ -190,6 +207,13 @@ def approve_ticket(
             message=str(exc),
             status_code=404,
             details={"ticket_id": exc.ticket_id},
+        ) from exc
+    except DuplicateRequestError as exc:
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
         ) from exc
 
     return TicketActionResponse(
@@ -201,14 +225,18 @@ def approve_ticket(
     )
 
 
-@router.post("/tickets/{ticket_id}/edit-and-approve", response_model=TicketActionResponse)
+@router.post(
+    "/tickets/{ticket_id}/edit-and-approve",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
 def edit_and_approve_ticket(
     ticket_id: str,
     request: EditAndApproveTicketRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketActionResponse:
-    actor_id = context.actor_id or "system:unknown"
+    actor_id = _require_actor_id(context)
     try:
         ticket, review_id = service.edit_and_approve_ticket(
             ticket_id=ticket_id,
@@ -217,6 +245,7 @@ def edit_and_approve_ticket(
             comment=request.comment,
             edited_content_text=request.edited_content_text,
             actor_id=actor_id,
+            idempotency_key=context.idempotency_key,
         )
     except TicketNotFoundError as exc:
         raise ApiError(
@@ -224,6 +253,13 @@ def edit_and_approve_ticket(
             message=str(exc),
             status_code=404,
             details={"ticket_id": exc.ticket_id},
+        ) from exc
+    except DuplicateRequestError as exc:
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
         ) from exc
 
     return TicketActionResponse(
@@ -235,14 +271,18 @@ def edit_and_approve_ticket(
     )
 
 
-@router.post("/tickets/{ticket_id}/rewrite", response_model=TicketActionResponse)
+@router.post(
+    "/tickets/{ticket_id}/rewrite",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
 def rewrite_ticket(
     ticket_id: str,
     request: RewriteTicketRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketActionResponse:
-    actor_id = context.actor_id or "system:unknown"
+    actor_id = _require_actor_id(context)
     try:
         ticket, review_id = service.rewrite_ticket(
             ticket_id=ticket_id,
@@ -251,6 +291,7 @@ def rewrite_ticket(
             comment=request.comment,
             rewrite_reasons=request.rewrite_reasons,
             actor_id=actor_id,
+            idempotency_key=context.idempotency_key,
         )
     except TicketNotFoundError as exc:
         raise ApiError(
@@ -258,6 +299,13 @@ def rewrite_ticket(
             message=str(exc),
             status_code=404,
             details={"ticket_id": exc.ticket_id},
+        ) from exc
+    except DuplicateRequestError as exc:
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
         ) from exc
 
     return TicketActionResponse(
@@ -269,14 +317,18 @@ def rewrite_ticket(
     )
 
 
-@router.post("/tickets/{ticket_id}/escalate", response_model=TicketActionResponse)
+@router.post(
+    "/tickets/{ticket_id}/escalate",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
 def escalate_ticket(
     ticket_id: str,
     request: EscalateTicketRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketActionResponse:
-    actor_id = context.actor_id or "system:unknown"
+    actor_id = _require_actor_id(context)
     try:
         ticket, review_id = service.escalate_ticket(
             ticket_id=ticket_id,
@@ -284,6 +336,7 @@ def escalate_ticket(
             comment=request.comment,
             target_queue=request.target_queue,
             actor_id=actor_id,
+            idempotency_key=context.idempotency_key,
         )
     except TicketNotFoundError as exc:
         raise ApiError(
@@ -291,6 +344,13 @@ def escalate_ticket(
             message=str(exc),
             status_code=404,
             details={"ticket_id": exc.ticket_id},
+        ) from exc
+    except DuplicateRequestError as exc:
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
         ) from exc
 
     return TicketActionResponse(
@@ -302,17 +362,25 @@ def escalate_ticket(
     )
 
 
-@router.post("/tickets/{ticket_id}/close", response_model=TicketActionResponse)
+@router.post(
+    "/tickets/{ticket_id}/close",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
 def close_ticket(
     ticket_id: str,
     request: CloseTicketRequest,
+    context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketActionResponse:
+    actor_id = _require_actor_id(context)
     try:
         ticket = service.close_ticket(
             ticket_id=ticket_id,
             ticket_version=request.ticket_version,
             reason=request.reason,
+            actor_id=actor_id,
+            idempotency_key=context.idempotency_key,
         )
     except TicketNotFoundError as exc:
         raise ApiError(
@@ -320,6 +388,13 @@ def close_ticket(
             message=str(exc),
             status_code=404,
             details={"ticket_id": exc.ticket_id},
+        ) from exc
+    except DuplicateRequestError as exc:
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
         ) from exc
 
     return TicketActionResponse(

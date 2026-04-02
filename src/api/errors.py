@@ -39,7 +39,10 @@ def build_error_response(
             details=details,
         )
     )
-    return JSONResponse(status_code=status_code, content=payload.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status_code,
+        content=payload.model_dump(mode="json", fallback=lambda value: str(value)),
+    )
 
 
 def register_exception_handlers(app: FastAPI) -> None:
