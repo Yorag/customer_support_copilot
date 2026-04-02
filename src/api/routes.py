@@ -32,6 +32,7 @@ from .schemas import (
 from .services import (
     CustomerNotFoundError,
     DuplicateRequestError,
+    RunExecutionFailedError,
     RunNotFoundError,
     TicketApiService,
     TicketNotFoundError,
@@ -170,6 +171,17 @@ def run_ticket(
             message=str(exc),
             status_code=409,
             details={"idempotency_key": exc.key},
+        ) from exc
+    except RunExecutionFailedError as exc:
+        raise ApiError(
+            code="external_dependency_failed",
+            message="Ticket run failed. Inspect the stored trace for execution details.",
+            status_code=502,
+            details={
+                "ticket_id": exc.ticket.ticket_id,
+                "run_id": exc.run.run_id,
+                "trace_id": exc.run.trace_id,
+            },
         ) from exc
 
     return RunTicketResponse(

@@ -28,6 +28,11 @@ from src.customer_memory import CustomerMemoryService
 from src.db.models import AppMetadata, DraftArtifact, Ticket, TicketRun, TraceEvent
 from src.graph import Workflow
 from src.message_log import IngestEmailPayload, MessageLogService
+from src.observability import (
+    ResponseQualityJudge,
+    TraceRecorder,
+    build_trajectory_evaluation,
+)
 from src.state import build_ticket_run_state
 from src.ticket_state_machine import TicketStateService
 from src.tools.service_container import ServiceContainer, get_service_container
@@ -63,6 +68,13 @@ class RunNotFoundError(Exception):
         super().__init__(f"Run `{run_id}` does not exist for ticket `{ticket_id}`.")
         self.ticket_id = ticket_id
         self.run_id = run_id
+
+
+class RunExecutionFailedError(Exception):
+    def __init__(self, *, ticket: Ticket, run: TicketRun) -> None:
+        super().__init__(f"Run `{run.run_id}` failed for ticket `{ticket.ticket_id}`.")
+        self.ticket = ticket
+        self.run = run
 
 
 class IdempotencyService:
@@ -179,6 +191,10 @@ class TicketApiService:
                 request_id=request_id,
                 state_service=state_service,
             )
+            if result.run.status == RunStatus.FAILED.value:
+                session.flush()
+                session.commit()
+                raise RunExecutionFailedError(ticket=result.ticket, run=result.run)
             session.flush()
             idempotency.record(
                 key_to_use,
@@ -614,6 +630,8 @@ class TicketRunner:
         self._container = container
         self._message_log = MessageLogService(session, repositories=repositories)
         self._memory_service = CustomerMemoryService(session, repositories=repositories)
+        self._trace_recorder = TraceRecorder(repositories=repositories)
+        self._quality_judge = ResponseQualityJudge()
 
     def execute(
         self,
@@ -654,15 +672,16 @@ class TicketRunner:
         )
         self._repositories.ticket_runs.add(run)
         self._session.flush()
-
-        self._record_event(
-            run=run,
+        self._trace_recorder.start_run(
             ticket=ticket,
-            event_type=TraceEventType.NODE.value,
-            event_name="run_ticket",
-            node_name="run_ticket",
-            status=TraceEventStatus.STARTED.value,
-            metadata={"trigger_type": normalized_trigger.value},
+            run=run,
+            inputs={
+                "ticket_id": ticket.ticket_id,
+                "ticket_version": ticket_version,
+                "trigger_type": normalized_trigger.value,
+                "force_retry": force_retry,
+            },
+            metadata={"triggered_by": actor_id, "worker_id": worker_id},
         )
 
         claimed = state_service.claim_ticket(
@@ -686,6 +705,7 @@ class TicketRunner:
                 message_log=self._message_log,
                 run=run,
                 worker_id=worker_id,
+                trace_recorder=self._trace_recorder,
             )
             initial_state = build_ticket_run_state(
                 ticket_id=running.ticket_id,
@@ -705,78 +725,63 @@ class TicketRunner:
             if finalized_ticket is None:
                 raise TicketNotFoundError(running.ticket_id)
         except Exception as exc:
+            latest_ticket = self._repositories.tickets.get(running.ticket_id)
             failed_ticket = state_service.fail_run(
                 running.ticket_id,
                 worker_id=worker_id,
                 error_code="run_execution_failed",
                 error_message=str(exc),
-                expected_version=self._repositories.tickets.get(running.ticket_id).version,
+                expected_version=latest_ticket.version if latest_ticket is not None else running.version,
             )
             run.status = RunStatus.FAILED.value
             run.error_code = failed_ticket.last_error_code
             run.error_message = failed_ticket.last_error_message
             run.ended_at = utc_now()
-            run.latency_metrics = {
-                "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
-            }
-            self._record_event(
+            run.final_node = "run_ticket"
+            run.latency_metrics = self._trace_recorder.build_latency_metrics(run=run)
+            run.resource_metrics = self._trace_recorder.build_resource_metrics(run=run)
+            run.response_quality = None
+            run.trajectory_evaluation = build_trajectory_evaluation(
+                ticket=failed_ticket,
+                final_action=run.final_action,
+                events=self._trace_recorder.list_run_events(run.run_id),
+            )
+            self._trace_recorder.record_event(
                 run=run,
                 ticket=failed_ticket,
                 event_type=TraceEventType.NODE.value,
                 event_name="run_ticket",
                 node_name="run_ticket",
+                start_time=run.started_at,
+                end_time=run.ended_at,
                 status=TraceEventStatus.FAILED.value,
-                metadata={"error_code": run.error_code},
+                metadata={"error_code": run.error_code, "error_message": run.error_message},
             )
-            raise
+            self._trace_recorder.finalize_run(run=run, ticket=failed_ticket, error=str(exc))
+            return RunExecutionResult(ticket=failed_ticket, run=run)
 
         run.status = RunStatus.SUCCEEDED.value
         run.ended_at = utc_now()
         run.final_action = self._final_action_for_ticket(finalized_ticket)
         run.final_node = "run_ticket"
-        run.latency_metrics = self._build_latency_metrics(run=run)
-        run.resource_metrics = self._build_resource_metrics(run=run)
-        run.response_quality = self._build_response_quality(finalized_ticket)
-        run.trajectory_evaluation = self._build_trajectory_evaluation(finalized_ticket)
-        self._record_event(
+        self._trace_recorder.record_event(
             run=run,
             ticket=finalized_ticket,
             event_type=TraceEventType.NODE.value,
             event_name="run_ticket",
             node_name="run_ticket",
+            start_time=run.started_at,
+            end_time=run.ended_at,
             status=TraceEventStatus.SUCCEEDED.value,
             metadata={"final_action": run.final_action},
         )
+        run.latency_metrics = self._trace_recorder.build_latency_metrics(run=run)
+        run.resource_metrics = self._trace_recorder.build_resource_metrics(run=run)
+        run.response_quality = self._build_response_quality(finalized_ticket)
+        run.trajectory_evaluation = self._build_trajectory_evaluation(finalized_ticket)
+        self._trace_recorder.finalize_run(run=run, ticket=finalized_ticket)
 
         return RunExecutionResult(ticket=finalized_ticket, run=run)
-
-    def _record_event(
-        self,
-        *,
-        run: TicketRun,
-        ticket: Ticket,
-        event_type: str,
-        event_name: str,
-        node_name: str | None,
-        status: str,
-        metadata: dict[str, Any] | None = None,
-    ) -> None:
-        now = utc_now()
-        event = TraceEvent(
-            event_id=generate_prefixed_id(EntityIdPrefix.TRACE),
-            trace_id=run.trace_id,
-            run_id=run.run_id,
-            ticket_id=ticket.ticket_id,
-            event_type=event_type,
-            event_name=event_name,
-            node_name=node_name,
-            start_time=now,
-            end_time=now,
-            latency_ms=0,
-            status=status,
-            event_metadata=metadata,
-        )
-        self._repositories.trace_events.add(event)
 
     def _final_action_for_ticket(self, ticket: Ticket) -> str:
         status = TicketBusinessStatus(ticket.business_status)
@@ -788,70 +793,39 @@ class TicketRunner:
             return RunFinalAction.SKIP_UNRELATED.value
         return RunFinalAction.CREATE_DRAFT.value
 
-    def _build_latency_metrics(self, *, run: TicketRun) -> dict[str, Any]:
-        events = self._repositories.trace_events.list_by_run(run.run_id)
-        slowest = None
-        slowest_ms = None
-        for event in events:
-            if event.latency_ms is None:
-                continue
-            if slowest_ms is None or event.latency_ms > slowest_ms:
-                slowest_ms = event.latency_ms
-                slowest = event.node_name or event.event_name
-        return {
-            "end_to_end_ms": _duration_ms(run.started_at, run.ended_at or utc_now()),
-            "slowest_node": slowest,
-        }
-
-    def _build_resource_metrics(self, *, run: TicketRun) -> dict[str, Any]:
-        events = self._repositories.trace_events.list_by_run(run.run_id)
-        llm_events = [
-            event for event in events if event.event_type == TraceEventType.LLM_CALL.value
-        ]
-        tool_events = [
-            event for event in events if event.event_type == TraceEventType.TOOL_CALL.value
-        ]
-        total_tokens = sum(
-            int((event.event_metadata or {}).get("total_tokens", 0))
-            for event in llm_events
-        )
-        return {
-            "total_tokens": total_tokens,
-            "llm_call_count": len(llm_events),
-            "tool_call_count": len(tool_events),
-        }
-
     def _build_response_quality(self, ticket: Ticket) -> dict[str, Any]:
-        score = 4.0
-        if ticket.needs_escalation:
-            score = 4.4
-        if ticket.needs_clarification:
-            score = 4.2
-        return {
-            "overall_score": score,
-            "subscores": {
-                "relevance": score,
-                "correctness": score,
-                "intent_alignment": score,
-                "clarity": score,
-            },
-            "reason": "V1 fallback scoring based on deterministic ticket outcome.",
-        }
+        latest_draft = _select_latest_draft(
+            self._repositories.draft_artifacts.list_by_ticket(ticket.ticket_id)
+        )
+        policy_summary = ""
+        if ticket.primary_route and hasattr(self._container.policy_provider, "get_policy"):
+            policy_summary = self._container.policy_provider.get_policy(ticket.primary_route)
+        return self._quality_judge.evaluate(
+            email_subject=ticket.subject,
+            email_body=ticket.latest_message_excerpt,
+            draft_text=latest_draft.content_text if latest_draft is not None else None,
+            evidence_summary=(
+                latest_draft.source_evidence_summary if latest_draft is not None else None
+            ),
+            policy_summary=policy_summary,
+            primary_route=ticket.primary_route,
+            final_action=self._final_action_for_ticket(ticket),
+        )
 
     def _build_trajectory_evaluation(self, ticket: Ticket) -> dict[str, Any]:
-        violations: list[str] = []
-        if (
-            ticket.needs_clarification
-            and ticket.business_status
-            != TicketBusinessStatus.AWAITING_CUSTOMER_INPUT.value
-        ):
-            violations.append("clarification_expected_but_not_waiting")
-        return {
-            "score": 5.0 if not violations else 3.0,
-            "expected_route": ticket.primary_route,
-            "actual_route": ticket.primary_route,
-            "violations": violations,
-        }
+        latest_run = _select_latest_run(self._repositories.ticket_runs.list_by_ticket(ticket.ticket_id))
+        if latest_run is None:
+            return {
+                "score": 0.0,
+                "expected_route": [],
+                "actual_route": [],
+                "violations": [],
+            }
+        return build_trajectory_evaluation(
+            ticket=ticket,
+            final_action=latest_run.final_action,
+            events=self._trace_recorder.list_run_events(latest_run.run_id),
+        )
 
 
 def _select_latest_run(runs: Iterable[TicketRun]) -> TicketRun | None:

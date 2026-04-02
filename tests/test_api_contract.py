@@ -284,6 +284,8 @@ def test_run_ticket_creates_run_trace_and_draft_created_status():
     assert trace_payload["run_id"] == payload["run_id"]
     assert trace_payload["trace_id"] == payload["trace_id"]
     assert len(trace_payload["events"]) >= 2
+    assert "prompt_tokens_total" in trace_payload["resource_metrics"]
+    assert "node_latencies" in trace_payload["latency_metrics"]
 
 
 def test_run_ticket_routes_high_risk_case_to_human_review():

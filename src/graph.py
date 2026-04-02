@@ -19,6 +19,7 @@ class Workflow:
         message_log=None,
         run=None,
         worker_id: str | None = None,
+        trace_recorder=None,
     ):
         workflow = StateGraph(GraphState)
         nodes = nodes or Nodes(
@@ -30,6 +31,7 @@ class Workflow:
             message_log=message_log,
             run=run,
             worker_id=worker_id,
+            trace_recorder=trace_recorder,
         )
 
         workflow.add_node("load_ticket_context", nodes.load_ticket_context)
