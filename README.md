@@ -137,7 +137,8 @@ langgraph-email-automation/
 1. Python `3.10+`
 2. Postgres `14+`
 3. Gmail OAuth 凭据
-4. OpenAI-compatible chat + embedding 接口
+4. OpenAI-compatible chat 接口
+5. 独立 embedding 接口
 
 安装依赖：
 
@@ -154,12 +155,15 @@ pip install -r requirements.txt
 最小运行配置：
 
 ```env
+GMAIL_ENABLED=true
 MY_EMAIL=your_email@gmail.com
 LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_CHAT_MODEL=gpt-4o-mini
-LLM_EMBEDDING_MODEL=text-embedding-3-small
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/customer_support_copilot
+EMBEDDING_API_URL=https://your-embedding-endpoint/v1/embeddings
+EMBEDDING_API_KEY=your_embedding_api_key
+EMBEDDING_MODEL=bge-large-zh-v1.5
 ```
 
 其余关键变量：
@@ -168,11 +172,17 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/customer_support_copi
 2. `GMAIL_TOKEN_PATH`
 3. `KNOWLEDGE_SOURCE_PATH`
 4. `KNOWLEDGE_DB_PATH`
-5. `LANGSMITH_TRACING`
-6. `LANGSMITH_API_KEY`
-7. `LANGSMITH_ENDPOINT`
-8. `API_HOST`
-9. `API_PORT`
+5. `EMBEDDING_TIMEOUT_SECONDS`
+6. `EMBEDDING_API_KEY_HEADER`
+7. `EMBEDDING_API_KEY_PREFIX`
+8. `LANGSMITH_TRACING`
+9. `LANGSMITH_API_KEY`
+10. `LANGSMITH_ENDPOINT`
+11. `API_HOST`
+12. `API_PORT`
+
+如果当前环境还没有 Gmail OAuth，可以先设置 `GMAIL_ENABLED=false`。
+这样 `POST /tickets/ingest-email -> POST /tickets/{ticket_id}/run` 这条 API 主链路仍可运行，但 `python main.py` 的 Gmail 轮询入口不可用。
 
 ## Setup
 

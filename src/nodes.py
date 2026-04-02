@@ -47,13 +47,8 @@ class Nodes:
         worker_id: str | None = None,
         trace_recorder: TraceRecorder | None = None,
     ):
-        if agents is None:
-            from .agents import Agents
-
-            agents = Agents()
-
-        self.agents = agents
         self.services = service_container or get_service_container()
+        self.agents = agents or self.services.agents
         self.gmail_client = self.services.gmail_client
         self.knowledge_provider = self.services.knowledge_provider
         self.policy_provider = self.services.policy_provider

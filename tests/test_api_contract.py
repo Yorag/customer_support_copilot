@@ -288,6 +288,52 @@ def test_run_ticket_creates_run_trace_and_draft_created_status():
     assert "node_latencies" in trace_payload["latency_metrics"]
 
 
+def test_run_ticket_succeeds_when_gmail_is_disabled(monkeypatch):
+    monkeypatch.setenv("GMAIL_ENABLED", "false")
+
+    from src.config import get_settings
+    from src.tools.service_container import ServiceContainer
+
+    get_settings.cache_clear()
+    app, store = _build_app()
+    app.dependency_overrides[get_container] = lambda: ServiceContainer(
+        knowledge_provider_factory=lambda: FakeApiKnowledgeProvider(),
+        policy_provider_factory=lambda: FakeApiPolicyProvider(),
+        ticket_store_factory=lambda: store,
+    )
+    client = TestClient(app)
+
+    try:
+        ticket = _create_ticket(store, business_status="new", processing_status="queued", version=1)
+
+        response = client.post(
+            f"/tickets/{ticket.ticket_id}/run",
+            json={
+                "ticket_version": 1,
+                "trigger_type": "manual_api",
+                "force_retry": False,
+            },
+            headers={"X-Actor-Id": "api-user", "X-Request-Id": "req-no-gmail"},
+        )
+
+        assert response.status_code == 202
+        payload = response.json()
+        snapshot = client.get(f"/tickets/{ticket.ticket_id}")
+        assert snapshot.status_code == 200
+        assert snapshot.json()["ticket"]["business_status"] == "draft_created"
+
+        trace = client.get(f"/tickets/{ticket.ticket_id}/trace")
+        assert trace.status_code == 200
+        tool_events = [
+            event for event in trace.json()["events"] if event["event_name"] == "tool.gmail_client.create_draft_reply"
+        ]
+        assert tool_events
+        assert payload["processing_status"] == "completed"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_get_ticket_trace_supports_explicit_run_selection():
     app, store = _build_app()
     client = TestClient(app)

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GMAIL_SCOPES = ("https://www.googleapis.com/auth/gmail.modify",)
 RUNTIME_REQUIRED_SETTINGS = ("MY_EMAIL", "LLM_API_KEY",)
-INDEX_REQUIRED_SETTINGS = ("LLM_API_KEY",)
+INDEX_REQUIRED_SETTINGS = ("EMBEDDING_API_URL", "EMBEDDING_MODEL")
 
 
 class SettingsError(RuntimeError):
@@ -21,6 +21,7 @@ class SettingsError(RuntimeError):
 
 @dataclass(frozen=True)
 class GmailSettings:
+    enabled: bool
     my_email: str | None
     credentials_path: Path
     token_path: Path
@@ -34,7 +35,16 @@ class LLMSettings:
     api_key: str | None
     base_url: str | None
     chat_model: str
-    embedding_model: str
+
+
+@dataclass(frozen=True)
+class EmbeddingSettings:
+    api_url: str | None
+    api_key: str | None
+    model: str
+    timeout_seconds: int
+    api_key_header: str
+    api_key_prefix: str
 
 
 @dataclass(frozen=True)
@@ -95,6 +105,7 @@ class Settings:
     project_root: Path
     gmail: GmailSettings
     llm: LLMSettings
+    embedding: EmbeddingSettings
     knowledge: KnowledgeSettings
     database: DatabaseSettings
     langsmith: LangSmithSettings
@@ -164,6 +175,7 @@ def get_settings() -> Settings:
     return Settings(
         project_root=PROJECT_ROOT,
         gmail=GmailSettings(
+            enabled=_get_bool_env("GMAIL_ENABLED", True),
             my_email=_clean_env_value("MY_EMAIL"),
             credentials_path=_resolve_path(
                 _clean_env_value("GMAIL_CREDENTIALS_PATH"),
@@ -181,8 +193,19 @@ def get_settings() -> Settings:
             api_key=_clean_env_value("LLM_API_KEY"),
             base_url=_clean_env_value("LLM_BASE_URL"),
             chat_model=_clean_env_value("LLM_CHAT_MODEL") or "gpt-4o-mini",
-            embedding_model=_clean_env_value("LLM_EMBEDDING_MODEL")
-            or "text-embedding-3-small",
+        ),
+        embedding=EmbeddingSettings(
+            api_url=_clean_env_value("EMBEDDING_API_URL"),
+            api_key=_clean_env_value("EMBEDDING_API_KEY"),
+            model=(
+                _clean_env_value("EMBEDDING_MODEL")
+                or _clean_env_value("LLM_EMBEDDING_MODEL")
+                or "text-embedding-3-small"
+            ),
+            timeout_seconds=_get_int_env("EMBEDDING_TIMEOUT_SECONDS", 30),
+            api_key_header=_clean_env_value("EMBEDDING_API_KEY_HEADER")
+            or "Authorization",
+            api_key_prefix=_clean_env_value("EMBEDDING_API_KEY_PREFIX") or "Bearer",
         ),
         knowledge=KnowledgeSettings(
             source_document_path=_resolve_path(
@@ -233,6 +256,9 @@ def validate_required_settings(required_names: Iterable[str]) -> Settings:
         "GMAIL_CREDENTIALS_PATH": lambda current: current.gmail.credentials_path,
         "GMAIL_TOKEN_PATH": lambda current: current.gmail.token_path,
         "LLM_API_KEY": lambda current: current.llm.api_key,
+        "EMBEDDING_API_URL": lambda current: current.embedding.api_url,
+        "EMBEDDING_API_KEY": lambda current: current.embedding.api_key,
+        "EMBEDDING_MODEL": lambda current: current.embedding.model,
         "DATABASE_URL": lambda current: current.database.url,
         "POSTGRES_HOST": lambda current: current.database.host,
         "POSTGRES_PORT": lambda current: current.database.port,

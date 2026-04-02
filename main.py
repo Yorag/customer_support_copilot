@@ -3,12 +3,18 @@ from datetime import datetime, timezone
 from colorama import Fore, Style
 
 from src.api.services import TicketApiService
-from src.config import RUNTIME_REQUIRED_SETTINGS, validate_required_settings
+from src.config import RUNTIME_REQUIRED_SETTINGS, SettingsError, get_settings, validate_required_settings
 from src.message_log import IngestEmailPayload
 from src.tools.service_container import get_service_container
 
 
 def main() -> None:
+    settings = get_settings()
+    if not settings.gmail.enabled:
+        raise SettingsError(
+            "Gmail polling is disabled. Set `GMAIL_ENABLED=true` and configure Gmail OAuth to use `main.py`."
+        )
+
     validate_required_settings(RUNTIME_REQUIRED_SETTINGS)
     container = get_service_container()
     gmail_client = container.gmail_client

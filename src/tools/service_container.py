@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Callable
+from src.config import get_settings
 from src.tools.types import (
     GmailClientProtocol,
     KnowledgeProviderProtocol,
@@ -11,7 +12,19 @@ from src.tools.types import (
 )
 
 
+def _build_agents():
+    from src.agents import Agents
+
+    return Agents()
+
+
 def _build_gmail_client() -> GmailClientProtocol:
+    settings = get_settings()
+    if not settings.gmail.enabled:
+        from src.tools.null_gmail_client import NullGmailClient
+
+        return NullGmailClient()
+
     from src.tools.gmail_client import GmailApiClient
 
     return GmailApiClient()
@@ -37,6 +50,7 @@ def _build_ticket_store() -> TicketStoreProtocol:
 
 @dataclass
 class ServiceContainer:
+    agents_factory: Callable[[], object] = _build_agents
     gmail_client_factory: Callable[[], GmailClientProtocol] = _build_gmail_client
     knowledge_provider_factory: Callable[
         [],
@@ -64,6 +78,17 @@ class ServiceContainer:
         init=False,
         repr=False,
     )
+    _agents: object | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+
+    @property
+    def agents(self):
+        if self._agents is None:
+            self._agents = self.agents_factory()
+        return self._agents
 
     @property
     def gmail_client(self) -> GmailClientProtocol:
