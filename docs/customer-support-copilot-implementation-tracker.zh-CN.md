@@ -98,7 +98,7 @@
 | S02 | Spec | `docs/specs/02-ticket-state-machine.zh-CN.md` | 落地状态机、lease、重试、draft 幂等 | 已完成 | S01, S06 | 状态迁移、worker 控制 |
 | S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 已完成 | P0, S01 | 结构化输出、triage agent |
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 进行中 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
-| S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 未开始 | S03, X1 | trace、metrics、eval |
+| S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 已完成 | S03, X1 | trace、metrics、eval |
 | X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 进行中 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
 | X2 | 交付 | 跨 spec | 完成 README、流程图、Demo | 未开始 | S03, S05, X1 | `README.md`, `docs/`, 演示材料 |
 
@@ -288,9 +288,9 @@
 
 | 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S05.1 | `1`, `2`, `3`, `4`, `12` | 接入 `LangSmith`，并实现统一 trace 包装层、`trace_id`、事件类型、最小字段和事件写入 | 未开始 | S03.2, X1.3 | trace 写入器与 `LangSmith` 集成 | V1 追踪固定使用 `LangSmith`，每次 run 都有唯一 `trace_id`，并串联 `TicketRun/TraceEvent/DraftArtifact/评估结果` |
-| S05.2 | `3`, `4`, `5`, `6`, `7`, `8`, `12` | 为必采集节点、决策、延迟、资源、质量打点，并补 token 统计 | 未开始 | S05.1 | 指标与决策事件采集 | `13` 个必采集节点、`4` 个必采集决策、`end_to_end_ms`、`node/llm/tool latencies`、token 与调用数全部可观测 |
-| S05.3 | `9`, `10`, `11`, `12` | 建立 `jsonl` 离线评测样本、规则式轨迹评估、Judge 输出 schema 校验和报表输出 | 未开始 | S05.2, P0.3 | eval 样本与脚本 | 样本至少 `24` 条、覆盖 `8` 类场景，输出字段和汇总报表字段与 spec 一致 |
+| S05.1 | `1`, `2`, `3`, `4`, `12` | 接入 `LangSmith`，并实现统一 trace 包装层、`trace_id`、事件类型、最小字段和事件写入 | 已完成 | S03.2, X1.3 | trace 写入器与 `LangSmith` 集成 | V1 追踪固定使用 `LangSmith`，每次 run 都有唯一 `trace_id`，并串联 `TicketRun/TraceEvent/DraftArtifact/评估结果` |
+| S05.2 | `3`, `4`, `5`, `6`, `7`, `8`, `12` | 为必采集节点、决策、延迟、资源、质量打点，并补 token 统计 | 已完成 | S05.1 | 指标与决策事件采集 | `13` 个必采集节点、`4` 个必采集决策、`end_to_end_ms`、`node/llm/tool latencies`、token 与调用数全部可观测 |
+| S05.3 | `9`, `10`, `11`, `12` | 建立 `jsonl` 离线评测样本、规则式轨迹评估、Judge 输出 schema 校验和报表输出 | 已完成 | S05.2, P0.3 | eval 样本与脚本 | 样本至少 `24` 条、覆盖 `8` 类场景，输出字段和汇总报表字段与 spec 一致 |
 
 ### X1. Graph/Agent 集成重构
 
@@ -390,3 +390,4 @@
 | 2026-04-02 | 完成 `X1.2/X1.3`：在 `src/structure_outputs.py` 增加 `KnowledgePolicyOutput`、`DraftingOutput`、`QaHandoffOutput`，并在 `src/agents.py` 将能力边界明确收敛为 `Triage`、`Knowledge & Policy`、`Drafting`、`QA & Handoff` 四个核心角色，其中后三者先以确定性实现落地，避免新的 ticket 执行流依赖远端模型；重写 `src/graph.py` 为 ticket execution workflow，并在 `src/nodes.py` 新增 `load_ticket_context/load_memory/triage/knowledge_lookup/policy_check/customer_history_lookup/draft_reply/qa_review/clarify_request/create_gmail_draft/escalate_to_human/close_ticket` 节点与条件边；将 `src/api/services.py` 中 `TicketRunner` 改为创建 run、领取租约并调用新图执行，`src/api/routes.py` 改为向 `TicketApiService` 注入完整 `ServiceContainer`，`main.py` 切换为 `ingest -> run` 的批处理入口；同时扩展 `tests/test_agents.py`、`tests/test_nodes.py`、`tests/test_api_contract.py` 覆盖四角色输出、新图知识/澄清/人工升级分支和 API `run` 主路径，最终 `pytest -q` 全量 `104 passed`。 |
 | 2026-04-02 | 完成 `S03.3/X1.4`：确认 `POST /tickets/{ticket_id}/run` 已触发真实 ticket workflow 后，将跟踪状态回填为 `S03.3 已完成`；新增 `src/customer_memory.py`，实现 `collect_case_context -> extract_memory_updates -> validate_memory_updates -> apply_memory_updates`，并在 `src/graph.py`/`src/nodes.py` 将其接入 `create_gmail_draft`、`clarify_request`、`escalate_to_human`、`close_ticket` 收尾路径，同时在 `src/api/services.py` 为 `escalate` 与 `close` 动作补充长期记忆回写；同步扩展 `tests/test_nodes.py`、`tests/test_api_contract.py` 覆盖 `memory_updates` 与 memory 演进行为，最终 `pytest -q` 全量 `104 passed`。 |
 | 2026-04-02 | 完成 `S03.4/S03.5`：收紧人工动作 API 契约，要求 `approve/edit-and-approve/rewrite/escalate/close` 显式提供 `X-Actor-Id`，为人工动作补齐 `Idempotency-Key` 去重与标准 `duplicate_request` 返回，并让 `close` 也以真实 actor 记录 `human_action` run；同时在 DTO 层增加空字符串/空列表校验，避免宽松请求体绕过契约。补强 `GET /customers/{customer_id}/memory` 的 API 断言，确保固定返回 `profile`、`risk_tags`、`business_flags`、`historical_case_refs`、`version` 结构。同步修复 `validation_error` 的 JSON 序列化兜底，并扩展 `tests/test_api_contract.py` 覆盖人工动作主路径、缺失 actor、重复幂等键和 memory 查询；最终 `pytest -q tests/test_api_contract.py tests/test_ticket_state_machine.py tests/test_customer_memory.py` 全量 `39 passed`。 |
+| 2026-04-02 | 完成 `S05`：新增 `src/observability.py` 统一 trace/metrics/eval 层，接入可选 `LangSmith` `RunTree` 上报，并将 `src/nodes.py`/`src/graph.py`/`src/api/services.py` 串到同一条 trace 生命周期；为 ticket workflow 补齐 `13` 个必采集节点、`4` 个必采集决策、`node/llm/tool` 延迟、token 统计、固定 schema 的响应质量评估和规则式轨迹评估，使 `/tickets/{id}/trace` 与 `/metrics/summary` 读取的都是实际 run 数据；新增 `tests/samples/eval/customer_support_eval.jsonl`、`scripts/run_offline_eval.py`、`tests/test_observability.py`，并将 `.env.example`/`requirements.txt` 补齐 `LangSmith` 配置与依赖，最终 `pytest -q` 全量 `111 passed`。 |

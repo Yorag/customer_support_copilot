@@ -1,4 +1,5 @@
 langchain-core
+langsmith
 langchain_community 
 langgraph 
 langchain-openai
