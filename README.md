@@ -241,6 +241,53 @@ python scripts/run_offline_eval.py
 
 默认样本为 [tests/samples/eval/customer_support_eval.jsonl](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval.jsonl)，报告输出到 [tests/samples/eval/customer_support_eval_report.json](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval_report.json)。
 
+### Real Eval
+
+如果你要用真实环境配置来跑自建测试集，而不是 fake provider，可以使用：
+
+```bash
+python scripts/run_real_eval.py --rebuild-index
+```
+
+常见用法：
+
+```bash
+python scripts/run_real_eval.py ^
+  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
+  --report-path evals/customer_support_real_eval_report.json ^
+  --knowledge-source-path data/agency.txt ^
+  --knowledge-db-path db ^
+  --rebuild-index
+```
+
+如果 API 已经独立运行，也可以直接打到现有服务：
+
+```bash
+python scripts/run_real_eval.py ^
+  --api-base-url http://127.0.0.1:8000 ^
+  --samples-path path/to/your_eval.jsonl ^
+  --report-path evals/your_real_eval_report.json
+```
+
+这个脚本会：
+
+1. 可选地按当前 embedding 配置重建知识索引
+2. 默认关闭 Gmail 轮询入口，仅验证非 Gmail 主流程
+3. 通过真实 HTTP 调用 `ingest-email -> run -> trace`
+4. 复用系统内建的 `response_quality`、`trajectory_evaluation`、`latency_metrics`、`resource_metrics`
+5. 输出与离线评测一致结构的 JSON 报告
+
+自建测试集格式与 [tests/samples/eval/customer_support_eval.jsonl](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval.jsonl) 一致。建议至少覆盖这些类型：
+
+1. `knowledge_request`，包含已知答案和知识缺口两类
+2. `technical_issue`，区分信息充分与需要澄清
+3. `commercial_policy_request`，包含退款、补偿、合同边界
+4. `feedback_intake`，包含纯反馈与功能建议
+5. `unrelated`
+6. `multi_intent`
+7. 高风险升级场景
+8. 容易误分类的边界场景
+
 ## API Surface
 
 写接口：
