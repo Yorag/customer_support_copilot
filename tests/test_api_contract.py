@@ -288,6 +288,84 @@ def test_run_ticket_creates_run_trace_and_draft_created_status():
     assert "node_latencies" in trace_payload["latency_metrics"]
 
 
+def test_get_ticket_trace_supports_explicit_run_selection():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket, first_run_id, _ = _seed_review_ticket(store)
+
+    with store.session_scope() as session:
+        session.add(
+            TicketRun(
+                run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+                ticket_id=ticket.ticket_id,
+                trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+                trigger_type="manual_api",
+                status="succeeded",
+                started_at=datetime.now(timezone.utc),
+                ended_at=datetime.now(timezone.utc) + timedelta(seconds=2),
+                final_action="create_draft",
+                attempt_index=2,
+                latency_metrics={"end_to_end_ms": 2400, "slowest_node": "draft_reply"},
+                resource_metrics={
+                    "total_tokens": 240,
+                    "llm_call_count": 2,
+                    "tool_call_count": 1,
+                },
+                response_quality={
+                    "overall_score": 3.9,
+                    "subscores": {
+                        "relevance": 3.9,
+                        "correctness": 3.8,
+                        "intent_alignment": 4.0,
+                        "clarity": 3.9,
+                    },
+                    "reason": "follow-up run",
+                },
+                trajectory_evaluation={
+                    "score": 4.1,
+                    "expected_route": "commercial_policy_request",
+                    "actual_route": "commercial_policy_request",
+                    "violations": [],
+                },
+            )
+        )
+
+    latest_trace = client.get(f"/tickets/{ticket.ticket_id}/trace")
+    assert latest_trace.status_code == 200
+    assert latest_trace.json()["run_id"] != first_run_id
+
+    explicit_trace = client.get(
+        f"/tickets/{ticket.ticket_id}/trace",
+        params={"run_id": first_run_id},
+    )
+    assert explicit_trace.status_code == 200
+    explicit_payload = explicit_trace.json()
+    assert explicit_payload["run_id"] == first_run_id
+    assert explicit_payload["trace_id"].startswith("trace_")
+    assert explicit_payload["latency_metrics"]["end_to_end_ms"] == 1000
+
+
+def test_get_ticket_trace_rejects_run_id_from_other_ticket():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    first_ticket, _, _ = _seed_review_ticket(store)
+    second_ticket, other_run_id, _ = _seed_review_ticket(store)
+
+    response = client.get(
+        f"/tickets/{first_ticket.ticket_id}/trace",
+        params={"run_id": other_run_id},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    assert response.json()["error"]["details"] == {
+        "ticket_id": first_ticket.ticket_id,
+        "run_id": other_run_id,
+    }
+
+
 def test_run_ticket_routes_high_risk_case_to_human_review():
     app, store = _build_app()
     client = TestClient(app)
@@ -397,6 +475,67 @@ def test_approve_and_close_update_memory_and_metrics_queries():
     )
     assert metrics.status_code == 200
     assert metrics.json()["latency"]["p50_ms"] == 1000.0
+
+
+def test_metrics_summary_filters_by_route():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    _seed_review_ticket(store, primary_route="commercial_policy_request")
+    _seed_review_ticket(store, primary_route="technical_issue")
+
+    now = datetime.now(timezone.utc)
+    response = client.get(
+        "/metrics/summary",
+        params={
+            "from": (now - timedelta(days=1)).isoformat(),
+            "to": (now + timedelta(days=1)).isoformat(),
+            "route": "technical_issue",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latency"]["p50_ms"] == 1000.0
+    assert payload["resources"]["avg_total_tokens"] == 120.0
+    assert payload["trajectory_evaluation"]["avg_score"] == 4.8
+
+
+def test_metrics_summary_rejects_invalid_route():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    now = datetime.now(timezone.utc)
+    response = client.get(
+        "/metrics/summary",
+        params={
+            "from": (now - timedelta(days=1)).isoformat(),
+            "to": now.isoformat(),
+            "route": "unknown_route",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert response.json()["error"]["details"]["query"] == "route"
+
+
+def test_metrics_summary_rejects_inverted_time_window():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    now = datetime.now(timezone.utc)
+    response = client.get(
+        "/metrics/summary",
+        params={
+            "from": now.isoformat(),
+            "to": (now - timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert response.json()["error"]["details"] == {"query": ["from", "to"]}
 
 
 def test_edit_and_approve_returns_review_and_creates_new_draft_version():

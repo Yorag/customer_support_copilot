@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
+from src.core_schema import TicketRoute
 from src.message_log import IngestEmailPayload
 
 from .dependencies import RequestContext, get_container, get_request_context
@@ -56,6 +57,38 @@ def _require_actor_id(context: RequestContext) -> str:
         status_code=422,
         details={"header": "X-Actor-Id"},
     )
+
+
+def _validate_metrics_summary_query(
+    *,
+    from_time: datetime,
+    to_time: datetime,
+    route: Optional[str],
+) -> tuple[datetime, datetime, Optional[str]]:
+    if from_time > to_time:
+        raise ApiError(
+            code="validation_error",
+            message="`from` must be earlier than or equal to `to`.",
+            status_code=422,
+            details={"query": ["from", "to"]},
+        )
+
+    if route is None:
+        return from_time, to_time, None
+
+    normalized_route = route.strip()
+    allowed_routes = sorted(item.value for item in TicketRoute)
+    if normalized_route not in allowed_routes:
+        raise ApiError(
+            code="validation_error",
+            message="`route` must be one of the supported V1 ticket routes.",
+            status_code=422,
+            details={
+                "query": "route",
+                "allowed_values": allowed_routes,
+            },
+        )
+    return from_time, to_time, normalized_route
 
 
 @router.post(
@@ -484,6 +517,11 @@ def get_metrics_summary(
     route: Optional[str] = Query(default=None),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> MetricsSummaryResponse:
+    from_time, to_time, route = _validate_metrics_summary_query(
+        from_time=from_time,
+        to_time=to_time,
+        route=route,
+    )
     summary = service.get_metrics_summary(
         from_time=from_time,
         to_time=to_time,
