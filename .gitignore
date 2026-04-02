@@ -34,6 +34,8 @@ token.json
 /db/
 db_backup_*/
 evals/*_report.json
+evals/reports/*.json
+evals/knowledge_db_*/
 tests/samples/eval/*.tmp.json
 
 # Editor and OS files

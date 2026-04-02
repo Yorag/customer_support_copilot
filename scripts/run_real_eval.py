@@ -76,6 +76,75 @@ def build_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _build_payload(
+    *,
+    settings,
+    records: list[dict[str, Any]],
+    api_base_url: str | None,
+    host: str,
+    port: int,
+    disable_gmail: bool,
+    active_knowledge_source_path: Path,
+    active_knowledge_db_path: Path,
+    rebuild_index: bool,
+    backup_path: Path | None,
+    in_progress: bool,
+) -> dict[str, Any]:
+    return {
+        "mode": {
+            "use_real_llm": True,
+            "gmail": "disabled" if disable_gmail else "enabled",
+            "knowledge_provider": "local_real",
+            "policy_provider": "static_real",
+            "database": "configured_runtime",
+            "transport": "http",
+            "api_base_url": api_base_url or f"http://{host}:{port}",
+            "knowledge_source_path": str(active_knowledge_source_path),
+            "knowledge_db_path": str(active_knowledge_db_path),
+            "knowledge_index_rebuilt": rebuild_index,
+            "knowledge_index_backup_path": str(backup_path) if backup_path else None,
+            "llm_model": settings.llm.chat_model,
+            "embedding_model": settings.embedding.model,
+            "in_progress": in_progress,
+        },
+        "records": records,
+        "summary": build_report(records),
+    }
+
+
+def _write_report(
+    *,
+    report_path: Path,
+    settings,
+    records: list[dict[str, Any]],
+    api_base_url: str | None,
+    host: str,
+    port: int,
+    disable_gmail: bool,
+    active_knowledge_source_path: Path,
+    active_knowledge_db_path: Path,
+    rebuild_index: bool,
+    backup_path: Path | None,
+    in_progress: bool,
+) -> dict[str, Any]:
+    payload = _build_payload(
+        settings=settings,
+        records=records,
+        api_base_url=api_base_url,
+        host=host,
+        port=port,
+        disable_gmail=disable_gmail,
+        active_knowledge_source_path=active_knowledge_source_path,
+        active_knowledge_db_path=active_knowledge_db_path,
+        rebuild_index=rebuild_index,
+        backup_path=backup_path,
+        in_progress=in_progress,
+    )
+    _ensure_parent(report_path)
+    report_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    return payload
+
+
 def _clear_runtime_caches() -> None:
     from src.config import get_settings
 
@@ -204,11 +273,13 @@ def run_real_eval(
         active_knowledge_source_path = settings.knowledge.source_document_path
 
     records: list[dict[str, Any]] = []
+    total_samples = len(load_jsonl(samples_path))
 
     def _execute(base_url: str) -> None:
         session = requests.Session()
 
         for index, sample in enumerate(load_jsonl(samples_path), start=1):
+            print(f"[real-eval] {index}/{total_samples} {sample['sample_id']} ingest")
             ingest_response = session.post(
                 f"{base_url}/tickets/ingest-email",
                 json={
@@ -226,6 +297,7 @@ def run_real_eval(
             ingest_response.raise_for_status()
             ingest_payload = ingest_response.json()
 
+            print(f"[real-eval] {index}/{total_samples} {sample['sample_id']} run")
             run_response = session.post(
                 f"{base_url}/tickets/{ingest_payload['ticket_id']}/run",
                 json={
@@ -288,6 +360,27 @@ def run_real_eval(
                     "resource_metrics": trace_payload.get("resource_metrics") or {},
                 }
             )
+            print(
+                "[real-eval] "
+                f"{index}/{total_samples} {sample['sample_id']} "
+                f"status={run_response.status_code} "
+                f"route={actual_route} "
+                f"escalation={escalation_flag}"
+            )
+            _write_report(
+                report_path=report_path,
+                settings=settings,
+                records=records,
+                api_base_url=api_base_url,
+                host=host,
+                port=port,
+                disable_gmail=disable_gmail,
+                active_knowledge_source_path=active_knowledge_source_path,
+                active_knowledge_db_path=active_knowledge_db_path,
+                rebuild_index=rebuild_index,
+                backup_path=backup_path,
+                in_progress=True,
+            )
 
     if api_base_url:
         _execute(api_base_url.rstrip("/"))
@@ -295,27 +388,20 @@ def run_real_eval(
         with LocalApiServer(host=host, port=port) as base_url:
             _execute(base_url)
 
-    payload = {
-        "mode": {
-            "use_real_llm": True,
-            "gmail": "disabled" if disable_gmail else "enabled",
-            "knowledge_provider": "local_real",
-            "policy_provider": "static_real",
-            "database": "configured_runtime",
-            "transport": "http",
-            "api_base_url": api_base_url or f"http://{host}:{port}",
-            "knowledge_source_path": str(active_knowledge_source_path),
-            "knowledge_db_path": str(active_knowledge_db_path),
-            "knowledge_index_rebuilt": rebuild_index,
-            "knowledge_index_backup_path": str(backup_path) if backup_path else None,
-            "llm_model": settings.llm.chat_model,
-            "embedding_model": settings.embedding.model,
-        },
-        "records": records,
-        "summary": build_report(records),
-    }
-    _ensure_parent(report_path)
-    report_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    payload = _write_report(
+        report_path=report_path,
+        settings=settings,
+        records=records,
+        api_base_url=api_base_url,
+        host=host,
+        port=port,
+        disable_gmail=disable_gmail,
+        active_knowledge_source_path=active_knowledge_source_path,
+        active_knowledge_db_path=active_knowledge_db_path,
+        rebuild_index=rebuild_index,
+        backup_path=backup_path,
+        in_progress=False,
+    )
     return payload
 
 

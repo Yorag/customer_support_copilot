@@ -23,7 +23,7 @@ def main() -> None:
     settings = validate_required_settings(INDEX_REQUIRED_SETTINGS)
 
     print("Loading & Chunking Docs...")
-    loader = TextLoader(str(settings.knowledge.source_document_path))
+    loader = TextLoader(str(settings.knowledge.source_document_path), encoding="utf-8")
     docs = loader.load()
 
     doc_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
