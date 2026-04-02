@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -175,6 +176,120 @@ class ProofReaderOutput(BaseModel):
         ...,
         description="Indicates whether the email is ready to be sent (true) or requires rewriting (false).",
     )
+
+
+class RiskLevel(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class KnowledgePolicyOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    queries: list[str] = Field(
+        default_factory=list,
+        description="Normalized search or reasoning queries used for knowledge lookup.",
+    )
+    knowledge_summary: str = Field(
+        ...,
+        description="Condensed knowledge evidence summary used by downstream drafting.",
+    )
+    citations: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Minimal citation objects pointing to the supporting evidence.",
+    )
+    knowledge_confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confidence that the available knowledge and policy evidence is sufficient.",
+    )
+    risk_level: RiskLevel = Field(
+        ...,
+        description="Normalized risk level after combining route and policy signals.",
+    )
+    allowed_actions: list[str] = Field(
+        default_factory=list,
+        description="Actions the drafting stage is allowed to perform.",
+    )
+    disallowed_actions: list[str] = Field(
+        default_factory=list,
+        description="Actions the drafting stage must avoid.",
+    )
+    policy_notes: str = Field(
+        ...,
+        description="Condensed policy guidance relevant to the case.",
+    )
+
+
+class DraftingOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    draft_text: str = Field(
+        ...,
+        min_length=1,
+        description="Customer-facing draft body text.",
+    )
+    draft_rationale: str = Field(
+        ...,
+        min_length=1,
+        description="Short explanation of why the draft follows the selected strategy.",
+    )
+    applied_response_strategy: ResponseStrategy = Field(
+        ...,
+        description="The response strategy actually applied while generating the draft.",
+    )
+
+    @field_validator("draft_text", "draft_rationale", mode="after")
+    @classmethod
+    def _strip_non_blank_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("draft output text fields must not be blank.")
+        return stripped
+
+
+class QaHandoffOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approved: bool = Field(
+        ...,
+        description="Whether the draft can proceed to Gmail draft creation.",
+    )
+    issues: list[str] = Field(
+        default_factory=list,
+        description="Detected quality or safety issues.",
+    )
+    rewrite_guidance: list[str] = Field(
+        default_factory=list,
+        description="Actionable rewrite guidance when approved=false and escalate=false.",
+    )
+    quality_scores: dict[str, float] = Field(
+        default_factory=dict,
+        description="Normalized quality dimension scores.",
+    )
+    escalate: bool = Field(
+        ...,
+        description="Whether the case should go to human review instead of another rewrite.",
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        description="Primary QA or handoff rationale.",
+    )
+    human_handoff_summary: Optional[str] = Field(
+        default=None,
+        description="Minimal human handoff summary for escalated cases.",
+    )
+
+    @field_validator("reason", mode="after")
+    @classmethod
+    def _strip_reason(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("reason must not be blank.")
+        return stripped
 
 
 def _sync_boolean_tag(
