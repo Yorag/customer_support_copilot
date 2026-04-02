@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from src.core_schema import (
     EntityIdPrefix,
     HumanReviewAction,
+    MemorySourceStage,
     RunFinalAction,
     RunStatus,
     RunTriggerType,
@@ -23,6 +24,7 @@ from src.core_schema import (
     to_api_timestamp,
     utc_now,
 )
+from src.customer_memory import CustomerMemoryService
 from src.db.models import AppMetadata, DraftArtifact, Ticket, TicketRun, TraceEvent
 from src.graph import Workflow
 from src.message_log import IngestEmailPayload, MessageLogService
@@ -300,11 +302,32 @@ class TicketApiService:
                 raise TicketNotFoundError(ticket_id)
 
             state_service = TicketStateService(session, repositories=repositories)
-            return state_service.apply_close_action(
+            updated = state_service.apply_close_action(
                 ticket_id=ticket_id,
                 ticket_version=ticket_version,
                 reason=reason,
             )
+            run = self._create_system_action_run(
+                session=session,
+                repositories=repositories,
+                ticket=updated,
+                trigger_type=RunTriggerType.HUMAN_ACTION,
+                actor_id="system:close",
+                state_service=state_service,
+            )
+            CustomerMemoryService(session, repositories=repositories).apply_stage_updates(
+                ticket=updated,
+                run=run,
+                stage=MemorySourceStage.CLOSE_TICKET,
+                review_comment=reason,
+            )
+            run.status = RunStatus.SUCCEEDED.value
+            run.final_action = RunFinalAction.CLOSE_TICKET.value
+            run.ended_at = utc_now()
+            run.latency_metrics = {
+                "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
+            }
+            return updated
 
     def get_customer_memory(self, customer_id: str):
         with self._store.session_scope() as session:
@@ -346,7 +369,11 @@ class TicketApiService:
             statement = (
                 select(TicketRun, Ticket)
                 .join(Ticket, Ticket.ticket_id == TicketRun.ticket_id)
-                .where(TicketRun.started_at >= from_time, TicketRun.started_at <= to_time)
+                .where(
+                    TicketRun.started_at >= from_time,
+                    TicketRun.started_at <= to_time,
+                    TicketRun.trigger_type != RunTriggerType.HUMAN_ACTION.value,
+                )
             )
             if route is not None:
                 statement = statement.where(Ticket.primary_route == route)
@@ -419,6 +446,28 @@ class TicketApiService:
                 rewrite_reasons=rewrite_reasons,
                 target_queue=target_queue,
             )
+            run = self._create_system_action_run(
+                session=session,
+                repositories=repositories,
+                ticket=updated,
+                trigger_type=RunTriggerType.HUMAN_ACTION,
+                actor_id=actor_id,
+                state_service=state_service,
+            )
+            if action is HumanReviewAction.ESCALATE:
+                CustomerMemoryService(session, repositories=repositories).apply_stage_updates(
+                    ticket=updated,
+                    run=run,
+                    stage=MemorySourceStage.ESCALATE_TO_HUMAN,
+                    review_comment=comment,
+                    target_queue=target_queue,
+                )
+            run.status = RunStatus.SUCCEEDED.value
+            run.final_action = self._manual_action_final_action(action, updated)
+            run.ended_at = utc_now()
+            run.latency_metrics = {
+                "end_to_end_ms": _duration_ms(run.started_at, run.ended_at)
+            }
             return updated, review.review_id
 
     def _create_human_action_run(
@@ -441,7 +490,43 @@ class TicketApiService:
             attempt_index=state_service.get_next_run_attempt_index(ticket.ticket_id),
         )
         repositories.ticket_runs.add(run)
+        session.flush()
         return run
+
+    def _create_system_action_run(
+        self,
+        *,
+        session: Session,
+        repositories,
+        ticket: Ticket,
+        trigger_type: RunTriggerType,
+        actor_id: str,
+        state_service: TicketStateService,
+    ) -> TicketRun:
+        run = TicketRun(
+            run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type=trigger_type.value,
+            triggered_by=actor_id,
+            status=RunStatus.RUNNING.value,
+            started_at=utc_now(),
+            attempt_index=state_service.get_next_run_attempt_index(ticket.ticket_id),
+        )
+        repositories.ticket_runs.add(run)
+        session.flush()
+        return run
+
+    def _manual_action_final_action(
+        self,
+        action: HumanReviewAction,
+        ticket: Ticket,
+    ) -> str:
+        if action is HumanReviewAction.ESCALATE:
+            return RunFinalAction.HANDOFF_TO_HUMAN.value
+        if ticket.business_status == TicketBusinessStatus.CLOSED.value:
+            return RunFinalAction.CLOSE_TICKET.value
+        return RunFinalAction.NO_OP.value
 
 
 class TicketRunner:
@@ -458,6 +543,7 @@ class TicketRunner:
         self._repositories = repositories
         self._container = container
         self._message_log = MessageLogService(session, repositories=repositories)
+        self._memory_service = CustomerMemoryService(session, repositories=repositories)
 
     def execute(
         self,

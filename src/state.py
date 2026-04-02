@@ -74,6 +74,8 @@ class GraphState(TypedDict, total=False):
     thread_summary: Optional[str]
     customer_profile: Optional[dict[str, Any]]
     historical_cases: list[dict[str, Any]]
+    case_context: Optional[dict[str, Any]]
+    memory_update_candidates: Optional[dict[str, Any]]
     memory_updates: Optional[dict[str, Any]]
 
     # Draft and review fields
@@ -158,6 +160,8 @@ def build_initial_graph_state() -> GraphState:
         "thread_summary": None,
         "customer_profile": None,
         "historical_cases": [],
+        "case_context": None,
+        "memory_update_candidates": None,
         "memory_updates": None,
         "draft_versions": [],
         "qa_feedback": None,

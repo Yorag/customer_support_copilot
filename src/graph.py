@@ -38,6 +38,9 @@ class Workflow:
         workflow.add_node("knowledge_lookup", nodes.knowledge_lookup)
         workflow.add_node("policy_check", nodes.policy_check)
         workflow.add_node("customer_history_lookup", nodes.customer_history_lookup)
+        workflow.add_node("collect_case_context", nodes.collect_case_context)
+        workflow.add_node("extract_memory_updates", nodes.extract_memory_updates)
+        workflow.add_node("validate_memory_updates", nodes.validate_memory_updates)
         workflow.add_node("draft_reply", nodes.draft_reply)
         workflow.add_node("qa_review", nodes.qa_review)
         workflow.add_node("clarify_request", nodes.clarify_request)
@@ -95,9 +98,12 @@ class Workflow:
                 "escalate_to_human": "escalate_to_human",
             },
         )
-        workflow.add_edge("clarify_request", END)
-        workflow.add_edge("create_gmail_draft", END)
-        workflow.add_edge("escalate_to_human", END)
-        workflow.add_edge("close_ticket", END)
+        workflow.add_edge("clarify_request", "collect_case_context")
+        workflow.add_edge("create_gmail_draft", "collect_case_context")
+        workflow.add_edge("escalate_to_human", "collect_case_context")
+        workflow.add_edge("close_ticket", "collect_case_context")
+        workflow.add_edge("collect_case_context", "extract_memory_updates")
+        workflow.add_edge("extract_memory_updates", "validate_memory_updates")
+        workflow.add_edge("validate_memory_updates", END)
 
         self.app = workflow.compile()

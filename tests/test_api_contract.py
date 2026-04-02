@@ -324,7 +324,10 @@ def test_manual_actions_and_memory_and_metrics_queries():
 
     memory = client.get("/customers/cust_email_liwei_example_com/memory")
     assert memory.status_code == 200
-    assert memory.json()["version"] == 3
+    assert memory.json()["version"] == 4
+    assert any(
+        item["ticket_id"] == ticket.ticket_id for item in memory.json()["historical_case_refs"]
+    )
 
     now = datetime.now(timezone.utc)
     metrics = client.get(

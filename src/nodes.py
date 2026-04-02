@@ -9,12 +9,14 @@ from .core_schema import (
     DraftQaStatus,
     DraftType,
     EntityIdPrefix,
+    MemorySourceStage,
     MessageType,
     RunFinalAction,
     TicketBusinessStatus,
     generate_prefixed_id,
     utc_now,
 )
+from .customer_memory import CustomerMemoryService
 from .db.models import DraftArtifact, Ticket, TicketRun, TraceEvent
 from .message_log import DraftMessagePayload, MessageLogService
 from .state import (
@@ -59,6 +61,11 @@ class Nodes:
         self._message_log = message_log
         self._run = run
         self._worker_id = worker_id
+        self._memory_service = (
+            CustomerMemoryService(session, repositories=repositories)
+            if session is not None and repositories is not None
+            else None
+        )
 
     # Transitional tutorial-flow nodes kept for compatibility with pre-X1 callers.
     def load_new_emails(self, state: GraphState) -> GraphState:
@@ -513,6 +520,85 @@ class Nodes:
         )
         return {"historical_cases": historical_cases, "current_node": "customer_history_lookup"}
 
+    def collect_case_context(self, state: GraphState) -> GraphState:
+        print(Fore.YELLOW + "Collect case context...\n" + Style.RESET_ALL)
+        ticket = self._require_ticket(state)
+        run = self._require_run()
+        stage = self._memory_stage_for_state(state)
+        case_context = self._require_memory_service().collect_case_context(
+            ticket=ticket,
+            run=run,
+            stage=stage,
+            state=state,
+            draft_text=state.get("generated_email"),
+        )
+        self._record_event(
+            ticket=ticket,
+            event_type="node",
+            event_name="collect_case_context",
+            node_name="collect_case_context",
+            status="succeeded",
+            metadata={"stage": stage.value},
+        )
+        return {
+            "case_context": case_context,
+            "current_node": "collect_case_context",
+        }
+
+    def extract_memory_updates(self, state: GraphState) -> GraphState:
+        print(Fore.YELLOW + "Extract memory updates...\n" + Style.RESET_ALL)
+        ticket = self._require_ticket(state)
+        run = self._require_run()
+        extracted = self._require_memory_service().extract_memory_updates(
+            ticket=ticket,
+            run=run,
+            case_context=state.get("case_context") or {},
+        )
+        payload = self._require_memory_service().serialize_extraction_result(extracted)
+        self._record_event(
+            ticket=ticket,
+            event_type="node",
+            event_name="extract_memory_updates",
+            node_name="extract_memory_updates",
+            status="succeeded",
+            metadata={
+                "has_customer_id": bool(extracted.customer_id),
+                "event_count": len(extracted.events),
+            },
+        )
+        return {
+            "memory_update_candidates": payload,
+            "current_node": "extract_memory_updates",
+        }
+
+    def validate_memory_updates(self, state: GraphState) -> GraphState:
+        print(Fore.YELLOW + "Validate memory updates...\n" + Style.RESET_ALL)
+        ticket = self._require_ticket(state)
+        run = self._require_run()
+        validated = self._require_memory_service().validate_memory_updates(
+            state.get("memory_update_candidates") or {}
+        )
+        self._require_memory_service().apply_memory_updates(
+            ticket=ticket,
+            run=run,
+            validated_updates=validated,
+        )
+        self._record_event(
+            ticket=ticket,
+            event_type="node",
+            event_name="validate_memory_updates",
+            node_name="validate_memory_updates",
+            status="succeeded",
+            metadata={
+                "persisted": validated is not None,
+                "event_count": len((validated or {}).get("events", [])),
+            },
+        )
+        return {
+            "memory_updates": validated,
+            "current_node": "validate_memory_updates",
+        }
+
     def draft_reply(self, state: GraphState) -> GraphState:
         print(Fore.YELLOW + "Draft reply...\n" + Style.RESET_ALL)
         ticket = self._require_ticket(state)
@@ -908,6 +994,11 @@ class Nodes:
             raise RuntimeError("Ticket execution nodes require worker_id.")
         return self._worker_id
 
+    def _require_memory_service(self) -> CustomerMemoryService:
+        if self._memory_service is None:
+            raise RuntimeError("Ticket execution nodes require CustomerMemoryService.")
+        return self._memory_service
+
     def _next_draft_version_index(self, ticket_id: str) -> int:
         drafts = self._repositories.draft_artifacts.list_by_ticket(ticket_id)
         if not drafts:
@@ -974,6 +1065,21 @@ class Nodes:
         if ticket.primary_route == "unrelated":
             return RunFinalAction.SKIP_UNRELATED.value
         return RunFinalAction.CREATE_DRAFT.value
+
+    def _memory_stage_for_state(self, state: GraphState) -> MemorySourceStage:
+        final_action = state.get("final_action")
+        business_status = state.get("business_status")
+        if (
+            final_action == RunFinalAction.REQUEST_CLARIFICATION.value
+            or business_status == TicketBusinessStatus.AWAITING_CUSTOMER_INPUT.value
+        ):
+            return MemorySourceStage.AWAITING_CUSTOMER_INPUT
+        if (
+            final_action == RunFinalAction.HANDOFF_TO_HUMAN.value
+            or business_status == TicketBusinessStatus.AWAITING_HUMAN_REVIEW.value
+        ):
+            return MemorySourceStage.ESCALATE_TO_HUMAN
+        return MemorySourceStage.CLOSE_TICKET
 
     def _map_route_to_legacy_category(self, primary_route: str) -> str:
         if primary_route == "knowledge_request":

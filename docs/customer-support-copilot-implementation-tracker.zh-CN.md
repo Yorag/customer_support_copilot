@@ -269,7 +269,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | S03.1 | `2`, `15` | 搭建 `FastAPI` 业务骨架、DTO 校验、请求头处理、错误格式、版本控制与幂等处理约定 | 已完成 | S01.4, S02.1 | API 基础框架 | 不再把 runnable API 作为主入口，`X-Actor-Id`、`X-Request-Id`、`Idempotency-Key` 统一处理，`validation_error`、`not_found`、`ticket_version_conflict`、`invalid_state_transition`、`lease_conflict`、`duplicate_request`、`external_dependency_failed` 等标准错误码明确 |
 | S03.2 | `3`, `10`, `14` | 实现 `POST /tickets/ingest-email`、`GET /tickets/{ticket_id}` | 已完成 | S03.1, S06.2, S06.3 | 入库与工单快照接口 | 邮件先入库成 ticket，`ingest` 幂等键与 `new/queued` 状态符合 spec，`attachments` 请求字段被接收并以元数据方式持久化 |
-| S03.3 | `4`, `14` | 实现 `POST /tickets/{ticket_id}/run` | 进行中 | S03.1, S02.2, X1.3 | run 接口 | 可以触发真正的 ticket 执行流，并返回 run 结果摘要 |
+| S03.3 | `4`, `14` | 实现 `POST /tickets/{ticket_id}/run` | 已完成 | S03.1, S02.2, X1.3 | run 接口 | 可以触发真正的 ticket 执行流，并返回 run 结果摘要 |
 | S03.4 | `5`, `6`, `7`, `8`, `9`, `14` | 实现人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close` | 进行中 | S03.2, S03.3, S02.4, X1.4 | 人工动作接口 | 所有前置状态、版本与返回体符合契约 |
 | S03.5 | `12` | 实现 `GET /customers/{customer_id}/memory` | 进行中 | S01.3, X1.4, S03.1 | memory 查询接口 | 返回 `profile`、`risk_tags`、`business_flags`、`historical_case_refs`、`version` |
 | S03.6 | `11`, `14` | 实现 `GET /tickets/{ticket_id}/trace` | 进行中 | S03.1, S05.2 | trace 查询接口 | 返回 `trace_id`、延迟、资源、质量、轨迹评估和事件明细 |
@@ -309,7 +309,7 @@
 | X1.1 | 将 `GraphState` 从邮件处理态改为 ticket run 执行态 | 已完成 | S01.4, S02.1 | 新 state 模型 | state 字段与业务状态一致 |
 | X1.2 | 将现有 agent 重构为 `Triage`、`Knowledge & Policy`、`Drafting`、`QA & Handoff` 四个核心角色 | 已完成 | S04.3, X1.1 | 新 agent 结构 | agent 分工与决策表对齐 |
 | X1.3 | 将 graph 从 `load inbox -> categorize -> rag -> writer -> proofreader` 改为 ticket 执行流 | 已完成 | X1.1, X1.2, S03.2 | 新 graph | 明确区分“邮件发现/入库”和“ticket 执行” |
-| X1.4 | 接入短期记忆、长期记忆、人工审核与升级分支，并实现 `collect_case_context -> extract_memory_updates -> validate_memory_updates` | 未开始 | X1.3, S01.3, S02.4 | 记忆和审核集成 | 等待客户补充、审核、升级路径闭环，且工单收尾时能生成并校验结构化 `memory_updates` |
+| X1.4 | 接入短期记忆、长期记忆、人工审核与升级分支，并实现 `collect_case_context -> extract_memory_updates -> validate_memory_updates` | 已完成 | X1.3, S01.3, S02.4 | 记忆和审核集成 | 等待客户补充、审核、升级路径闭环，且工单收尾时能生成并校验结构化 `memory_updates` |
 
 ### X2. 交付与展示
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `X1.4 接入短期记忆、长期记忆、人工审核与升级分支，并实现 collect_case_context -> extract_memory_updates -> validate_memory_updates`
+1. `S03.4 实现人工动作接口：approve、edit-and-approve、rewrite、escalate、close`
 
 ---
 
@@ -388,3 +388,4 @@
 | 2026-04-02 | 推进 `S03`：新增 `src/api/` 业务 API 层，包含 `FastAPI` 应用工厂、请求头依赖、统一错误响应、DTO 和路由；将 `deploy_api.py` 从 LangServe runnable 切换为业务 API 入口；新增 `TicketApiService`/`TicketRunner`，复用现有 `MessageLogService`、`TicketStateService` 和 repositories，落地 `ingest-email`、ticket 快照、`run`、人工动作、memory、trace 和 metrics 汇总接口，并使用 `app_metadata` 记录轻量幂等键；新增 `tests/test_api_contract.py` 覆盖业务接口主路径，最终 `pytest -q` 全量 `93 passed`。由于 `X1.3/X1.4/S05` 仍未完成，`S03` 顶层及 `S03.3-S03.7` 状态保持为 `进行中`。 |
 | 2026-04-02 | 完成 `X1.1`：重写 `src/state.py`，将 `GraphState` 从邮件批处理字段升级为按基础工单、输入、路由、知识、记忆、草稿审核、观测、并发恢复分组的 ticket run 执行态，并提供 `build_initial_graph_state`、`build_ticket_run_state` 与 active email 兼容辅助函数；同步调整 `main.py` 和 `src/nodes.py`，使现有 triage/RAG/写作节点优先读写新状态键，同时保留旧教程图可运行；新增 `tests/test_state.py` 并扩展 `tests/test_nodes.py` 覆盖状态构造、active email 兼容和草稿版本/重写计数同步，最终 `pytest -q` 全量 `98 passed`。 |
 | 2026-04-02 | 完成 `X1.2/X1.3`：在 `src/structure_outputs.py` 增加 `KnowledgePolicyOutput`、`DraftingOutput`、`QaHandoffOutput`，并在 `src/agents.py` 将能力边界明确收敛为 `Triage`、`Knowledge & Policy`、`Drafting`、`QA & Handoff` 四个核心角色，其中后三者先以确定性实现落地，避免新的 ticket 执行流依赖远端模型；重写 `src/graph.py` 为 ticket execution workflow，并在 `src/nodes.py` 新增 `load_ticket_context/load_memory/triage/knowledge_lookup/policy_check/customer_history_lookup/draft_reply/qa_review/clarify_request/create_gmail_draft/escalate_to_human/close_ticket` 节点与条件边；将 `src/api/services.py` 中 `TicketRunner` 改为创建 run、领取租约并调用新图执行，`src/api/routes.py` 改为向 `TicketApiService` 注入完整 `ServiceContainer`，`main.py` 切换为 `ingest -> run` 的批处理入口；同时扩展 `tests/test_agents.py`、`tests/test_nodes.py`、`tests/test_api_contract.py` 覆盖四角色输出、新图知识/澄清/人工升级分支和 API `run` 主路径，最终 `pytest -q` 全量 `104 passed`。 |
+| 2026-04-02 | 完成 `S03.3/X1.4`：确认 `POST /tickets/{ticket_id}/run` 已触发真实 ticket workflow 后，将跟踪状态回填为 `S03.3 已完成`；新增 `src/customer_memory.py`，实现 `collect_case_context -> extract_memory_updates -> validate_memory_updates -> apply_memory_updates`，并在 `src/graph.py`/`src/nodes.py` 将其接入 `create_gmail_draft`、`clarify_request`、`escalate_to_human`、`close_ticket` 收尾路径，同时在 `src/api/services.py` 为 `escalate` 与 `close` 动作补充长期记忆回写；同步扩展 `tests/test_nodes.py`、`tests/test_api_contract.py` 覆盖 `memory_updates` 与 memory 演进行为，最终 `pytest -q` 全量 `104 passed`。 |

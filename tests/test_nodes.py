@@ -388,10 +388,15 @@ def test_ticket_execution_nodes_route_knowledge_request_to_gmail_draft(sample_em
         state.update(nodes.draft_reply(state))
         state.update(nodes.qa_review(state))
         assert nodes.route_after_qa(state) == "create_gmail_draft"
-        result = nodes.create_gmail_draft(state)
+        state.update(nodes.create_gmail_draft(state))
+        state.update(nodes.collect_case_context(state))
+        state.update(nodes.extract_memory_updates(state))
+        state.update(nodes.validate_memory_updates(state))
 
-        assert result["final_action"] == "create_draft"
-        assert result["business_status"] == "draft_created"
+        assert state["final_action"] == "create_draft"
+        assert state["business_status"] == "draft_created"
+        assert state["memory_updates"]["customer_id"] == ticket.customer_id
+        assert state["memory_updates"]["historical_case_ref"]["outcome"] == "draft_created"
 
 
 def test_ticket_execution_nodes_route_high_risk_case_to_human_review(sample_email_payload):
@@ -427,10 +432,14 @@ def test_ticket_execution_nodes_route_high_risk_case_to_human_review(sample_emai
         assert nodes.route_ticket(state) == "policy_check"
         state.update(nodes.policy_check(state))
         assert nodes.route_after_knowledge(state) == "escalate_to_human"
-        result = nodes.escalate_to_human(state)
+        state.update(nodes.escalate_to_human(state))
+        state.update(nodes.collect_case_context(state))
+        state.update(nodes.extract_memory_updates(state))
+        state.update(nodes.validate_memory_updates(state))
 
-        assert result["business_status"] == "awaiting_human_review"
-        assert result["final_action"] == "handoff_to_human"
+        assert state["business_status"] == "awaiting_human_review"
+        assert state["final_action"] == "handoff_to_human"
+        assert "needs_escalation" in state["memory_updates"]["risk_tags_to_add"]
 
 
 def test_ticket_execution_nodes_route_technical_issue_to_clarification(sample_email_payload):
@@ -465,7 +474,11 @@ def test_ticket_execution_nodes_route_technical_issue_to_clarification(sample_em
         state.update(nodes.triage_ticket(state))
 
         assert nodes.route_ticket(state) == "clarify_request"
-        result = nodes.clarify_request(state)
+        state.update(nodes.clarify_request(state))
+        state.update(nodes.collect_case_context(state))
+        state.update(nodes.extract_memory_updates(state))
+        state.update(nodes.validate_memory_updates(state))
 
-        assert result["business_status"] == "awaiting_customer_input"
-        assert result["final_action"] == "request_clarification"
+        assert state["business_status"] == "awaiting_customer_input"
+        assert state["final_action"] == "request_clarification"
+        assert state["memory_updates"]["historical_case_ref"]["outcome"] == "awaiting_customer_input"
