@@ -11,11 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core_schema import (
-    DraftQaStatus,
-    DraftType,
     EntityIdPrefix,
     HumanReviewAction,
-    MessageType,
     RunFinalAction,
     RunStatus,
     RunTriggerType,
@@ -27,10 +24,12 @@ from src.core_schema import (
     utc_now,
 )
 from src.db.models import AppMetadata, DraftArtifact, Ticket, TicketRun, TraceEvent
+from src.graph import Workflow
 from src.message_log import IngestEmailPayload, MessageLogService
+from src.state import build_ticket_run_state
 from src.ticket_state_machine import TicketStateService
+from src.tools.service_container import ServiceContainer, get_service_container
 from src.tools.types import TicketStoreProtocol
-from src.triage import TriageContext, TriageDecisionService
 
 
 @dataclass(frozen=True)
@@ -88,8 +87,13 @@ class IdempotencyService:
 
 
 class TicketApiService:
-    def __init__(self, store: TicketStoreProtocol) -> None:
+    def __init__(
+        self,
+        store: TicketStoreProtocol,
+        container: ServiceContainer | None = None,
+    ) -> None:
         self._store = store
+        self._container = container or get_service_container()
 
     def ingest_email(
         self,
@@ -162,6 +166,7 @@ class TicketApiService:
                 session=session,
                 store=self._store,
                 repositories=repositories,
+                container=self._container,
             )
             result = runner.execute(
                 ticket_id=ticket_id,
@@ -440,12 +445,19 @@ class TicketApiService:
 
 
 class TicketRunner:
-    def __init__(self, *, session: Session, store: TicketStoreProtocol, repositories) -> None:
+    def __init__(
+        self,
+        *,
+        session: Session,
+        store: TicketStoreProtocol,
+        repositories,
+        container: ServiceContainer,
+    ) -> None:
         self._session = session
         self._store = store
         self._repositories = repositories
+        self._container = container
         self._message_log = MessageLogService(session, repositories=repositories)
-        self._triage = TriageDecisionService()
 
     def execute(
         self,
@@ -509,73 +521,40 @@ class TicketRunner:
             expected_version=claimed.version,
         )
 
-        inbound_context = self._message_log.get_thread_messages_for_drafting(
-            running.gmail_thread_id
-        )
-        latest_customer_message = inbound_context.latest_customer_message
-        subject = latest_customer_message.subject if latest_customer_message else running.subject
-        body = (
-            latest_customer_message.body_text
-            if latest_customer_message and latest_customer_message.body_text
-            else (running.latest_message_excerpt or "")
-        )
-
-        decision = self._triage.evaluate(
-            subject=subject,
-            body=body,
-            context=self._build_triage_context(running),
-        )
-        routed = state_service.transition_business_status(
-            running.ticket_id,
-            target_status=TicketBusinessStatus.TRIAGED,
-            expected_version=running.version,
-            metadata_updates={
-                "primary_route": decision.output.primary_route,
-                "secondary_routes": decision.output.secondary_routes,
-                "tags": decision.output.tags,
-                "priority": decision.output.priority,
-                "intent_confidence": decision.output.intent_confidence,
-                "response_strategy": decision.output.response_strategy,
-                "multi_intent": decision.output.multi_intent,
-                "needs_clarification": decision.output.needs_clarification,
-                "needs_escalation": decision.output.needs_escalation,
-                "routing_reason": decision.output.routing_reason,
-                "risk_reasons": list(decision.escalation_reasons),
-            },
-            clear_error=True,
-        )
-        self._record_event(
-            run=run,
-            ticket=routed,
-            event_type=TraceEventType.DECISION.value,
-            event_name="triage_decision",
-            node_name="triage",
-            status=TraceEventStatus.SUCCEEDED.value,
-            metadata={
-                "primary_route": routed.primary_route,
-                "response_strategy": routed.response_strategy,
-                "needs_clarification": routed.needs_clarification,
-                "needs_escalation": routed.needs_escalation,
-                "final_action": self._planned_final_action(routed),
-            },
-        )
-
         try:
-            finalized_ticket = self._finish_run(
-                ticket=routed,
+            workflow = Workflow(
+                service_container=self._container,
+                session=self._session,
+                repositories=self._repositories,
+                state_service=state_service,
+                message_log=self._message_log,
                 run=run,
                 worker_id=worker_id,
-                state_service=state_service,
-                subject=subject,
-                body=body,
             )
+            initial_state = build_ticket_run_state(
+                ticket_id=running.ticket_id,
+                customer_id=running.customer_id,
+                business_status=running.business_status,
+                processing_status=running.processing_status,
+                ticket_version=running.version,
+                priority=running.priority,
+                trace_id=run.trace_id,
+                run_id=run.run_id,
+                trigger_type=normalized_trigger.value,
+                triggered_by=actor_id,
+            )
+            for _ in workflow.app.stream(initial_state):
+                pass
+            finalized_ticket = self._repositories.tickets.get(running.ticket_id)
+            if finalized_ticket is None:
+                raise TicketNotFoundError(running.ticket_id)
         except Exception as exc:
             failed_ticket = state_service.fail_run(
-                routed.ticket_id,
+                running.ticket_id,
                 worker_id=worker_id,
                 error_code="run_execution_failed",
                 error_message=str(exc),
-                expected_version=routed.version,
+                expected_version=self._repositories.tickets.get(running.ticket_id).version,
             )
             run.status = RunStatus.FAILED.value
             run.error_code = failed_ticket.last_error_code
@@ -615,140 +594,6 @@ class TicketRunner:
 
         return RunExecutionResult(ticket=finalized_ticket, run=run)
 
-    def _finish_run(
-        self,
-        *,
-        ticket: Ticket,
-        run: TicketRun,
-        worker_id: str,
-        state_service: TicketStateService,
-        subject: str | None,
-        body: str,
-    ) -> Ticket:
-        current_ticket = ticket
-        if current_ticket.primary_route == "unrelated":
-            return state_service.complete_run(
-                current_ticket.ticket_id,
-                worker_id=worker_id,
-                business_status=TicketBusinessStatus.DRAFT_CREATED,
-                expected_version=current_ticket.version,
-            )
-
-        if current_ticket.needs_clarification:
-            draft = self._create_draft(
-                ticket=current_ticket,
-                run=run,
-                draft_type=DraftType.CLARIFICATION_REQUEST,
-                content_text="Please share the reproduction steps, the exact error, expected versus actual behavior, and your environment details so we can continue troubleshooting.",
-                qa_status=DraftQaStatus.PASSED,
-            )
-            self._message_log.create_draft_message_log(
-                payload=_build_draft_message_payload(
-                    ticket=current_ticket,
-                    run=run,
-                    draft=draft,
-                    subject=subject,
-                    body_text=draft.content_text,
-                    message_type=MessageType.CLARIFICATION_REQUEST.value,
-                )
-            )
-            return state_service.mark_waiting_external(
-                current_ticket.ticket_id,
-                worker_id=worker_id,
-                business_status=TicketBusinessStatus.AWAITING_CUSTOMER_INPUT,
-                expected_version=current_ticket.version,
-                metadata_updates={"gmail_draft_id": draft.gmail_draft_id},
-            )
-
-        if current_ticket.needs_escalation:
-            return state_service.mark_waiting_external(
-                current_ticket.ticket_id,
-                worker_id=worker_id,
-                business_status=TicketBusinessStatus.AWAITING_HUMAN_REVIEW,
-                expected_version=current_ticket.version,
-                metadata_updates={"risk_reasons": current_ticket.risk_reasons},
-            )
-
-        draft = self._create_draft(
-            ticket=current_ticket,
-            run=run,
-            draft_type=DraftType.REPLY,
-            content_text=self._render_reply(current_ticket, body),
-            qa_status=DraftQaStatus.PASSED,
-        )
-        self._message_log.create_draft_message_log(
-            payload=_build_draft_message_payload(
-                ticket=current_ticket,
-                run=run,
-                draft=draft,
-                subject=subject,
-                body_text=draft.content_text,
-                message_type=MessageType.REPLY_DRAFT.value,
-            )
-        )
-        return state_service.complete_run(
-            current_ticket.ticket_id,
-            worker_id=worker_id,
-            business_status=TicketBusinessStatus.DRAFT_CREATED,
-            expected_version=current_ticket.version,
-            metadata_updates={"gmail_draft_id": draft.gmail_draft_id},
-        )
-
-    def _create_draft(
-        self,
-        *,
-        ticket: Ticket,
-        run: TicketRun,
-        draft_type: DraftType,
-        content_text: str,
-        qa_status: DraftQaStatus,
-    ) -> DraftArtifact:
-        version_index = (
-            len(self._repositories.draft_artifacts.list_by_ticket(ticket.ticket_id)) + 1
-        )
-        draft = DraftArtifact(
-            draft_id=generate_prefixed_id(EntityIdPrefix.DRAFT),
-            ticket_id=ticket.ticket_id,
-            run_id=run.run_id,
-            version_index=version_index,
-            draft_type=draft_type.value,
-            content_text=content_text,
-            qa_status=qa_status.value,
-            gmail_draft_id=f"gmail-draft-{version_index}",
-            idempotency_key=f"draft:{ticket.ticket_id}:{draft_type.value}:{version_index}",
-            source_evidence_summary=f"route={ticket.primary_route}; strategy={ticket.response_strategy}",
-        )
-        self._repositories.draft_artifacts.add(draft)
-        self._session.flush()
-        return draft
-
-    def _render_reply(self, ticket: Ticket, body: str) -> str:
-        if ticket.primary_route == "knowledge_request":
-            return (
-                "Hello,\n\n"
-                "thanks for your question. Based on the information we have, this request should be handled as a product knowledge question. We will follow up with the specific guidance relevant to your configuration.\n\n"
-                "Best regards"
-            )
-        if ticket.primary_route == "technical_issue":
-            return (
-                "Hello,\n\n"
-                "we reviewed the issue and are treating it as a technical problem. We are checking the reported behavior and will continue with troubleshooting based on the details already provided.\n\n"
-                "Best regards"
-            )
-        if ticket.primary_route == "commercial_policy_request":
-            return (
-                "Hello,\n\n"
-                "we have received your billing or policy-related request. We will review it against the applicable policy and follow up without making unsupported commitments.\n\n"
-                "Best regards"
-            )
-        if ticket.primary_route == "feedback_intake":
-            return (
-                "Hello,\n\n"
-                "thank you for sharing your feedback. We have recorded it for the team and will use it to inform follow-up actions where appropriate.\n\n"
-                "Best regards"
-            )
-        return "Hello,\n\nwe have received your message.\n\nBest regards"
-
     def _record_event(
         self,
         *,
@@ -776,24 +621,6 @@ class TicketRunner:
             event_metadata=metadata,
         )
         self._repositories.trace_events.add(event)
-
-    def _build_triage_context(self, ticket: Ticket) -> TriageContext:
-        return TriageContext(
-            is_high_value_customer=False,
-            recent_customer_replies_72h=0,
-            requires_manual_approval=False,
-            qa_failure_count=0,
-            knowledge_evidence_sufficient=ticket.primary_route != "knowledge_request",
-        )
-
-    def _planned_final_action(self, ticket: Ticket) -> str:
-        if ticket.needs_clarification:
-            return RunFinalAction.REQUEST_CLARIFICATION.value
-        if ticket.needs_escalation:
-            return RunFinalAction.HANDOFF_TO_HUMAN.value
-        if ticket.primary_route == "unrelated":
-            return RunFinalAction.SKIP_UNRELATED.value
-        return RunFinalAction.CREATE_DRAFT.value
 
     def _final_action_for_ticket(self, ticket: Ticket) -> str:
         status = TicketBusinessStatus(ticket.business_status)

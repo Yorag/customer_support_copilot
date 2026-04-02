@@ -42,7 +42,7 @@ router = APIRouter()
 
 
 def get_ticket_api_service(container=Depends(get_container)) -> TicketApiService:
-    return TicketApiService(container.ticket_store)
+    return TicketApiService(container.ticket_store, container=container)
 
 
 @router.post(

@@ -16,6 +16,24 @@ from src.tools.service_container import ServiceContainer
 from src.tools.ticket_store import SqlAlchemyTicketStore
 
 
+class FakeApiGmailClient:
+    def create_draft_reply(self, initial_email, reply_text):
+        return {"id": "gmail-draft-test"}
+
+
+class FakeApiKnowledgeProvider:
+    def answer_questions(self, questions):
+        return [
+            type("Answer", (), {"question": question, "answer": f"answer for {question}"})()
+            for question in questions
+        ]
+
+
+class FakeApiPolicyProvider:
+    def get_policy(self, category=None):
+        return f"policy for {category or 'default'}"
+
+
 def _build_app():
     fd, path = mkstemp(suffix=".db")
     close(fd)
@@ -27,9 +45,9 @@ def _build_app():
     )
     app = create_app()
     app.dependency_overrides[get_container] = lambda: ServiceContainer(
-        gmail_client_factory=lambda: object(),
-        knowledge_provider_factory=lambda: object(),
-        policy_provider_factory=lambda: object(),
+        gmail_client_factory=lambda: FakeApiGmailClient(),
+        knowledge_provider_factory=lambda: FakeApiKnowledgeProvider(),
+        policy_provider_factory=lambda: FakeApiPolicyProvider(),
         ticket_store_factory=lambda: store,
     )
     return app, store
