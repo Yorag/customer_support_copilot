@@ -1,0 +1,2035 @@
+{
+  "records": [
+    {
+      "sample_id": "eval_prod_001",
+      "scenario_type": "product_consultation",
+      "trace_id": "trace_01KN6NWB716JEG7V6VRTSN5QK9",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "create_draft",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 4,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 4.0,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "qa_review",
+          "customer_history_lookup",
+          "policy_check",
+          "triage",
+          "draft_reply",
+          "create_gmail_draft"
+        ],
+        "violations": [
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 680,
+        "slowest_node": "create_gmail_draft",
+        "slowest_call": {
+          "event_name": "create_gmail_draft",
+          "latency_ms": 10
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "create_gmail_draft": 10,
+          "customer_history_lookup": 0,
+          "draft_reply": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 1,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.policy_check": 0,
+          "llm.qa_review": 0,
+          "llm.triage": 0,
+          "llm.draft_reply": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 1,
+          "tool.policy_provider.get_policy": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 114,
+        "completion_tokens_total": 119,
+        "total_tokens": 233,
+        "llm_call_count": 4,
+        "tool_call_count": 4
+      }
+    },
+    {
+      "sample_id": "eval_prod_002",
+      "scenario_type": "product_consultation",
+      "trace_id": "trace_01KN6NWBXCC6C8PE0Y3TYE46ZZ",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "create_draft",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 4,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 4.0,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "triage",
+          "policy_check",
+          "qa_review",
+          "draft_reply",
+          "customer_history_lookup",
+          "create_gmail_draft"
+        ],
+        "violations": [
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "create_gmail_draft",
+        "slowest_call": {
+          "event_name": "policy_check",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "create_gmail_draft": 5,
+          "customer_history_lookup": 0,
+          "draft_reply": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "policy_check": 5,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.draft_reply": 0,
+          "llm.qa_review": 0,
+          "llm.policy_check": 0
+        },
+        "tool_call_latencies": {
+          "tool.policy_provider.get_policy": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 93,
+        "completion_tokens_total": 121,
+        "total_tokens": 214,
+        "llm_call_count": 4,
+        "tool_call_count": 4
+      }
+    },
+    {
+      "sample_id": "eval_prod_003",
+      "scenario_type": "product_consultation",
+      "trace_id": "trace_01KN6NWC060NFG3F5CS8MFS596",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "create_draft",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 4,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 4.0,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "customer_history_lookup",
+          "policy_check",
+          "draft_reply",
+          "qa_review",
+          "triage",
+          "create_gmail_draft"
+        ],
+        "violations": [
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 54,
+        "slowest_node": "create_gmail_draft",
+        "slowest_call": {
+          "event_name": "create_gmail_draft",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "create_gmail_draft": 5,
+          "customer_history_lookup": 0,
+          "draft_reply": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 4,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.qa_review": 0,
+          "llm.triage": 0,
+          "llm.policy_check": 0,
+          "llm.draft_reply": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 4,
+          "tool.policy_provider.get_policy": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 91,
+        "completion_tokens_total": 115,
+        "total_tokens": 206,
+        "llm_call_count": 4,
+        "tool_call_count": 4
+      }
+    },
+    {
+      "sample_id": "eval_tech_001",
+      "scenario_type": "technical_issue_clarification",
+      "trace_id": "trace_01KN6NWC35V5N28ESWE2CN64CJ",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 3.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "clarify_request",
+        "slowest_call": {
+          "event_name": "clarify_request",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 5,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 4,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.clarify_request": 0,
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 18,
+        "completion_tokens_total": 69,
+        "total_tokens": 87,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_tech_002",
+      "scenario_type": "technical_issue_clarification",
+      "trace_id": "trace_01KN6NWC5ZEYXE1Y9TRC49A1F4",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 3.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "clarify_request",
+        "slowest_call": {
+          "event_name": "clarify_request",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 5,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 4,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 42,
+        "completion_tokens_total": 69,
+        "total_tokens": 111,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_tech_003",
+      "scenario_type": "technical_issue_clarification",
+      "trace_id": "trace_01KN6NWC8M65HHFT8ES9Y2G5YN",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": false,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 3.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 52,
+        "slowest_node": "clarify_request",
+        "slowest_call": {
+          "event_name": "clarify_request",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 5,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.clarify_request": 0,
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 33,
+        "completion_tokens_total": 69,
+        "total_tokens": 102,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_complaint_001",
+      "scenario_type": "complaint",
+      "trace_id": "trace_01KN6NWCB9Q2V7EFAT3VN34ZS5",
+      "primary_route": "feedback_intake",
+      "expected_primary_route": "feedback_intake",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": {
+        "run_id": "run_01KN6NWCB93TJYN2KJX7P1XKGG",
+        "trace_id": "trace_01KN6NWCB9Q2V7EFAT3VN34ZS5",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 1.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 1,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "draft_reply",
+          "triage",
+          "escalate_to_human",
+          "qa_review"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 49,
+        "slowest_node": "collect_case_context",
+        "slowest_call": {
+          "event_name": "tool.message_log.get_thread_messages_for_drafting",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "draft_reply": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.draft_reply": 0,
+          "llm.qa_review": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 64,
+        "completion_tokens_total": 116,
+        "total_tokens": 180,
+        "llm_call_count": 3,
+        "tool_call_count": 2
+      }
+    },
+    {
+      "sample_id": "eval_complaint_002",
+      "scenario_type": "complaint",
+      "trace_id": "trace_01KN6NWCDYZ9Q50PPC1FC66YW6",
+      "primary_route": "feedback_intake",
+      "expected_primary_route": "feedback_intake",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": {
+        "run_id": "run_01KN6NWCDYPFRH1MBCXG4DTBEN",
+        "trace_id": "trace_01KN6NWCDYZ9Q50PPC1FC66YW6",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 1.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 1,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "escalate_to_human",
+          "qa_review",
+          "triage",
+          "draft_reply"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 60,
+        "slowest_node": "load_memory",
+        "slowest_call": {
+          "event_name": "load_memory",
+          "latency_ms": 4
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "draft_reply": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 4,
+          "load_ticket_context": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.draft_reply": 0,
+          "llm.qa_review": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 70,
+        "completion_tokens_total": 116,
+        "total_tokens": 186,
+        "llm_call_count": 3,
+        "tool_call_count": 2
+      }
+    },
+    {
+      "sample_id": "eval_complaint_003",
+      "scenario_type": "complaint",
+      "trace_id": "trace_01KN6NWCGY5MP5F99AS3Y6REEK",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "feedback_intake",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 1.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "clarify_request",
+        "slowest_call": {
+          "event_name": "load_ticket_context",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "clarify_request": 0,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 41,
+        "completion_tokens_total": 85,
+        "total_tokens": 126,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_clarify_001",
+      "scenario_type": "needs_clarification",
+      "trace_id": "trace_01KN6NWCKRDZH8FNJYZRH2VR7G",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 1.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 95,
+        "slowest_node": "load_ticket_context",
+        "slowest_call": {
+          "event_name": "load_ticket_context",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 4,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 5,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 5,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 11,
+        "completion_tokens_total": 79,
+        "total_tokens": 90,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_clarify_002",
+      "scenario_type": "needs_clarification",
+      "trace_id": "trace_01KN6NWCQX19M115Q7AMWPFRBV",
+      "primary_route": "unrelated",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "skip_unrelated",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 4,
+          "intent_alignment": 4,
+          "clarity": 5
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Out-of-scope replies should stay concise and avoid over-committing."
+      },
+      "trajectory_evaluation": {
+        "score": 3.0,
+        "expected_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "actual_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "violations": [
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 51,
+        "slowest_node": "close_ticket",
+        "slowest_call": {
+          "event_name": "tool.message_log.get_thread_messages_for_drafting",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "close_ticket": 0,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 13,
+        "completion_tokens_total": 41,
+        "total_tokens": 54,
+        "llm_call_count": 1,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_clarify_003",
+      "scenario_type": "needs_clarification",
+      "trace_id": "trace_01KN6NWCTN655V14QDTN9EME2Z",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "technical_issue",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 1.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "clarify_request",
+        "slowest_call": {
+          "event_name": "clarify_request",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 5,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 22,
+        "completion_tokens_total": 79,
+        "total_tokens": 101,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_multi_001",
+      "scenario_type": "multi_intent",
+      "trace_id": "trace_01KN6NWCXFBN4E77JEXM72KAAZ",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWCXF4FYCYWASX4MHM1N2",
+        "trace_id": "trace_01KN6NWCXFBN4E77JEXM72KAAZ",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "policy_check",
+          "triage",
+          "escalate_to_human"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "load_ticket_context",
+        "slowest_call": {
+          "event_name": "load_ticket_context",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "collect_case_context": 3,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 1,
+          "load_ticket_context": 5,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.policy_check": 0,
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 1,
+          "tool.policy_provider.get_policy": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 39,
+        "completion_tokens_total": 79,
+        "total_tokens": 118,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_multi_002",
+      "scenario_type": "multi_intent",
+      "trace_id": "trace_01KN6NWD04MBJ322JJ6YMPWDY2",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWD041Z9XVZ0X8S6REJCQ",
+        "trace_id": "trace_01KN6NWD04MBJ322JJ6YMPWDY2",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 3.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "triage",
+          "policy_check",
+          "escalate_to_human"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 54,
+        "slowest_node": "load_memory",
+        "slowest_call": {
+          "event_name": "tool.customer_memory_profiles.get",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 5,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.policy_check": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 5,
+          "tool.policy_provider.get_policy": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 51,
+        "completion_tokens_total": 74,
+        "total_tokens": 125,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_multi_003",
+      "scenario_type": "multi_intent",
+      "trace_id": "trace_01KN6NWD2Y7Q311PE5QC9NFBRV",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWD2YGKXD3D094Y9D9K8S",
+        "trace_id": "trace_01KN6NWD2Y7Q311PE5QC9NFBRV",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "triage",
+          "escalate_to_human",
+          "policy_check"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 60,
+        "slowest_node": "collect_case_context",
+        "slowest_call": {
+          "event_name": "triage",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.policy_check": 0,
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.policy_provider.get_policy": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 49,
+        "completion_tokens_total": 80,
+        "total_tokens": 129,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_risk_001",
+      "scenario_type": "refund_high_risk",
+      "trace_id": "trace_01KN6NWD5XP2666SQEP6QSACCP",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWD5X80GEBWX6GSPH3D2X",
+        "trace_id": "trace_01KN6NWD5XP2666SQEP6QSACCP",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 3.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "triage",
+          "policy_check",
+          "escalate_to_human"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "escalate_to_human",
+        "slowest_call": {
+          "event_name": "escalate_to_human",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "escalate_to_human": 5,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.policy_check": 0,
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.policy_provider.get_policy": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 27,
+        "completion_tokens_total": 74,
+        "total_tokens": 101,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_risk_002",
+      "scenario_type": "refund_high_risk",
+      "trace_id": "trace_01KN6NWD8QPAC1SNQ0AVNEVV3Q",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWD8Q04ADWCM8X7VHNBAH",
+        "trace_id": "trace_01KN6NWD8QPAC1SNQ0AVNEVV3Q",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "triage",
+          "escalate_to_human",
+          "policy_check"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "collect_case_context",
+        "slowest_call": {
+          "event_name": "tool.message_log.get_thread_messages_for_drafting",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.policy_check": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.policy_provider.get_policy": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 26,
+        "completion_tokens_total": 85,
+        "total_tokens": 111,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_risk_003",
+      "scenario_type": "refund_high_risk",
+      "trace_id": "trace_01KN6NWDBJYQS411CHYHH0XR24",
+      "primary_route": "commercial_policy_request",
+      "expected_primary_route": "commercial_policy_request",
+      "needs_escalation": true,
+      "expected_escalation": true,
+      "final_action": {
+        "run_id": "run_01KN6NWDBJ961SZ1T0C62QA11K",
+        "trace_id": "trace_01KN6NWDBJYQS411CHYHH0XR24",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 2.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 5,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced. Commercial-policy replies are checked for explicit policy boundaries."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "policy_check",
+          "customer_history_lookup",
+          "escalate_to_human"
+        ],
+        "actual_route": [
+          "triage",
+          "escalate_to_human",
+          "policy_check"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `customer_history_lookup` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "collect_case_context",
+        "slowest_call": {
+          "event_name": "tool.message_log.get_thread_messages_for_drafting",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "policy_check": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.policy_check": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.policy_provider.get_policy": 0,
+          "tool.customer_memory_profiles.get": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 33,
+        "completion_tokens_total": 89,
+        "total_tokens": 122,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_kb_gap_001",
+      "scenario_type": "knowledge_gap",
+      "trace_id": "trace_01KN6NWDE6ZM5KRGNR09S9SFXY",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 0.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "clarify_request",
+          "triage"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          },
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "load_memory",
+        "slowest_call": {
+          "event_name": "load_memory",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 0,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 5,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 5,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 43,
+        "completion_tokens_total": 84,
+        "total_tokens": 127,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_kb_gap_002",
+      "scenario_type": "knowledge_gap",
+      "trace_id": "trace_01KN6NWDH1SAJ2NJVFG4NPM5FH",
+      "primary_route": "technical_issue",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "request_clarification",
+      "response_quality": {
+        "overall_score": 4.75,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 5,
+          "intent_alignment": 5,
+          "clarity": 4
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Clarification drafts are checked for required troubleshooting asks. Knowledge or troubleshooting evidence is available."
+      },
+      "trajectory_evaluation": {
+        "score": 1.5,
+        "expected_route": [
+          "triage",
+          "clarify_request",
+          "create_gmail_draft",
+          "awaiting_customer_input"
+        ],
+        "actual_route": [
+          "triage",
+          "clarify_request"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 54,
+        "slowest_node": "extract_memory_updates",
+        "slowest_call": {
+          "event_name": "extract_memory_updates",
+          "latency_ms": 5
+        },
+        "node_latencies": {
+          "clarify_request": 0,
+          "collect_case_context": 0,
+          "extract_memory_updates": 5,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.clarify_request": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 37,
+        "completion_tokens_total": 79,
+        "total_tokens": 116,
+        "llm_call_count": 2,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_kb_gap_003",
+      "scenario_type": "knowledge_gap",
+      "trace_id": "trace_01KN6NWDKVQ8FYKRDJQV03WGC8",
+      "primary_route": "unrelated",
+      "expected_primary_route": "knowledge_request",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "skip_unrelated",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 4,
+          "intent_alignment": 4,
+          "clarity": 5
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Out-of-scope replies should stay concise and avoid over-committing."
+      },
+      "trajectory_evaluation": {
+        "score": 3.0,
+        "expected_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "actual_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "violations": [
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 54,
+        "slowest_node": "close_ticket",
+        "slowest_call": {
+          "event_name": "load_memory",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "close_ticket": 0,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 15,
+        "completion_tokens_total": 41,
+        "total_tokens": 56,
+        "llm_call_count": 1,
+        "tool_call_count": 3
+      }
+    },
+    {
+      "sample_id": "eval_boundary_001",
+      "scenario_type": "feedback_boundary",
+      "trace_id": "trace_01KN6NWDPSTT7FW98T21X6J2X1",
+      "primary_route": "feedback_intake",
+      "expected_primary_route": "feedback_intake",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": {
+        "run_id": "run_01KN6NWDPSFRJG769X59XG8F8R",
+        "trace_id": "trace_01KN6NWDPSTT7FW98T21X6J2X1",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 1.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 1,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "triage",
+          "qa_review",
+          "draft_reply",
+          "escalate_to_human"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 50,
+        "slowest_node": "extract_memory_updates",
+        "slowest_call": {
+          "event_name": "extract_memory_updates",
+          "latency_ms": 1
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "draft_reply": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 1,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.qa_review": 0,
+          "llm.draft_reply": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 0,
+          "tool.customer_memory_profiles.get": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 64,
+        "completion_tokens_total": 115,
+        "total_tokens": 179,
+        "llm_call_count": 3,
+        "tool_call_count": 2
+      }
+    },
+    {
+      "sample_id": "eval_boundary_002",
+      "scenario_type": "feedback_boundary",
+      "trace_id": "trace_01KN6NWDSKKYYJBQWN5N2RB4RK",
+      "primary_route": "feedback_intake",
+      "expected_primary_route": "feedback_intake",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": {
+        "run_id": "run_01KN6NWDSKWC9GBCQY89SAVWR7",
+        "trace_id": "trace_01KN6NWDSKKYYJBQWN5N2RB4RK",
+        "status": "succeeded",
+        "final_action": "handoff_to_human"
+      },
+      "response_quality": {
+        "overall_score": 1.0,
+        "subscores": {
+          "relevance": 1,
+          "correctness": 1,
+          "intent_alignment": 1,
+          "clarity": 1
+        },
+        "reason": "No customer-facing draft was produced."
+      },
+      "trajectory_evaluation": {
+        "score": 2.5,
+        "expected_route": [
+          "triage",
+          "draft_reply",
+          "qa_review",
+          "create_gmail_draft"
+        ],
+        "actual_route": [
+          "qa_review",
+          "draft_reply",
+          "triage",
+          "escalate_to_human"
+        ],
+        "violations": [
+          {
+            "type": "missing_required_node",
+            "message": "Required node `create_gmail_draft` is missing from the actual route."
+          },
+          {
+            "type": "wrong_order",
+            "message": "Observed node order does not match the expected route template."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 55,
+        "slowest_node": "collect_case_context",
+        "slowest_call": {
+          "event_name": "llm.triage",
+          "latency_ms": 0
+        },
+        "node_latencies": {
+          "collect_case_context": 0,
+          "draft_reply": 0,
+          "escalate_to_human": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 0,
+          "qa_review": 0,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0,
+          "llm.qa_review": 0,
+          "llm.draft_reply": 0
+        },
+        "tool_call_latencies": {
+          "tool.customer_memory_profiles.get": 0,
+          "tool.message_log.get_thread_messages_for_drafting": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 66,
+        "completion_tokens_total": 115,
+        "total_tokens": 181,
+        "llm_call_count": 3,
+        "tool_call_count": 2
+      }
+    },
+    {
+      "sample_id": "eval_boundary_003",
+      "scenario_type": "feedback_boundary",
+      "trace_id": "trace_01KN6NWDWJQRWRR2S13N07NKBN",
+      "primary_route": "unrelated",
+      "expected_primary_route": "unrelated",
+      "needs_escalation": true,
+      "expected_escalation": false,
+      "final_action": "skip_unrelated",
+      "response_quality": {
+        "overall_score": 4.5,
+        "subscores": {
+          "relevance": 5,
+          "correctness": 4,
+          "intent_alignment": 4,
+          "clarity": 5
+        },
+        "reason": "Draft exists and can be evaluated against the run outcome. Out-of-scope replies should stay concise and avoid over-committing."
+      },
+      "trajectory_evaluation": {
+        "score": 3.0,
+        "expected_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "actual_route": [
+          "triage",
+          "close_ticket"
+        ],
+        "violations": [
+          {
+            "type": "missed_escalation",
+            "message": "The run should escalate but did not route to escalate_to_human."
+          }
+        ]
+      },
+      "latency_metrics": {
+        "end_to_end_ms": 54,
+        "slowest_node": "close_ticket",
+        "slowest_call": {
+          "event_name": "close_ticket",
+          "latency_ms": 6
+        },
+        "node_latencies": {
+          "close_ticket": 6,
+          "collect_case_context": 0,
+          "extract_memory_updates": 0,
+          "load_memory": 0,
+          "load_ticket_context": 5,
+          "triage": 0
+        },
+        "llm_call_latencies": {
+          "llm.triage": 0
+        },
+        "tool_call_latencies": {
+          "tool.message_log.get_thread_messages_for_drafting": 5,
+          "tool.customer_memory_profiles.get": 0,
+          "tool.gmail_client.create_draft_reply": 0
+        }
+      },
+      "resource_metrics": {
+        "prompt_tokens_total": 15,
+        "completion_tokens_total": 45,
+        "total_tokens": 60,
+        "llm_call_count": 1,
+        "tool_call_count": 3
+      }
+    }
+  ],
+  "summary": {
+    "total_samples": 24,
+    "scenario_counts": {
+      "product_consultation": 3,
+      "technical_issue_clarification": 3,
+      "complaint": 3,
+      "needs_clarification": 3,
+      "multi_intent": 3,
+      "refund_high_risk": 3,
+      "knowledge_gap": 3,
+      "feedback_boundary": 3
+    },
+    "route_accuracy": 0.667,
+    "escalation_accuracy": 0.5,
+    "avg_response_quality_score": 3.375,
+    "avg_trajectory_score": 2.708,
+    "failed_samples": [
+      {
+        "sample_id": "eval_prod_001",
+        "route_mismatch": true,
+        "escalation_mismatch": false,
+        "trajectory_score": 4.0
+      },
+      {
+        "sample_id": "eval_prod_002",
+        "route_mismatch": true,
+        "escalation_mismatch": false,
+        "trajectory_score": 4.0
+      },
+      {
+        "sample_id": "eval_prod_003",
+        "route_mismatch": true,
+        "escalation_mismatch": false,
+        "trajectory_score": 4.0
+      },
+      {
+        "sample_id": "eval_tech_001",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 3.5
+      },
+      {
+        "sample_id": "eval_tech_002",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 3.5
+      },
+      {
+        "sample_id": "eval_tech_003",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 3.5
+      },
+      {
+        "sample_id": "eval_complaint_001",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_complaint_002",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_complaint_003",
+        "route_mismatch": true,
+        "escalation_mismatch": true,
+        "trajectory_score": 1.5
+      },
+      {
+        "sample_id": "eval_clarify_001",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 1.5
+      },
+      {
+        "sample_id": "eval_clarify_002",
+        "route_mismatch": true,
+        "escalation_mismatch": true,
+        "trajectory_score": 3.0
+      },
+      {
+        "sample_id": "eval_clarify_003",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 1.5
+      },
+      {
+        "sample_id": "eval_multi_001",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_multi_002",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 3.5
+      },
+      {
+        "sample_id": "eval_multi_003",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_risk_001",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 3.5
+      },
+      {
+        "sample_id": "eval_risk_002",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_risk_003",
+        "route_mismatch": false,
+        "escalation_mismatch": false,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_kb_gap_001",
+        "route_mismatch": true,
+        "escalation_mismatch": true,
+        "trajectory_score": 0.5
+      },
+      {
+        "sample_id": "eval_kb_gap_002",
+        "route_mismatch": true,
+        "escalation_mismatch": true,
+        "trajectory_score": 1.5
+      },
+      {
+        "sample_id": "eval_kb_gap_003",
+        "route_mismatch": true,
+        "escalation_mismatch": true,
+        "trajectory_score": 3.0
+      },
+      {
+        "sample_id": "eval_boundary_001",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_boundary_002",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 2.5
+      },
+      {
+        "sample_id": "eval_boundary_003",
+        "route_mismatch": false,
+        "escalation_mismatch": true,
+        "trajectory_score": 3.0
+      }
+    ]
+  }
+}
