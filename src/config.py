@@ -204,24 +204,21 @@ def get_settings() -> Settings:
             password=_clean_env_value("POSTGRES_PASSWORD"),
         ),
         langsmith=LangSmithSettings(
-            tracing_enabled=_get_bool_env("LANGSMITH_TRACING", False)
-            or _get_bool_env("LANGCHAIN_TRACING_V2", False),
-            api_key=_clean_env_value("LANGSMITH_API_KEY")
-            or _clean_env_value("LANGCHAIN_API_KEY"),
+            tracing_enabled=_get_bool_env("LANGSMITH_TRACING", False),
+            api_key=_clean_env_value("LANGSMITH_API_KEY"),
             project=_clean_env_value("LANGSMITH_PROJECT")
             or "customer-support-copilot",
             endpoint=_clean_env_value("LANGSMITH_ENDPOINT")
-            or _clean_env_value("LANGCHAIN_ENDPOINT")
             or "https://api.smith.langchain.com",
         ),
         api=ApiSettings(
             host=_clean_env_value("API_HOST") or "0.0.0.0",
             port=_get_int_env("API_PORT", 8000),
             cors_allow_origins=_get_list_env("CORS_ALLOW_ORIGINS", ["*"]),
-            title=_clean_env_value("API_TITLE") or "Gmail Automation",
+            title=_clean_env_value("API_TITLE") or "Customer Support Copilot API",
             version=_clean_env_value("API_VERSION") or "1.0",
             description=_clean_env_value("API_DESCRIPTION")
-            or "LangGraph backend for the AI Gmail automation workflow",
+            or "Business API for the Customer Support Copilot ticket workflow",
         ),
         app=AppSettings(
             graph_recursion_limit=_get_int_env("GRAPH_RECURSION_LIMIT", 100)

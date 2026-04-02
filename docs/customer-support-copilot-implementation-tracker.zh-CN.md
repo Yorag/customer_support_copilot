@@ -100,7 +100,7 @@
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 已完成 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
 | S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 已完成 | S03, X1 | trace、metrics、eval |
 | X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 已完成 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
-| X2 | 交付 | 跨 spec | 完成 README、流程图、Demo | 未开始 | S03, S05, X1 | `README.md`, `docs/`, 演示材料 |
+| X2 | 交付 | 跨 spec | 完成 README、流程图、Demo | 已完成 | S03, S05, X1 | `README.md`, `docs/`, 演示材料 |
 
 说明：
 
@@ -117,7 +117,7 @@
 | `02-ticket-state-machine` | `S02`, `S03`, `X1` | `S02` 已完成，相关 API 与 graph 集成已完成 | 状态迁移、lease、幂等、重试都已落地 |
 | `03-api-contract` | `S03`, `S05`, `X1` | `S03` 已完成，`S05/X1` 已完成 | ticket、memory、trace、metrics 接口已对齐当前 V1 契约 |
 | `04-routing-decision-table` | `S04`, `X1` | `S04` 已完成，`X1` 已完成 | 已产出 triage 结构化输出、规则决策服务、prompt 与样例测试 |
-| `05-trace-and-eval` | `S05`, `X2` | `S05` 已完成，`X2` 待开始 | trace、指标和离线评测已可用，后续进入交付整理 |
+| `05-trace-and-eval` | `S05`, `X2` | `S05` 已完成，`X2` 已完成 | trace、指标和离线评测已可用于交付展示和失败案例说明 |
 | `06-message-log-schema` | `S06`, `S02`, `S03` | `S06` 已完成，消息持久化基础已具备 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
 
 结论：
@@ -320,9 +320,9 @@
 
 | 子任务 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
 | --- | --- | --- | --- | --- | --- |
-| X2.1 | 重写 README，更新定位、架构、启动方式、V1/V2 边界 | 未开始 | S03.3, S05.2, X1.3 | 新 README | README 不再停留在原教程项目 |
-| X2.2 | 输出新的系统流程图 | 未开始 | X2.1 | 流程图 | 演示路径清晰可说明 |
-| X2.3 | 准备成功样例、失败样例、可重复 demo case | 未开始 | X2.1, X2.2, S05.3 | demo 材料 | 有至少一条失败案例可解释系统边界 |
+| X2.1 | 重写 README，更新定位、架构、启动方式、V1/V2 边界 | 已完成 | S03.3, S05.2, X1.3 | 新 README | README 不再停留在原教程项目 |
+| X2.2 | 输出新的系统流程图 | 已完成 | X2.1 | 流程图 | 演示路径清晰可说明 |
+| X2.3 | 准备成功样例、失败样例、可重复 demo case | 已完成 | X2.1, X2.2, S05.3 | demo 材料 | 有至少一条失败案例可解释系统边界 |
 
 ---
 
@@ -337,7 +337,7 @@
 
 按当前进度，默认下一任务是：
 
-1. `X2.1 重写 README，更新定位、架构、启动方式、V1/V2 边界`
+1. 主线任务已全部完成，后续若继续推进，应先新增新的 `spec`、修复项或 `V2` 跟踪项。
 
 ---
 
@@ -392,3 +392,5 @@
 | 2026-04-02 | 完成 `S03.4/S03.5`：收紧人工动作 API 契约，要求 `approve/edit-and-approve/rewrite/escalate/close` 显式提供 `X-Actor-Id`，为人工动作补齐 `Idempotency-Key` 去重与标准 `duplicate_request` 返回，并让 `close` 也以真实 actor 记录 `human_action` run；同时在 DTO 层增加空字符串/空列表校验，避免宽松请求体绕过契约。补强 `GET /customers/{customer_id}/memory` 的 API 断言，确保固定返回 `profile`、`risk_tags`、`business_flags`、`historical_case_refs`、`version` 结构。同步修复 `validation_error` 的 JSON 序列化兜底，并扩展 `tests/test_api_contract.py` 覆盖人工动作主路径、缺失 actor、重复幂等键和 memory 查询；最终 `pytest -q tests/test_api_contract.py tests/test_ticket_state_machine.py tests/test_customer_memory.py` 全量 `39 passed`。 |
 | 2026-04-02 | 完成 `S05`：新增 `src/observability.py` 统一 trace/metrics/eval 层，接入可选 `LangSmith` `RunTree` 上报，并将 `src/nodes.py`/`src/graph.py`/`src/api/services.py` 串到同一条 trace 生命周期；为 ticket workflow 补齐 `13` 个必采集节点、`4` 个必采集决策、`node/llm/tool` 延迟、token 统计、固定 schema 的响应质量评估和规则式轨迹评估，使 `/tickets/{id}/trace` 与 `/metrics/summary` 读取的都是实际 run 数据；新增 `tests/samples/eval/customer_support_eval.jsonl`、`scripts/run_offline_eval.py`、`tests/test_observability.py`，并将 `.env.example`/`requirements.txt` 补齐 `LangSmith` 配置与依赖，最终 `pytest -q` 全量 `111 passed`。 |
 | 2026-04-02 | 完成 `S03.6/S03.7`：收紧 `GET /metrics/summary` 查询契约，新增时间窗口先后校验与 `route` 固定枚举校验，避免非法过滤条件绕过 API 层；同时扩展 `tests/test_api_contract.py` 覆盖最近 run 与显式 `run_id` 的 trace 查询、跨工单 `run_id` 拒绝、`route` 过滤生效、非法 `route` 与反向时间窗口返回 `validation_error`。同步将主跟踪表中的 `S03`、`X1` 状态回填为 `已完成`，并确认 `pytest -q tests/test_api_contract.py tests/test_observability.py` 全量 `17 passed`。 |
+| 2026-04-02 | 完成 `X2`：重写 `README.md`，将仓库定位改为 `Customer Support Copilot`，补齐当前架构、运行方式、业务 API、V1/V2 边界和演示入口；新增 `docs/system-workflow.mmd` 作为可维护的系统流程图文本源，新增 `docs/demo-cases.zh-CN.md` 整理成功主路径 demo 与基于离线评测报告的失败案例；同步更新 `.env.example` 和 `src/config.py` 中的默认 API 标题/描述，并通过 `pytest -q tests/test_config.py tests/test_api_contract.py` 验证 `19 passed`。 |
+| 2026-04-02 | 清理 `LangSmith` 配置兼容层：移除 `.env.example` 中的 `LANGCHAIN_TRACING_V2/LANGCHAIN_API_KEY/LANGCHAIN_ENDPOINT`，并在 `src/config.py` 中删除对 `LANGCHAIN_*` 的 fallback，只保留 `LANGSMITH_*` 作为正式配置入口；同步更新 `README.md` 配置说明，并在 `tests/test_config.py` 新增断言确保旧 `LANGCHAIN_*` 环境变量不再影响配置结果，最终 `pytest -q tests/test_config.py tests/test_api_contract.py` 全量 `20 passed`。 |

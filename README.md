@@ -1,145 +1,325 @@
-<!--
-Title: Customer Support Email Automation System | Langchain/Langgraph Integration
-Description: Automate customer support emails with our system built using Langchain/Langgraph. Features include email categorization, query synthesis, draft email creation, and email verification.
-Keywords: Customer support automation, email automation, Langchain, Langgraph, AI email agents, Gmail API, Python email automation, email categorization, email verification, AI agents, AI tools
-Author: kaymen99
--->
+# Customer Support Copilot
 
-# 🚀 **Customer Support Email Automation with AI Agents and RAG**
+`Customer Support Copilot` 是一个基于 `LangGraph + FastAPI + Postgres + Gmail` 的客服工单执行系统，不再是最初的教程型“邮箱分类 + RAG + 草稿生成”示例。
 
-## 📩 **FULL TUTORIAL: Build AI-Powered Email Automation Using AI Agents + RAG!** 👉 [Read Now](https://dev.to/kaymen99/boost-customer-support-ai-agents-langgraph-and-rag-for-email-automation-21hj) 🎯   
+当前仓库已经完成 V1 主链路：
 
-![customer-support-ai-automation](https://github.com/user-attachments/assets/eb061276-0579-4e28-9360-482c8da33a9d)
+1. Gmail 邮件入库为 `ticket`
+2. 通过显式状态机管理 `business_status` 和 `processing_status`
+3. 用 `LangGraph` 执行真实 ticket workflow
+4. 生成草稿、澄清请求、人工升级或关闭结果
+5. 持久化 message log、draft、human review、customer memory、trace 和 metrics
+6. 通过业务 API 暴露 ingest/run/manual actions/trace/memory/metrics
 
-## **Introduction**  
+## What This Repo Is Now
 
-In today's **fast-paced environment**, customers demand **quick, accurate, and personalized responses**—expectations that can overwhelm traditional support teams. Managing large volumes of emails, categorizing them, crafting appropriate replies, and ensuring quality consumes **significant time and resources**, often leading to **delays or errors**, which can harm customer satisfaction.  
+系统定位已经从“AI 邮件自动化 Demo”升级为“可追踪的客服 Copilot 后端”。
 
-**Customer Support Email Automation** is an **AI solution** designed to enhance **customer communication** for businesses. Leveraging a **Langgraph-driven workflow**, multiple **AI agents** collaborate to efficiently manage, categorize, and respond to customer emails. The system also implements **RAG (Retrieval-Augmented Generation)** technology to deliver **accurate responses** to any business or product-related questions.  
+核心能力：
 
-## **Features**  
+1. `ticket`、`ticket_run`、`draft_artifact`、`human_review`、`trace_event`、`customer_memory` 持久化
+2. `knowledge_request`、`technical_issue`、`commercial_policy_request`、`feedback_intake`、`unrelated` 五类主路由
+3. 人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close`
+4. `LangSmith` 可选接入，以及本地 trace/latency/resource/response_quality/trajectory_evaluation 聚合
+5. 离线评测样本与可复现报告输出
 
-### **Email Inbox Management with AI Agents**  
+## V1 Scope
 
-- **Continuously monitors** the agency's Gmail inbox  
-- **Categorizes emails** into '**customer complaint**,' '**product inquiry**,' '**customer feedback**,' or '**unrelated**'  
-- **Automatically handles irrelevant emails** to maintain efficiency  
+V1 已包含：
 
-### **AI Response Generation**  
+1. Gmail 工单化入口
+2. Ticket 状态机、lease、失败恢复、draft 幂等
+3. Graph/Agent 重构后的 ticket execution workflow
+4. 长期记忆查询与收尾回写
+5. 业务 API 和标准错误码
+6. Trace、metrics 和离线 eval
 
-- **Quickly drafts emails** for customer complaints and feedback using **Langgraph**  
-- Utilizes **RAG techniques** to answer **product/service-related questions** accurately  
-- **Creates personalized email content** tailored to each customer's needs  
+V1 明确不包含：
 
-### **Quality Assurance with AI**  
+1. 人工审核动作与自动流程并发写同一工单的复杂冲突控制
+2. `RAG MCP` 外部知识接入
+3. 多渠道接入
+4. 控制台或后台页面
+5. 图片附件理解
 
-- **Automatically checks** email **quality, formatting, and relevance**  
-- **Ensures every response** meets high standards before reaching the client  
+## Architecture
 
-## **How It Works**  
+### Main Flow
 
-1. **Email Monitoring**: The system **constantly checks** for new emails in the agency's Gmail inbox using the **Gmail API**.  
-2. **Email Categorization**: **AI agents** sort each email into **predefined categories**.  
-3. **Response Generation**:   
-   - **For complaints or feedback**: The system **quickly drafts** a tailored email response.  
-   - **For service/product questions**: The system uses **RAG** to retrieve **accurate information** from agency documents and generates a response.  
-4. **Quality Assurance**: Each draft email undergoes **AI quality and formatting checks**.  
-5. **Sending**: **Approved emails** are sent to the client **promptly**, ensuring **timely communication**.  
+```mermaid
+flowchart TD
+    A[Gmail inbox or API ingest] --> B[POST /tickets/ingest-email]
+    B --> C[Message log + Ticket persistence]
+    C --> D[POST /tickets/{ticket_id}/run]
+    D --> E[load_ticket_context]
+    E --> F[load_memory]
+    F --> G[triage]
 
-## System Flowchart
+    G -->|knowledge_request| H[knowledge_lookup]
+    G -->|commercial_policy_request| I[policy_check]
+    G -->|feedback_intake| J[draft_reply]
+    G -->|technical_issue + insufficient info| K[clarify_request]
+    G -->|unrelated| L[close_ticket]
 
-This is the detailed flow of the system:
+    H --> M{after knowledge}
+    I --> M
+    M -->|draft| N[customer_history_lookup]
+    M -->|handoff| O[escalate_to_human]
 
-[![](https://mermaid.ink/img/pako:eNqllEuP2jAQx7-KZa6AgAB5HFrxFlJBXbarIsIeTDwBi2CntrPAEr57TRIoW_Wwojk585_fvJLxCQeCAvZwGIl9sCFSox_9JUfm6fgTwZkWEo0mnfE3NOYrcXgtNFSpfEHd01jlZjTYxfr49Zyr3YuaTgWawt4ohEUqRQt_wCn6LkUASr3eOw5FYpQXTrjagwR6Q3p-j2hYC8neITcWXC_jXriEyDjQFHXv7b1EabEDiXpiF0eEcY1ME0MAuiLBNkV9_6dk2uidNXD9IaQpjyaBRgP-K2HymKKB_3zkegPqUsJTApKBQqEJN-uMCnKQzWLuj0CjTtYCCqXY3XnMM49_pu1n0tA3iUU4A0L_0odZWZ04luINUjTyn4HTD7PIPaamO4Vm8MYUE9z0mIujQjzonMkmlUtKHyMwHzJkUeSVQjcsKy3FFryS4zjFubJnVG-8RnwoByIS0ivVarV7vFvgq9Uf3LKsz-K9a_bV6hG8f80ePoQP_i_78DY69xF8VOBu-BA-v2Z_DF8UOKX08zguY7NW5j-i5sI4XcItsdmNHSyxZ46UyO0SL_nZ-JFEC7M5Afa0TKCMpUjWG-yFJFLmLYmp2ds-I2tJdjdrTDj2TviAvUbLrjYtt2G1XLdVr7XtZhkfjbnqNJyW4zZt17LdpuO0z2X8LoQJUau6rbbt2la7btmWW6s3s3iLTMxLAHq5zCb5dRcIHrI1Pv8GXQeX4g?type=png)](https://mermaid.live/edit#pako:eNqllEuP2jAQx7-KZa6AgAB5HFrxFlJBXbarIsIeTDwBi2CntrPAEr57TRIoW_Wwojk585_fvJLxCQeCAvZwGIl9sCFSox_9JUfm6fgTwZkWEo0mnfE3NOYrcXgtNFSpfEHd01jlZjTYxfr49Zyr3YuaTgWawt4ohEUqRQt_wCn6LkUASr3eOw5FYpQXTrjagwR6Q3p-j2hYC8neITcWXC_jXriEyDjQFHXv7b1EabEDiXpiF0eEcY1ME0MAuiLBNkV9_6dk2uidNXD9IaQpjyaBRgP-K2HymKKB_3zkegPqUsJTApKBQqEJN-uMCnKQzWLuj0CjTtYCCqXY3XnMM49_pu1n0tA3iUU4A0L_0odZWZ04luINUjTyn4HTD7PIPaamO4Vm8MYUE9z0mIujQjzonMkmlUtKHyMwHzJkUeSVQjcsKy3FFryS4zjFubJnVG-8RnwoByIS0ivVarV7vFvgq9Uf3LKsz-K9a_bV6hG8f80ePoQP_i_78DY69xF8VOBu-BA-v2Z_DF8UOKX08zguY7NW5j-i5sI4XcItsdmNHSyxZ46UyO0SL_nZ-JFEC7M5Afa0TKCMpUjWG-yFJFLmLYmp2ds-I2tJdjdrTDj2TviAvUbLrjYtt2G1XLdVr7XtZhkfjbnqNJyW4zZt17LdpuO0z2X8LoQJUau6rbbt2la7btmWW6s3s3iLTMxLAHq5zCb5dRcIHrI1Pv8GXQeX4g)
+    N --> P{after customer history}
+    P -->|draft| J
+    P -->|handoff| O
 
-## Tech Stack
+    J --> Q[qa_review]
+    Q -->|pass| R[create_gmail_draft]
+    Q -->|rewrite| J
+    Q -->|handoff| O
 
-* Langchain & Langgraph: for developing AI agents workflow.
-* Langserve: simplify API development & deployment (using FastAPI).
-* OpenAI-compatible API: for chat and embedding access.
-* Google Gmail API
+    K --> S[collect_case_context]
+    R --> S
+    O --> S
+    L --> S
 
-## How to Run
+    S --> T[extract_memory_updates]
+    T --> U[validate_memory_updates]
+```
 
-### Prerequisites
+系统流程图文本源也保存在 [docs/system-workflow.mmd](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/system-workflow.mmd)。
 
-- Python 3.7+
-- OpenAI-compatible API key
-- Optional custom OpenAI-compatible base URL
-- Gmail API credentials
-- Necessary Python libraries (listed in `requirements.txt`)
+### Key Modules
 
-### Setup
+1. `src/api/`
+   业务 API、DTO、错误处理、依赖注入
+2. `src/graph.py`
+   ticket execution workflow 定义
+3. `src/nodes.py`
+   各节点的业务逻辑、trace 打点和 provider 调用
+4. `src/ticket_state_machine.py`
+   显式业务状态迁移、lease、失败恢复、人工动作前置校验
+5. `src/message_log.py`
+   邮件入库、reopen 判定、上下文读取
+6. `src/customer_memory.py`
+   记忆读取与收尾回写
+7. `src/observability.py`
+   trace、metrics、response quality 和 trajectory evaluation
+8. `src/tools/`
+   Gmail、knowledge、policy、ticket store provider 抽象
 
-1. **Clone the repository:**
+## Repository Layout
 
-   ```sh
-   git clone https://github.com/kaymen99/langgraph-email-automation.git
-   cd langgraph-email-automation
-   ```
+```text
+langgraph-email-automation/
+├── src/
+│   ├── api/
+│   ├── db/
+│   ├── agents.py
+│   ├── customer_memory.py
+│   ├── graph.py
+│   ├── message_log.py
+│   ├── nodes.py
+│   ├── observability.py
+│   ├── state.py
+│   ├── ticket_state_machine.py
+│   └── tools/
+├── docs/
+├── tests/
+├── scripts/
+├── alembic/
+├── main.py
+├── deploy_api.py
+└── create_index.py
+```
 
-2. **Create and activate a virtual environment:**
+## Requirements
 
-   ```sh
-   python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-   ```
+建议环境：
 
-3. **Install the required packages:**
+1. Python `3.10+`
+2. Postgres `14+`
+3. Gmail OAuth 凭据
+4. OpenAI-compatible chat + embedding 接口
 
-   ```sh
-   pip install -r requirements.txt
-   ```
+安装依赖：
 
-4. **Set up environment variables:**
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-   Create a `.env` file in the root directory of the project and add your GMAIL address. The project now uses an OpenAI-compatible protocol for both chat generation and embeddings, and supports custom `base_url` and custom model names:
+## Configuration
 
-   ```env
-   MY_EMAIL=your_email@gmail.com
-   LLM_API_KEY=your_api_key
-   LLM_BASE_URL=https://api.openai.com/v1
-   LLM_CHAT_MODEL=gpt-4o-mini
-   LLM_EMBEDDING_MODEL=text-embedding-3-small
-   ```
+复制 `.env.example` 并按本地环境填写。
 
-5. **Ensure Gmail API is enabled:**
+最小运行配置：
 
-   Follow [this guide](https://developers.google.com/gmail/api/quickstart/python) to enable Gmail API and obtain your credentials.
+```env
+MY_EMAIL=your_email@gmail.com
+LLM_API_KEY=your_api_key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_CHAT_MODEL=gpt-4o-mini
+LLM_EMBEDDING_MODEL=text-embedding-3-small
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/customer_support_copilot
+```
 
-### Running the Application
+其余关键变量：
 
-1. **Start the workflow:**
+1. `GMAIL_CREDENTIALS_PATH`
+2. `GMAIL_TOKEN_PATH`
+3. `KNOWLEDGE_SOURCE_PATH`
+4. `KNOWLEDGE_DB_PATH`
+5. `LANGSMITH_TRACING`
+6. `LANGSMITH_API_KEY`
+7. `LANGSMITH_ENDPOINT`
+8. `API_HOST`
+9. `API_PORT`
 
-   ```sh
-   python main.py
-   ```
+## Setup
 
-   The application will start checking for new emails, categorizing them, synthesizing queries, drafting responses, and verifying email quality.
+### 1. Initialize Database
 
-2. **Deploy as API:** you can deploy the workflow as an API using Langserve and FastAPI by running the command below:
+```bash
+python scripts/init_db.py
+```
 
-   ```sh
-   python deploy_api.py
-   ```
+### 2. Build the Local Knowledge Index
 
-   The workflow api will be running on `localhost:8000`, you can consult the API docs on `/docs` and you can use the langsergve playground (on the route `/playground`) to test it out.
+默认知识源是 [data/agency.txt](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/data/agency.txt)。
 
-
-### Customization
-
-You can customize the behavior of each agent by modifying the corresponding methods in the `Nodes` class or the agents prompt `prompts` located in the `src` directory.
-
-You can also add your own agency data into the `data` folder, then you must create your own vector store by running (update first the data path):
-
-```sh
+```bash
 python create_index.py
 ```
 
-### Contributing
+### 3. Prepare Gmail OAuth
 
-Contributions are welcome! Please open an issue or submit a pull request for any changes.
+需要本地准备：
 
-### Contact
+1. `credentials.json`
+2. `token.json`
 
-If you have any questions or suggestions, feel free to contact me at `aymenMir1001@gmail.com`.
+Gmail 认证和草稿写入逻辑位于 [src/tools/gmail_client.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/gmail_client.py) 和 [src/tools/GmailTools.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/GmailTools.py)。
+
+## Running
+
+### API Server
+
+```bash
+python deploy_api.py
+```
+
+默认监听 `http://localhost:8000`，OpenAPI 文档位于 `/docs`。
+
+### Poller Batch
+
+```bash
+python main.py
+```
+
+它会：
+
+1. 从 Gmail 拉取未处理线程
+2. 调用 `ingest_email`
+3. 立即执行 `run_ticket`
+
+这不是常驻 worker，而是一次批处理入口。
+
+### Offline Eval
+
+```bash
+python scripts/run_offline_eval.py
+```
+
+默认样本为 [tests/samples/eval/customer_support_eval.jsonl](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval.jsonl)，报告输出到 [tests/samples/eval/customer_support_eval_report.json](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval_report.json)。
+
+## API Surface
+
+写接口：
+
+1. `POST /tickets/ingest-email`
+2. `POST /tickets/{ticket_id}/run`
+3. `POST /tickets/{ticket_id}/approve`
+4. `POST /tickets/{ticket_id}/edit-and-approve`
+5. `POST /tickets/{ticket_id}/rewrite`
+6. `POST /tickets/{ticket_id}/escalate`
+7. `POST /tickets/{ticket_id}/close`
+
+查接口：
+
+1. `GET /tickets/{ticket_id}`
+2. `GET /tickets/{ticket_id}/trace`
+3. `GET /customers/{customer_id}/memory`
+4. `GET /metrics/summary`
+
+请求头约定：
+
+1. `X-Actor-Id`
+2. `X-Request-Id`
+3. `Idempotency-Key`
+
+人工动作接口要求显式提供 `X-Actor-Id`。
+
+## Quick Demo
+
+### Demo 1: Happy Path API Run
+
+适合演示“知识问答 -> 草稿生成 -> trace 查询”。
+
+1. 启动 API：`python deploy_api.py`
+2. 调用 `POST /tickets/ingest-email`
+3. 调用 `POST /tickets/{ticket_id}/run`
+4. 查看 `GET /tickets/{ticket_id}`
+5. 查看 `GET /tickets/{ticket_id}/trace`
+
+可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_creates_run_trace_and_draft_created_status`。
+
+### Demo 2: High-Risk Policy Handoff
+
+适合演示“高风险商业/退款请求不会自动答复，而是升级人工”。
+
+可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_routes_high_risk_case_to_human_review`。
+
+### Demo 3: Manual Review Lifecycle
+
+适合演示 `approve`、`close`、memory 回写和 metrics 查询。
+
+可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_approve_and_close_update_memory_and_metrics_queries`。
+
+完整演示说明见 [docs/demo-cases.zh-CN.md](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/demo-cases.zh-CN.md)。
+
+## Testing
+
+运行测试：
+
+```bash
+pytest -q
+```
+
+关键测试覆盖：
+
+1. API 契约
+2. 状态机与 lease
+3. 消息日志与 reopen
+4. triage 输出和路由决策
+5. graph 节点与人工升级分支
+6. trace、metrics、offline eval
+
+## Known Gaps
+
+当前仓库已经可演示，但还存在明确缺口：
+
+1. 离线评测报告不是全绿，说明路由与轨迹规则仍有偏差
+2. 目前没有前端控制台
+3. 多渠道接入和 `RAG MCP` 仍属于后续版本
+4. 人工动作与自动 worker 的复杂并发控制未进入 V1
+
+这类边界和失败样例已经整理在 [docs/demo-cases.zh-CN.md](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/demo-cases.zh-CN.md)。
+
+## V2 Direction
+
+V2 预计聚焦：
+
+1. 更强的人工审核并发控制
+2. 外部知识接入与 `RAG MCP`
+3. 多渠道入口
+4. 运维/审核控制台
+5. 更完整的评测闭环和回归门禁

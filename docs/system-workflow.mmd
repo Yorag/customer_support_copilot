@@ -1,0 +1,35 @@
+flowchart TD
+    A[Gmail inbox or API ingest] --> B[POST /tickets/ingest-email]
+    B --> C[Message log plus ticket persistence]
+    C --> D[POST /tickets/{ticket_id}/run]
+    D --> E[load_ticket_context]
+    E --> F[load_memory]
+    F --> G[triage]
+
+    G -->|knowledge_request| H[knowledge_lookup]
+    G -->|commercial_policy_request| I[policy_check]
+    G -->|feedback_intake| J[draft_reply]
+    G -->|technical_issue plus insufficient info| K[clarify_request]
+    G -->|unrelated| L[close_ticket]
+
+    H --> M{after knowledge}
+    I --> M
+    M -->|draft| N[customer_history_lookup]
+    M -->|handoff| O[escalate_to_human]
+
+    N --> P{after customer history}
+    P -->|draft| J
+    P -->|handoff| O
+
+    J --> Q[qa_review]
+    Q -->|pass| R[create_gmail_draft]
+    Q -->|rewrite| J
+    Q -->|handoff| O
+
+    K --> S[collect_case_context]
+    R --> S
+    O --> S
+    L --> S
+
+    S --> T[extract_memory_updates]
+    T --> U[validate_memory_updates]
