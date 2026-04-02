@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 import sys
 from collections import Counter
 from pathlib import Path
@@ -13,11 +14,20 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.api.app import create_app
 from src.api.dependencies import get_container
+from src.agents import Agents
+from src.config import validate_required_settings
 from src.core_schema import EntityIdPrefix, generate_prefixed_id
 from src.db.base import Base
 from src.db.session import build_engine, create_session_factory
+from src.structure_outputs import (
+    DraftingOutput,
+    KnowledgePolicyOutput,
+    QaHandoffOutput,
+    TriageOutput,
+)
 from src.tools.service_container import ServiceContainer
 from src.tools.ticket_store import SqlAlchemyTicketStore
+from src.triage import TriageDecision, TriageDecisionService
 
 
 DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
@@ -42,7 +52,114 @@ class FakeEvalPolicyProvider:
         return f"policy for {category or 'default'}"
 
 
-def _build_app_and_store():
+class HybridEvalAgents(Agents):
+    """Uses a real chat model for structured generation while keeping local fallbacks available."""
+
+    def __init__(self, *, triage_service: TriageDecisionService | None = None):
+        super().__init__(triage_service=triage_service)
+
+    def triage_email_with_rules(
+        self,
+        *,
+        subject: str | None,
+        email: str,
+        context=None,
+    ):
+        structured = self.triage_email.invoke({"subject": subject or "", "email": email})
+        rule_based = self.triage_service.evaluate(subject=subject, body=email, context=context)
+        merged = TriageOutput.model_validate(
+            {
+                **structured.model_dump(mode="json"),
+                "routing_reason": (
+                    structured.routing_reason.strip()
+                    if structured.routing_reason.strip()
+                    else rule_based.output.routing_reason
+                ),
+            }
+        )
+        return TriageDecision(
+            output=merged,
+            selected_rule="real_llm_structured_output",
+            matched_rules=("real_llm_structured_output",),
+            priority_reasons=rule_based.priority_reasons,
+            escalation_reasons=rule_based.escalation_reasons,
+            clarification_reasons=rule_based.clarification_reasons,
+        )
+
+    def knowledge_policy_agent(
+        self,
+        *,
+        primary_route: str,
+        response_strategy: str,
+        normalized_email: str,
+        knowledge_answers: list[dict[str, str]] | None = None,
+        policy_notes: str = "",
+        knowledge_confidence: float | None = None,
+        needs_escalation: bool = False,
+    ) -> KnowledgePolicyOutput:
+        prompt = (
+            "Return JSON for KnowledgePolicyOutput.\n"
+            f"primary_route={primary_route}\n"
+            f"response_strategy={response_strategy}\n"
+            f"normalized_email={normalized_email}\n"
+            f"knowledge_answers={json.dumps(knowledge_answers or [], ensure_ascii=True)}\n"
+            f"policy_notes={policy_notes}\n"
+            f"knowledge_confidence={knowledge_confidence}\n"
+            f"needs_escalation={needs_escalation}\n"
+            "Keep outputs factual and bounded by the provided evidence."
+        )
+        return self._llm.with_structured_output(KnowledgePolicyOutput).invoke(prompt)
+
+    def drafting_agent(
+        self,
+        *,
+        customer_email: str,
+        subject: str,
+        primary_route: str,
+        response_strategy: str,
+        normalized_email: str,
+        knowledge_summary: str,
+        policy_notes: str,
+        rewrite_guidance: list[str] | None = None,
+    ) -> DraftingOutput:
+        prompt = (
+            "Return JSON for DraftingOutput.\n"
+            f"customer_email={customer_email}\n"
+            f"subject={subject}\n"
+            f"primary_route={primary_route}\n"
+            f"response_strategy={response_strategy}\n"
+            f"normalized_email={normalized_email}\n"
+            f"knowledge_summary={knowledge_summary}\n"
+            f"policy_notes={policy_notes}\n"
+            f"rewrite_guidance={json.dumps(rewrite_guidance or [], ensure_ascii=True)}\n"
+            "Write a concise support reply aligned with the route and policy boundaries."
+        )
+        return self._llm.with_structured_output(DraftingOutput).invoke(prompt)
+
+    def qa_handoff_agent(
+        self,
+        *,
+        primary_route: str,
+        draft_text: str,
+        knowledge_confidence: float,
+        needs_escalation: bool,
+        rewrite_count: int,
+        policy_notes: str,
+    ) -> QaHandoffOutput:
+        prompt = (
+            "Return JSON for QaHandoffOutput.\n"
+            f"primary_route={primary_route}\n"
+            f"draft_text={draft_text}\n"
+            f"knowledge_confidence={knowledge_confidence}\n"
+            f"needs_escalation={needs_escalation}\n"
+            f"rewrite_count={rewrite_count}\n"
+            f"policy_notes={policy_notes}\n"
+            "Approve only if the draft is safe, relevant, and within policy."
+        )
+        return self._llm.with_structured_output(QaHandoffOutput).invoke(prompt)
+
+
+def _build_app_and_store(*, use_real_llm: bool = False):
     fd, path = mkstemp(suffix=".db")
     close(fd)
     engine = build_engine(f"sqlite+pysqlite:///{path}")
@@ -53,6 +170,7 @@ def _build_app_and_store():
     )
     app = create_app()
     app.dependency_overrides[get_container] = lambda: ServiceContainer(
+        agents_factory=lambda: HybridEvalAgents() if use_real_llm else Agents(),
         gmail_client_factory=lambda: FakeEvalGmailClient(),
         knowledge_provider_factory=lambda: FakeEvalKnowledgeProvider(),
         policy_provider_factory=lambda: FakeEvalPolicyProvider(),
@@ -111,10 +229,15 @@ def build_report(records: list[dict]) -> dict:
 def main(
     samples_path: Path = DEFAULT_SAMPLES_PATH,
     report_path: Path = DEFAULT_REPORT_PATH,
+    *,
+    use_real_llm: bool = False,
 ) -> dict:
     from fastapi.testclient import TestClient
 
-    app = _build_app_and_store()
+    if use_real_llm:
+        validate_required_settings(("LLM_API_KEY",))
+
+    app = _build_app_and_store(use_real_llm=use_real_llm)
     client = TestClient(app)
     records: list[dict] = []
 
@@ -185,10 +308,43 @@ def main(
         )
 
     report = build_report(records)
-    payload = {"records": records, "summary": report}
+    payload = {
+        "mode": {
+            "use_real_llm": use_real_llm,
+            "gmail": "fake",
+            "knowledge_provider": "fake",
+            "policy_provider": "fake",
+            "database": "temporary_sqlite",
+        },
+        "records": records,
+        "summary": report,
+    }
     report_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return payload
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run offline evaluation for the ticket workflow.")
+    parser.add_argument(
+        "--samples-path",
+        type=Path,
+        default=DEFAULT_SAMPLES_PATH,
+        help="Path to the JSONL sample set.",
+    )
+    parser.add_argument(
+        "--report-path",
+        type=Path,
+        default=DEFAULT_REPORT_PATH,
+        help="Path to write the evaluation report JSON.",
+    )
+    parser.add_argument(
+        "--use-real-llm",
+        action="store_true",
+        help="Use the configured chat model for triage/drafting/QA while keeping Gmail, providers, and DB isolated.",
+    )
+    args = parser.parse_args()
+    main(
+        samples_path=args.samples_path,
+        report_path=args.report_path,
+        use_real_llm=args.use_real_llm,
+    )
