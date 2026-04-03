@@ -37,6 +37,9 @@ evals/*_report.json
 evals/reports/*.json
 evals/knowledge_db_*/
 tests/samples/eval/*.tmp.json
+docs/customer-support-copilot-interview-qa.zh-CN.md
+evals/smoke_real_eval.jsonl
+evals/samples/customer_support_eval_zh_smoke.jsonl
 
 # Editor and OS files
 .idea/

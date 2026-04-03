@@ -99,6 +99,11 @@
 | S04 | Spec | `docs/specs/04-routing-decision-table.zh-CN.md` | 落地 triage 输出和路由决策 | 已完成 | P0, S01 | 结构化输出、triage agent |
 | S03 | Spec | `docs/specs/03-api-contract.zh-CN.md` | 落地业务 API、memory 查询、trace 查询和 metrics 汇总接口 | 已完成 | S01, S02, S06 | `FastAPI` 路由、请求响应模型 |
 | S05 | Spec | `docs/specs/05-trace-and-eval.zh-CN.md` | 落地 trace、指标和离线评测 | 已完成 | S03, X1 | trace、metrics、eval |
+| S07 | Spec | `docs/specs/07-short-term-memory-checkpoint.zh-CN.md` | 落地 `LangGraph checkpointer`、短期记忆字段合同和 crash-resume 机制 | 未开始 | S02, S03, S05, X1 | `graph/state/run` 恢复链路 |
+| S08 | Spec | `docs/specs/08-worker-runtime-contract.zh-CN.md` | 落地独立 worker、enqueue-only run、租约续期和失租恢复 | 未开始 | S02, S03, S07 | worker、run、API 触发链路 |
+| S09 | Spec | `docs/specs/09-ticket-snapshot-eval-summary.zh-CN.md` | 为 ticket snapshot 增加最近 run 的评估摘要引用 | 未开始 | S03, S05 | ticket 查询接口与 DTO |
+| S10 | Spec | `docs/specs/10-llm-usage-and-judge.zh-CN.md` | 落地统一 LLM runtime、真实 usage 采集和正式 LLM judge | 未开始 | S05 | LLM 调用、评测与 metrics |
+| S11 | Spec | `docs/specs/11-directory-migration.zh-CN.md` | 按新目录结构完成全量一次性重构，并按阶段强制测试门禁 | 未开始 | S07, S08, S09, S10 | `src/` 目录迁移、兼容层、文档回填 |
 | X1 | 集成 | 跨 spec | 完成 state、agent、graph、记忆、审核集成 | 已完成 | S01, S02, S04 | `src/state.py`, `src/agents.py`, `src/nodes.py`, `src/graph.py` |
 | X2 | 交付 | 跨 spec | 完成 README、流程图、Demo | 已完成 | S03, S05, X1 | `README.md`, `docs/`, 演示材料 |
 
@@ -119,12 +124,18 @@
 | `04-routing-decision-table` | `S04`, `X1` | `S04` 已完成，`X1` 已完成 | 已产出 triage 结构化输出、规则决策服务、prompt 与样例测试 |
 | `05-trace-and-eval` | `S05`, `X2` | `S05` 已完成，`X2` 已完成 | trace、指标和离线评测已可用于交付展示和失败案例说明 |
 | `06-message-log-schema` | `S06`, `S02`, `S03` | `S06` 已完成，消息持久化基础已具备 | 消息持久化、draft 幂等、reopen 判定都依赖它 |
+| `07-short-term-memory-checkpoint` | `S07`, `S08`, `S11` | 未开始 | 短期记忆、checkpoint key、resume 和目录迁移都要以它为准 |
+| `08-worker-runtime-contract` | `S08`, `S11` | 未开始 | enqueue-only run、worker、租约、失租和恢复的正式契约 |
+| `09-ticket-snapshot-eval-summary` | `S09`, `S11` | 未开始 | `GET /tickets/{id}` 的轻量评估摘要引用契约 |
+| `10-llm-usage-and-judge` | `S10`, `S11` | 未开始 | LLM runtime、usage 来源、judge 和资源指标的正式契约 |
+| `11-directory-migration` | `S11` | 未开始 | 目标目录结构、阶段门禁、分段测试和最终兼容层收尾规则 |
 
 结论：
 
 1. 进度表现在是以 `spec` 为主组织的。
 2. 每份 `spec` 都有明确对应任务。
-3. 非 `spec` 工作只保留在 `P0` 和 `X`，避免纯工程项淹没 `spec` 主线。
+3. `07` 到 `11` 已补齐为下一轮主线 spec，但当前状态均为 `未开始`。
+4. 非 `spec` 工作只保留在 `P0` 和 `X`，避免纯工程项淹没 `spec` 主线。
 
 ---
 
@@ -150,6 +161,27 @@
 16. `S03.6`
 17. `S03.7`
 18. `X2`
+19. `S07.1`
+20. `S07.2`
+21. `S07.3`
+22. `S07.4`
+23. `S10.1`
+24. `S10.2`
+25. `S10.3`
+26. `S10.4`
+27. `S09.1`
+28. `S09.2`
+29. `S08.1`
+30. `S08.2`
+31. `S08.3`
+32. `S08.4`
+33. `S11.1`
+34. `S11.2`
+35. `S11.3`
+36. `S11.4`
+37. `S11.5`
+38. `S11.6`
+39. `S11.7`
 
 说明：
 
@@ -157,12 +189,18 @@
 2. `X1.3` 先把真实 ticket 执行流做出来，再由 `S03.3` 暴露 `run`。
 3. `X1.4` 先把记忆、审核和升级分支接入，再由 `S03.4` 暴露人工动作接口。
 4. `S05` 先产出真实 trace 与 metrics 数据，再由 `S03.6/S03.7` 暴露 trace 和汇总查询接口。
+5. `S07` 先固定 checkpoint 与短期记忆合同，后续 worker 与目录迁移都必须服从这个恢复模型。
+6. `S10` 先固定 LLM runtime 和 judge 合同，后续 telemetry 与目录迁移不得再各自实现一套调用路径。
+7. `S09` 在现有 API 契约上做轻量增量，先补齐 snapshot 引用能力，再让 telemetry 迁移时有稳定对外语义。
+8. `S08` 在 `S07` 之后推进，避免 worker/runtime 和恢复模型出现双重来源。
+9. `S11` 最后执行，作为一次性目标目录迁移的总集成任务，并严格按 spec 中的阶段门禁推进。
 
 并行原则仍然是：
 
 1. 主链路串行。
 2. `P0.3` 测试骨架可以和 `P0.1/P0.2` 局部并行。
 3. 文档类更新只能在 `X2` 阶段作为主任务，不提前分散注意力。
+4. `S11` 虽然是全量一次性重构目标，但其内部阶段执行仍然严格串行，且每阶段都必须先过本阶段测试和 `pytest -q` 全量回归。
 
 ---
 
@@ -324,6 +362,97 @@
 | X2.2 | 输出新的系统流程图 | 已完成 | X2.1 | 流程图 | 演示路径清晰可说明 |
 | X2.3 | 准备成功样例、失败样例、可重复 demo case | 已完成 | X2.1, X2.2, S05.3 | demo 材料 | 有至少一条失败案例可解释系统边界 |
 
+### S07. Short-Term Memory Checkpoint
+
+对应文档：
+
+1. `docs/specs/07-short-term-memory-checkpoint.zh-CN.md`
+
+目标：
+
+1. 为 ticket workflow 建立正式 `LangGraph checkpointer` 方案。
+2. 让 run 具备 crash-resume 能力，并与副作用幂等解耦。
+
+| 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S07.1 | `3`, `4`, `9` | 落地统一 checkpoint 构造层、`thread_id=ticket_id`、`checkpoint_ns=run_id` 与编译接入点 | 未开始 | S02.2, X1.3, S05.1 | `graph/checkpointing` 与 graph 编译接入 | 不存在第二套 checkpoint key 生成逻辑，compile 时已挂正式 checkpointer |
+| S07.2 | `5`, `6` | 收紧 `GraphState` 为正式短期记忆合同，补 `clarification_history`、`resume_count`、`checkpoint_metadata` | 未开始 | S07.1 | 新 state 合同 | checkpoint 中字段可 JSON 序列化，教程遗留字段不再作为权威状态来源 |
+| S07.3 | `7`, `8` | 实现 fresh/resume 决策、run 级 checkpoint 元信息与 trace 事件 | 未开始 | S07.1, S07.2, S03.3 | 恢复入口与元信息记录 | `TicketRun.app_metadata`、trace 中可见 checkpoint 元信息，fresh/resume 语义固定 |
+| S07.4 | `7`, `10`, `11` | 覆盖 crash-resume、跨 run 隔离和副作用防重测试 | 未开始 | S07.3, P0.3 | checkpoint 测试集 | 同一 run 可恢复、不同 run 不串 checkpoint、恢复后不重复创建 draft |
+
+### S08. Worker Runtime Contract
+
+对应文档：
+
+1. `docs/specs/08-worker-runtime-contract.zh-CN.md`
+
+目标：
+
+1. 让 API、poller、worker 三类角色边界清晰。
+2. 把 run 触发从“直接执行”切换为 enqueue-only 正式模型。
+
+| 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S08.1 | `4`, `5`, `6` | 扩展 `RunStatus=queued`、收紧 `POST /tickets/{ticket_id}/run` 为 enqueue-only 语义 | 未开始 | S02.2, S03.3, S07.3 | run 创建与 API 契约修订 | API 不再直接执行 graph，run 创建时固定为 `queued` |
+| S08.2 | `7`, `8`, `9` | 落地独立 worker 的领取、续租、失租、回收与恢复规则 | 未开始 | S08.1, S07.4 | worker runtime 与 lease 流程 | 只有 worker 执行 graph，失租后禁止继续提交，过期租约可回收接管 |
+| S08.3 | `4`, `10`, `11`, `12` | 打通 `claimed_by/claimed_at/lease_until` 投影、worker CLI 与观测事件 | 未开始 | S08.2, S05.1 | worker 入口和 trace 事件 | 对外字段投影固定，worker 事件可追踪，CLI 入口稳定 |
+| S08.4 | `13`, `14` | 覆盖 enqueue、worker 接管、续租、失租拒写和并发抢占测试 | 未开始 | S08.3, P0.3 | worker 测试集 | 双 worker 不会并行推进同一 run，`POST /run` 只排队不直跑 |
+
+### S09. Ticket Snapshot Eval Summary
+
+对应文档：
+
+1. `docs/specs/09-ticket-snapshot-eval-summary.zh-CN.md`
+
+目标：
+
+1. 让 ticket snapshot 附带最近 run 的最小评估摘要引用。
+2. 保持 snapshot 轻量，不混入完整 trace 细节。
+
+| 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S09.1 | `4`, `5`, `6` | 扩展 `TicketRunSummary` 与 `evaluation_summary_ref` DTO、最近 run 选择规则 | 未开始 | S03.2, S05.3 | 新 snapshot DTO | `complete/partial/not_available` 三态明确，最近 run 选择规则固定 |
+| S09.2 | `7`, `8`, `9`, `10`, `12`, `13` | 在 API 服务层构造摘要引用并补契约测试 | 未开始 | S09.1, P0.3 | snapshot 查询实现与测试 | `GET /tickets/{id}` 只返回摘要引用，不返回完整 trace 明细 |
+
+### S10. LLM Usage And Judge
+
+对应文档：
+
+1. `docs/specs/10-llm-usage-and-judge.zh-CN.md`
+
+目标：
+
+1. 为所有业务 LLM 调用建立统一 runtime 封装。
+2. 让资源指标具备真实 usage 来源标记，并以正式 LLM judge 取代线上规则式质量评估。
+
+| 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S10.1 | `3`, `4`, `5`, `6` | 落地统一 `llm_runtime` 封装、usage 提取优先级和 `token_source` 合同 | 未开始 | S05.2 | LLM runtime 基础层 | 所有业务 LLM 调用都经统一 wrapper，`llm_call.metadata` 含 `token_source` |
+| S10.2 | `7` | 扩展资源指标聚合，补 `actual/estimated/unavailable` 与 `token_coverage_ratio` | 未开始 | S10.1, S05.2 | 新资源指标 | metrics 能区分真实 usage、估算 usage 与不可用 usage |
+| S10.3 | `8`, `9`, `11` | 落地正式 `LLM-as-a-judge`、配置项、失败降级与结构化输出校验 | 未开始 | S10.1, S05.3 | judge 实现与配置 | 线上 `response_quality` 来自正式 judge，失败不阻塞主流程但可观测 |
+| S10.4 | `10`, `12`, `13` | 把旧规则评测降级为 baseline，并补 usage/judge 的单测、集成测和回归测 | 未开始 | S10.2, S10.3, P0.3 | usage/judge 测试集 | 不再由旧规则实现承担正式线上质量评测职责 |
+
+### S11. Directory Migration
+
+对应文档：
+
+1. `docs/specs/11-directory-migration.zh-CN.md`
+
+目标：
+
+1. 按目标目录结构完成一次性全量重构。
+2. 严格执行“每阶段必测 + 未通过不得进入下一阶段”的门禁规则。
+
+| 子任务 | 对应章节 | 内容 | 状态 | 前置项 | 主要产出 | 验收标准 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S11.1 | `4`, `6`, `7.2` | 阶段 A：建立新目录骨架、`__init__.py`、最小 import 基础，并执行阶段测试 | 未开始 | S07.4, S08.4, S09.2, S10.4 | 新目录骨架 | 阶段 A 测试与 `pytest -q` 全量通过后才能进入阶段 B |
+| S11.2 | `6`, `7.3`, `8` | 阶段 B：迁移 `graph/state/checkpointing` 并执行阶段测试 | 未开始 | S11.1 | `src/graph/` 新结构 | `graph/state` import 在本阶段结束时已统一，阶段测试与全量回归通过 |
+| S11.3 | `6`, `7.4`, `8` | 阶段 C：迁移 `agents/llm` 并执行阶段测试 | 未开始 | S11.2 | `src/agents/`、`src/llm/` | 所有业务 LLM 调用已切至新路径，阶段测试与全量回归通过 |
+| S11.4 | `6`, `7.5`, `8` | 阶段 D：迁移 `memory/rag` 并执行阶段测试 | 未开始 | S11.3 | `src/memory/`、`src/rag/` | memory 与 rag import 已统一，阶段测试与全量回归通过 |
+| S11.5 | `6`, `7.6`, `8` | 阶段 E：迁移 `telemetry` 并执行阶段测试 | 未开始 | S11.4 | `src/telemetry/` | trace/metrics/eval 路径已统一，阶段测试与全量回归通过 |
+| S11.6 | `6`, `7.7`, `8` | 阶段 F：落地 `workers` 并完成 API 到 worker 的切换，执行阶段测试 | 未开始 | S11.5 | `src/workers/` 与 enqueue-only 链路 | API 不再直接执行 graph，阶段测试与全量回归通过 |
+| S11.7 | `5`, `6`, `7.8`, `11`, `12`, `13`, `14` | 阶段 G：旧文件收口为薄兼容层、README/技术文档/跟踪表回填并做最终验收 | 未开始 | S11.6 | 最终目录结构与文档回填 | 旧平铺文件不再承载真实逻辑，最终 `pytest -q` 全量通过 |
+
 ---
 
 ## 8. 下一步默认执行规则
@@ -337,7 +466,7 @@
 
 按当前进度，默认下一任务是：
 
-1. 主线任务已全部完成，后续若继续推进，应先新增新的 `spec`、修复项或 `V2` 跟踪项。
+1. `S07.1`
 
 ---
 
@@ -369,6 +498,7 @@
 | 2026-03-31 | 新增实施任务与进度跟踪文档。 |
 | 2026-03-31 | 将跟踪文档重构为 `spec-first` 版本，主线改为 `P0/S01/S06/S02/S04/S03/S05/X1/X2`。 |
 | 2026-03-31 | 补齐 `03-api-contract` 的 memory/trace/metrics 接口任务，拆开 `S03/X1` 依赖环，并细化 `S05` 验收标准。 |
+| 2026-04-03 | 新增 `07-short-term-memory-checkpoint`、`08-worker-runtime-contract`、`09-ticket-snapshot-eval-summary`、`10-llm-usage-and-judge`、`11-directory-migration` 五份新 spec，并将其纳入主跟踪表、覆盖矩阵、推荐执行顺序与详细子任务清单；默认下一任务更新为 `S07.1`。 |
 | 2026-03-31 | 补齐 `LangSmith` 固定选型、API 通用请求头与标准错误码、以及 `memory_updates` 抽取/校验链路要求。 |
 | 2026-03-31 | 明确主跟踪表不作为执行顺序来源，默认推进改为按第 6 节子任务顺序；同时把 `Postgres`、本地 RAG 默认实现和剩余标准错误码补成硬约束。 |
 | 2026-03-31 | 将 `attachments`、`multi_intent` 同步规则，以及 `response_quality`、`trajectory_evaluation`、`profile`、`business_flags` 等固定结构补入验收标准。 |
