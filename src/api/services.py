@@ -18,6 +18,7 @@ from src.core_schema import (
     RunStatus,
     RunTriggerType,
     TicketBusinessStatus,
+    TicketRoute,
     TraceEventStatus,
     TraceEventType,
     generate_prefixed_id,
@@ -32,6 +33,7 @@ from src.observability import (
     ResponseQualityJudge,
     TraceRecorder,
     build_trajectory_evaluation,
+    _duration_ms,
 )
 from src.state import build_ticket_run_state
 from src.ticket_state_machine import TicketStateService
@@ -251,10 +253,11 @@ class TicketApiService:
             if ticket is None:
                 raise TicketNotFoundError(ticket_id)
 
-            run = self._create_human_action_run(
+            run = self._create_action_run(
                 session=session,
                 repositories=repositories,
                 ticket=ticket,
+                trigger_type=RunTriggerType.HUMAN_ACTION,
                 actor_id=actor_id,
                 state_service=state_service,
             )
@@ -356,7 +359,7 @@ class TicketApiService:
                 ticket_version=ticket_version,
                 reason=reason,
             )
-            run = self._create_system_action_run(
+            run = self._create_action_run(
                 session=session,
                 repositories=repositories,
                 ticket=updated,
@@ -521,7 +524,7 @@ class TicketApiService:
                 rewrite_reasons=rewrite_reasons,
                 target_queue=target_queue,
             )
-            run = self._create_system_action_run(
+            run = self._create_action_run(
                 session=session,
                 repositories=repositories,
                 ticket=updated,
@@ -556,30 +559,7 @@ class TicketApiService:
             )
             return updated, review.review_id
 
-    def _create_human_action_run(
-        self,
-        *,
-        session: Session,
-        repositories,
-        ticket: Ticket,
-        actor_id: str,
-        state_service: TicketStateService,
-    ) -> TicketRun:
-        run = TicketRun(
-            run_id=generate_prefixed_id(EntityIdPrefix.RUN),
-            ticket_id=ticket.ticket_id,
-            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
-            trigger_type=RunTriggerType.HUMAN_ACTION.value,
-            triggered_by=actor_id,
-            status=RunStatus.RUNNING.value,
-            started_at=utc_now(),
-            attempt_index=state_service.get_next_run_attempt_index(ticket.ticket_id),
-        )
-        repositories.ticket_runs.add(run)
-        session.flush()
-        return run
-
-    def _create_system_action_run(
+    def _create_action_run(
         self,
         *,
         session: Session,
@@ -789,7 +769,7 @@ class TicketRunner:
             return RunFinalAction.REQUEST_CLARIFICATION.value
         if status is TicketBusinessStatus.AWAITING_HUMAN_REVIEW:
             return RunFinalAction.HANDOFF_TO_HUMAN.value
-        if ticket.primary_route == "unrelated":
+        if ticket.primary_route == TicketRoute.UNRELATED.value:
             return RunFinalAction.SKIP_UNRELATED.value
         return RunFinalAction.CREATE_DRAFT.value
 
@@ -846,8 +826,6 @@ def _select_latest_draft(drafts: Iterable[DraftArtifact]) -> DraftArtifact | Non
     return ordered[0] if ordered else None
 
 
-def _duration_ms(start: datetime, end: datetime) -> int:
-    return int((end - start).total_seconds() * 1000)
 
 
 def _build_draft_message_payload(
