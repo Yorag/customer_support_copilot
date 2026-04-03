@@ -96,6 +96,22 @@ Set `needs_escalation = true` when any of the following applies:
 7. QA has already failed twice
 8. customer history requires manual approval
 
+# **Runtime Context:**
+
+- `is_high_value_customer`: {is_high_value_customer}
+- `recent_customer_replies_72h`: {recent_customer_replies_72h}
+- `requires_manual_approval`: {requires_manual_approval}
+- `qa_failure_count`: {qa_failure_count}
+- `knowledge_evidence_sufficient`: {knowledge_evidence_sufficient}
+
+# **How To Use Runtime Context:**
+
+1. Use runtime context when deciding priority and whether escalation is needed.
+2. If `requires_manual_approval = true`, escalation is usually required.
+3. If `knowledge_evidence_sufficient = false` for a knowledge-seeking request, escalation may be required when a safe answer cannot be given.
+4. If `qa_failure_count >= 2`, escalation is preferred over another weak automated attempt.
+5. Do not invent customer-history risk if the runtime context does not indicate it.
+
 # **Email Content:**
 Subject: {subject}
 

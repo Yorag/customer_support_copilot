@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import requests
 import uvicorn
@@ -88,6 +89,7 @@ def _build_payload(
     active_knowledge_db_path: Path,
     rebuild_index: bool,
     backup_path: Path | None,
+    eval_run_id: str,
     in_progress: bool,
 ) -> dict[str, Any]:
     return {
@@ -105,6 +107,7 @@ def _build_payload(
             "knowledge_index_backup_path": str(backup_path) if backup_path else None,
             "llm_model": settings.llm.chat_model,
             "embedding_model": settings.embedding.model,
+            "eval_run_id": eval_run_id,
             "in_progress": in_progress,
         },
         "records": records,
@@ -125,6 +128,7 @@ def _write_report(
     active_knowledge_db_path: Path,
     rebuild_index: bool,
     backup_path: Path | None,
+    eval_run_id: str,
     in_progress: bool,
 ) -> dict[str, Any]:
     payload = _build_payload(
@@ -138,6 +142,7 @@ def _write_report(
         active_knowledge_db_path=active_knowledge_db_path,
         rebuild_index=rebuild_index,
         backup_path=backup_path,
+        eval_run_id=eval_run_id,
         in_progress=in_progress,
     )
     _ensure_parent(report_path)
@@ -273,19 +278,21 @@ def run_real_eval(
         active_knowledge_source_path = settings.knowledge.source_document_path
 
     records: list[dict[str, Any]] = []
-    total_samples = len(load_jsonl(samples_path))
+    samples = load_jsonl(samples_path)
+    total_samples = len(samples)
+    eval_run_id = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_" + uuid4().hex[:8]
 
     def _execute(base_url: str) -> None:
         session = requests.Session()
 
-        for index, sample in enumerate(load_jsonl(samples_path), start=1):
+        for index, sample in enumerate(samples, start=1):
             print(f"[real-eval] {index}/{total_samples} {sample['sample_id']} ingest")
             ingest_response = session.post(
                 f"{base_url}/tickets/ingest-email",
                 json={
                     "source_channel": "gmail",
-                    "source_thread_id": f"real-eval-thread-{sample['sample_id']}",
-                    "source_message_id": f"<{sample['sample_id']}@real-eval.local>",
+                    "source_thread_id": f"real-eval-thread-{eval_run_id}-{sample['sample_id']}",
+                    "source_message_id": f"<{sample['sample_id']}.{eval_run_id}@real-eval.local>",
                     "sender_email_raw": '"Real Eval User" <real-eval@example.com>',
                     "subject": sample["email_subject"],
                     "body_text": sample["email_body"],
@@ -307,7 +314,7 @@ def run_real_eval(
                 },
                 headers={
                     "X-Actor-Id": "real-eval",
-                    "X-Request-Id": sample["sample_id"],
+                    "X-Request-Id": f"{sample['sample_id']}-{eval_run_id}",
                 },
                 timeout=request_timeout_seconds,
             )
@@ -379,6 +386,7 @@ def run_real_eval(
                 active_knowledge_db_path=active_knowledge_db_path,
                 rebuild_index=rebuild_index,
                 backup_path=backup_path,
+                eval_run_id=eval_run_id,
                 in_progress=True,
             )
 
@@ -400,6 +408,7 @@ def run_real_eval(
         active_knowledge_db_path=active_knowledge_db_path,
         rebuild_index=rebuild_index,
         backup_path=backup_path,
+        eval_run_id=eval_run_id,
         in_progress=False,
     )
     return payload

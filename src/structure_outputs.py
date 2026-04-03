@@ -12,6 +12,7 @@ from .core_schema import (
     TicketTag,
     normalize_ticket_routing,
 )
+from .triage_policy import ROUTE_RESPONSE_STRATEGY
 
 
 class EmailCategory(str, Enum):
@@ -77,13 +78,7 @@ class TriageOutput(BaseModel):
         description="Human-readable explanation of why the route and strategy were selected.",
     )
 
-    _EXPECTED_RESPONSE_STRATEGIES = {
-        TicketRoute.KNOWLEDGE_REQUEST: ResponseStrategy.ANSWER,
-        TicketRoute.TECHNICAL_ISSUE: ResponseStrategy.TROUBLESHOOTING,
-        TicketRoute.COMMERCIAL_POLICY_REQUEST: ResponseStrategy.POLICY_CONSTRAINED,
-        TicketRoute.FEEDBACK_INTAKE: ResponseStrategy.ACKNOWLEDGEMENT,
-        TicketRoute.UNRELATED: ResponseStrategy.ACKNOWLEDGEMENT,
-    }
+    _EXPECTED_RESPONSE_STRATEGIES = ROUTE_RESPONSE_STRATEGY
 
     @field_validator("secondary_routes", "tags", mode="after")
     @classmethod

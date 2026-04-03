@@ -4,36 +4,12 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from .core_schema import (
-    ResponseStrategy,
     TicketPriority,
     TicketRoute,
     TicketTag,
 )
 from .structure_outputs import TriageOutput
-
-
-_ROUTE_PRIORITY = {
-    TicketRoute.COMMERCIAL_POLICY_REQUEST: 0,
-    TicketRoute.TECHNICAL_ISSUE: 1,
-    TicketRoute.KNOWLEDGE_REQUEST: 2,
-    TicketRoute.FEEDBACK_INTAKE: 3,
-    TicketRoute.UNRELATED: 4,
-}
-
-_ROUTE_RESPONSE_STRATEGY = {
-    TicketRoute.KNOWLEDGE_REQUEST: ResponseStrategy.ANSWER,
-    TicketRoute.TECHNICAL_ISSUE: ResponseStrategy.TROUBLESHOOTING,
-    TicketRoute.COMMERCIAL_POLICY_REQUEST: ResponseStrategy.POLICY_CONSTRAINED,
-    TicketRoute.FEEDBACK_INTAKE: ResponseStrategy.ACKNOWLEDGEMENT,
-    TicketRoute.UNRELATED: ResponseStrategy.ACKNOWLEDGEMENT,
-}
-
-_PRIORITY_ORDER = [
-    TicketPriority.LOW,
-    TicketPriority.MEDIUM,
-    TicketPriority.HIGH,
-    TicketPriority.CRITICAL,
-]
+from .triage_policy import ROUTE_PRIORITY, ROUTE_RESPONSE_STRATEGY, bump_priority
 
 
 @dataclass(frozen=True)
@@ -124,7 +100,7 @@ class TriageDecisionService:
             primary_route=primary_match.route,
             secondary_routes=[match.route for match in secondary_matches],
             tags=tags,
-            response_strategy=_ROUTE_RESPONSE_STRATEGY[primary_match.route],
+            response_strategy=ROUTE_RESPONSE_STRATEGY[primary_match.route],
             multi_intent=multi_intent,
             intent_confidence=confidence,
             priority=priority,
@@ -170,7 +146,7 @@ class TriageDecisionService:
         return sorted(
             route_matches,
             key=lambda match: (
-                _ROUTE_PRIORITY[match.route],
+                ROUTE_PRIORITY[match.route],
                 -match.score,
             ),
         )[0]
@@ -188,7 +164,7 @@ class TriageDecisionService:
         ]
         secondary_matches.sort(
             key=lambda match: (
-                _ROUTE_PRIORITY[match.route],
+                ROUTE_PRIORITY[match.route],
                 -match.score,
             )
         )
@@ -773,7 +749,7 @@ class TriageDecisionService:
                 "线上不可用",
             ),
         ):
-            priority = _raise_priority(priority)
+            priority = bump_priority(priority)
             reasons.append("Production unavailability raises the priority by one level.")
         if _contains_any(
             text,
@@ -784,13 +760,13 @@ class TriageDecisionService:
                 "数据没了",
             ),
         ):
-            priority = _raise_priority(priority)
+            priority = bump_priority(priority)
             reasons.append("Data loss raises the priority by one level.")
         if context.is_high_value_customer:
-            priority = _raise_priority(priority)
+            priority = bump_priority(priority)
             reasons.append("High-value customer context raises the priority by one level.")
         if context.recent_customer_replies_72h >= 2:
-            priority = _raise_priority(priority)
+            priority = bump_priority(priority)
             reasons.append("Repeated replies within 72 hours raise the priority by one level.")
 
         return priority, tuple(reasons)
@@ -827,10 +803,3 @@ def _dedupe_tags(tags: list[TicketTag]) -> list[TicketTag]:
         if tag not in deduped:
             deduped.append(tag)
     return deduped
-
-
-def _raise_priority(priority: TicketPriority) -> TicketPriority:
-    index = _PRIORITY_ORDER.index(priority)
-    if index == len(_PRIORITY_ORDER) - 1:
-        return priority
-    return _PRIORITY_ORDER[index + 1]
