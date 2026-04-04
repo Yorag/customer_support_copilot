@@ -19,10 +19,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from create_index import main as rebuild_knowledge_index
+from scripts.build_index import main as rebuild_knowledge_index
 from src.api.app import create_app
+from src.bootstrap.container import get_service_container
 from src.config import get_settings
-from src.tools.service_container import get_service_container
+from src.contracts.core import RunStatus
+from src.evaluation import RuleBasedResponseQualityBaseline
+from src.workers.ticket_worker import TicketWorker
 
 
 DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
@@ -46,21 +49,32 @@ def build_report(records: list[dict[str, Any]]) -> dict[str, Any]:
         for item in records
         if item["needs_escalation"] == item["expected_escalation"]
     )
-    quality_scores = [item["response_quality"]["overall_score"] for item in records]
-    trajectory_scores = [item["trajectory_evaluation"]["score"] for item in records]
+    quality_scores = [
+        item["response_quality"]["overall_score"]
+        for item in records
+        if _get_nested_number(item.get("response_quality"), "overall_score") is not None
+    ]
+    trajectory_scores = [
+        item["trajectory_evaluation"]["score"]
+        for item in records
+        if _get_nested_number(item.get("trajectory_evaluation"), "score") is not None
+    ]
+    judge_statuses = [_get_response_quality_status(item) for item in records]
     failures = [
         {
             "sample_id": item["sample_id"],
             "route_mismatch": item["primary_route"] != item["expected_primary_route"],
             "escalation_mismatch": item["needs_escalation"] != item["expected_escalation"],
-            "trajectory_score": item["trajectory_evaluation"]["score"],
+            "trajectory_score": _get_nested_number(item.get("trajectory_evaluation"), "score"),
             "http_status": item["http_status"],
+            "response_quality_status": _get_response_quality_status(item),
         }
         for item in records
         if item["primary_route"] != item["expected_primary_route"]
         or item["needs_escalation"] != item["expected_escalation"]
-        or item["trajectory_evaluation"]["score"] < 5.0
+        or (_get_nested_number(item.get("trajectory_evaluation"), "score") or 0.0) < 5.0
         or item["http_status"] not in {202, 502}
+        or _get_response_quality_status(item) != "succeeded"
     ]
 
     return {
@@ -73,6 +87,11 @@ def build_report(records: list[dict[str, Any]]) -> dict[str, Any]:
         "avg_trajectory_score": round(sum(trajectory_scores) / len(trajectory_scores), 3)
         if trajectory_scores
         else 0.0,
+        "response_quality_judge": {
+            "succeeded_count": sum(1 for status in judge_statuses if status == "succeeded"),
+            "failed_count": sum(1 for status in judge_statuses if status == "failed"),
+            "unavailable_count": sum(1 for status in judge_statuses if status == "unavailable"),
+        },
         "failed_samples": failures,
     }
 
@@ -218,6 +237,19 @@ class LocalApiServer:
             self._thread.join(timeout=10)
 
 
+class LocalWorkerRunner:
+    def __init__(self, *, worker_id: str = "real-eval-worker") -> None:
+        self._container = get_service_container()
+        self._worker = TicketWorker(
+            store=self._container.ticket_store,
+            container=self._container,
+            worker_id=worker_id,
+        )
+
+    def run_once(self) -> Any:
+        return self._worker.run_once()
+
+
 def _build_trace_fallback(
     *,
     expected_route_template: str,
@@ -232,17 +264,129 @@ def _build_trace_fallback(
     }
 
 
-def _build_quality_fallback(reason: str) -> dict[str, Any]:
-    return {
-        "overall_score": 0.0,
-        "subscores": {
-            "relevance": 0,
-            "correctness": 0,
-            "intent_alignment": 0,
-            "clarity": 0,
-        },
-        "reason": reason,
-    }
+def _get_nested_number(payload: dict[str, Any] | None, key: str) -> float | int | None:
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get(key)
+    if isinstance(value, (int, float)):
+        return value
+    return None
+
+
+def _get_response_quality_status(item: dict[str, Any]) -> str:
+    status = str(item.get("response_quality_status") or "").strip().lower()
+    if status in {"succeeded", "failed", "unavailable"}:
+        return status
+    return "succeeded" if item.get("response_quality") is not None else "failed"
+
+
+def _extract_response_quality_status(trace_payload: dict[str, Any]) -> str:
+    for event in trace_payload.get("events", []):
+        if event.get("event_name") != "response_quality_judge":
+            continue
+        metadata = event.get("metadata") or {}
+        status = str(metadata.get("judge_status") or "").strip().lower()
+        if status in {"succeeded", "failed"}:
+            return status
+        event_status = str(event.get("status") or "").strip().lower()
+        if event_status in {"succeeded", "failed"}:
+            return event_status
+    return "succeeded" if trace_payload.get("response_quality") is not None else "unavailable"
+
+
+def _build_response_quality_baseline(
+    *,
+    sample: dict[str, Any],
+    trace_payload: dict[str, Any],
+    snapshot_payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    latest_run = snapshot_payload.get("latest_run") or {}
+    draft_text = _extract_draft_text(trace_payload)
+    if not draft_text:
+        return None
+    final_action = latest_run.get("final_action")
+    baseline = RuleBasedResponseQualityBaseline()
+    return baseline.evaluate(
+        email_subject=sample.get("email_subject"),
+        email_body=sample.get("email_body"),
+        draft_text=draft_text,
+        evidence_summary=_extract_latest_draft_evidence_summary(trace_payload),
+        policy_summary=None,
+        primary_route=snapshot_payload["ticket"].get("primary_route"),
+        final_action=final_action,
+    )
+
+
+def _extract_draft_text(trace_payload: dict[str, Any]) -> str | None:
+    for event in reversed(trace_payload.get("events", [])):
+        if event.get("event_name") not in {"create_gmail_draft", "clarify_request", "close_ticket"}:
+            continue
+        outputs = event.get("outputs") or {}
+        if isinstance(outputs, dict):
+            draft_versions = outputs.get("draft_versions")
+            if isinstance(draft_versions, list) and draft_versions:
+                latest = draft_versions[-1]
+                if isinstance(latest, dict):
+                    content_text = latest.get("content_text")
+                    if isinstance(content_text, str) and content_text.strip():
+                        return content_text
+    return None
+
+
+def _extract_latest_draft_evidence_summary(trace_payload: dict[str, Any]) -> str | None:
+    for event in reversed(trace_payload.get("events", [])):
+        if event.get("event_name") != "draft_reply":
+            continue
+        outputs = event.get("outputs") or {}
+        if isinstance(outputs, dict):
+            knowledge_summary = outputs.get("knowledge_summary")
+            if isinstance(knowledge_summary, str) and knowledge_summary.strip():
+                return knowledge_summary
+    return None
+
+
+def _wait_for_run_completion(
+    *,
+    session: requests.Session,
+    base_url: str,
+    ticket_id: str,
+    run_id: str,
+    request_timeout_seconds: int,
+    local_worker_runner: LocalWorkerRunner | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    deadline = time.monotonic() + request_timeout_seconds
+
+    while time.monotonic() < deadline:
+        if local_worker_runner is not None:
+            local_worker_runner.run_once()
+
+        snapshot_response = session.get(
+            f"{base_url}/tickets/{ticket_id}",
+            timeout=request_timeout_seconds,
+        )
+        snapshot_response.raise_for_status()
+        snapshot_payload = snapshot_response.json()
+        latest_run = snapshot_payload.get("latest_run") or {}
+
+        if latest_run.get("run_id") == run_id and latest_run.get("status") in {
+            RunStatus.SUCCEEDED.value,
+            RunStatus.FAILED.value,
+            RunStatus.CANCELLED.value,
+            RunStatus.TIMED_OUT.value,
+        }:
+            trace_response = session.get(
+                f"{base_url}/tickets/{ticket_id}/trace",
+                params={"run_id": run_id},
+                timeout=request_timeout_seconds,
+            )
+            trace_response.raise_for_status()
+            return snapshot_payload, trace_response.json()
+
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Timed out waiting for run `{run_id}` on ticket `{ticket_id}` to finish."
+    )
 
 
 def run_real_eval(
@@ -282,7 +426,7 @@ def run_real_eval(
     total_samples = len(samples)
     eval_run_id = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_" + uuid4().hex[:8]
 
-    def _execute(base_url: str) -> None:
+    def _execute(base_url: str, *, local_worker_runner: LocalWorkerRunner | None = None) -> None:
         session = requests.Session()
 
         for index, sample in enumerate(samples, start=1):
@@ -320,19 +464,34 @@ def run_real_eval(
             )
 
             run_payload = run_response.json()
-            snapshot_response = session.get(
-                f"{base_url}/tickets/{ingest_payload['ticket_id']}",
-                timeout=request_timeout_seconds,
-            )
-            snapshot_response.raise_for_status()
-            snapshot_payload = snapshot_response.json()
-
-            trace_response = session.get(
-                f"{base_url}/tickets/{ingest_payload['ticket_id']}/trace",
-                timeout=request_timeout_seconds,
-            )
-            trace_response.raise_for_status()
-            trace_payload = trace_response.json()
+            if run_response.status_code == 202:
+                snapshot_payload, trace_payload = _wait_for_run_completion(
+                    session=session,
+                    base_url=base_url,
+                    ticket_id=ingest_payload["ticket_id"],
+                    run_id=run_payload["run_id"],
+                    request_timeout_seconds=request_timeout_seconds,
+                    local_worker_runner=local_worker_runner,
+                )
+            else:
+                snapshot_response = session.get(
+                    f"{base_url}/tickets/{ingest_payload['ticket_id']}",
+                    timeout=request_timeout_seconds,
+                )
+                snapshot_response.raise_for_status()
+                snapshot_payload = snapshot_response.json()
+                trace_payload = {
+                    "trace_id": run_payload.get("trace_id"),
+                    "events": [],
+                    "latency_metrics": {},
+                    "resource_metrics": {},
+                    "trajectory_evaluation": _build_trace_fallback(
+                        expected_route_template=sample["expected_route_template"],
+                        actual_route=snapshot_payload["ticket"].get("primary_route"),
+                        reason=run_payload.get("message")
+                        or "Run request did not enqueue successfully.",
+                    ),
+                }
 
             actual_route = snapshot_payload["ticket"].get("primary_route")
             escalation_flag = any(
@@ -355,8 +514,13 @@ def run_real_eval(
                         or (run_payload.get("error", {}).get("details") or {}).get("final_action")
                     ),
                     "http_status": run_response.status_code,
-                    "response_quality": trace_payload.get("response_quality")
-                    or _build_quality_fallback("Trace response did not include response_quality."),
+                    "response_quality": trace_payload.get("response_quality"),
+                    "response_quality_status": _extract_response_quality_status(trace_payload),
+                    "response_quality_baseline": _build_response_quality_baseline(
+                        sample=sample,
+                        trace_payload=trace_payload,
+                        snapshot_payload=snapshot_payload,
+                    ),
                     "trajectory_evaluation": trace_payload.get("trajectory_evaluation")
                     or _build_trace_fallback(
                         expected_route_template=sample["expected_route_template"],
@@ -394,7 +558,7 @@ def run_real_eval(
         _execute(api_base_url.rstrip("/"))
     else:
         with LocalApiServer(host=host, port=port) as base_url:
-            _execute(base_url)
+            _execute(base_url, local_worker_runner=LocalWorkerRunner())
 
     payload = _write_report(
         report_path=report_path,

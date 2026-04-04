@@ -32,6 +32,7 @@ token.json
 
 # Local development data
 /db/
+alembic/versions/
 db_backup_*/
 evals/*_report.json
 evals/reports/*.json
@@ -44,5 +45,7 @@ evals/samples/customer_support_eval_zh_smoke.jsonl
 # Editor and OS files
 .idea/
 .vscode/
+.codex/
+.claude/
 .DS_Store
 Thumbs.db

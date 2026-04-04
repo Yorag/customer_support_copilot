@@ -11,13 +11,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.config import validate_required_settings
+from src.config import get_settings, validate_required_settings
 
 
 def main() -> None:
-    validate_required_settings(
-        ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER")
-    )
+    settings = get_settings()
+    if not settings.database.url:
+        validate_required_settings(
+            ("POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER")
+        )
     alembic_config = Config("alembic.ini")
     command.upgrade(alembic_config, "head")
     print("Database migrations applied successfully.")

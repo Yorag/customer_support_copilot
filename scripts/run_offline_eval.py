@@ -15,19 +15,19 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.api.app import create_app
 from src.api.dependencies import get_container
 from src.agents import Agents
+from src.bootstrap.container import ServiceContainer
 from src.config import validate_required_settings
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
-from src.db.base import Base
-from src.db.session import build_engine, create_session_factory
-from src.structure_outputs import (
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
+from src.contracts.outputs import (
     DraftingOutput,
     KnowledgePolicyOutput,
     QaHandoffOutput,
     TriageOutput,
 )
-from src.tools.service_container import ServiceContainer
+from src.db.base import Base
+from src.db.session import build_engine, create_session_factory
 from src.tools.ticket_store import SqlAlchemyTicketStore
-from src.triage import TriageDecision, TriageDecisionService
+from src.triage import TriageContext, TriageDecision, TriageDecisionService
 
 
 DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
@@ -52,6 +52,50 @@ class FakeEvalPolicyProvider:
         return f"policy for {category or 'default'}"
 
 
+class FakeEvalResponseQualityJudge:
+    def evaluate(
+        self,
+        *,
+        email_subject,
+        email_body,
+        draft_text,
+        evidence_summary,
+        policy_summary,
+        primary_route,
+        final_action,
+    ):
+        return type(
+            "JudgeEval",
+            (),
+            {
+                "response_quality": {
+                    "overall_score": 4.0,
+                    "subscores": {
+                        "relevance": 4,
+                        "correctness": 4,
+                        "intent_alignment": 4,
+                        "clarity": 4,
+                    },
+                    "reason": "Fake eval judge accepted the draft.",
+                },
+                "llm_metadata": {
+                    "model": "fake-eval-judge",
+                    "provider": "openai-compatible",
+                    "prompt_tokens": 7,
+                    "completion_tokens": 4,
+                    "total_tokens": 11,
+                    "token_source": "estimated",
+                    "request_id": "req_eval_judge",
+                    "finish_reason": "stop",
+                    "prompt_version": "response_quality_judge_v1",
+                    "judge_name": "response_quality_judge",
+                    "judge_status": "succeeded",
+                    "latency_ms": 5,
+                },
+            },
+        )()
+
+
 class HybridEvalAgents(Agents):
     """Uses a real chat model for structured generation while keeping local fallbacks available."""
 
@@ -65,7 +109,11 @@ class HybridEvalAgents(Agents):
         email: str,
         context=None,
     ):
-        structured = self.triage_email.invoke({"subject": subject or "", "email": email})
+        structured = self.invoke_triage_email(
+            subject=subject,
+            email=email,
+            context=context or TriageContext(),
+        ).parsed_output
         rule_based = self.triage_service.evaluate(subject=subject, body=email, context=context)
         merged = TriageOutput.model_validate(
             {
@@ -108,7 +156,7 @@ class HybridEvalAgents(Agents):
             f"needs_escalation={needs_escalation}\n"
             "Keep outputs factual and bounded by the provided evidence."
         )
-        return self._llm.with_structured_output(KnowledgePolicyOutput).invoke(prompt)
+        return self._runtime.invoke_structured_text(prompt, schema=KnowledgePolicyOutput).parsed_output
 
     def drafting_agent(
         self,
@@ -134,7 +182,7 @@ class HybridEvalAgents(Agents):
             f"rewrite_guidance={json.dumps(rewrite_guidance or [], ensure_ascii=True)}\n"
             "Write a concise support reply aligned with the route and policy boundaries."
         )
-        return self._llm.with_structured_output(DraftingOutput).invoke(prompt)
+        return self._runtime.invoke_structured_text(prompt, schema=DraftingOutput).parsed_output
 
     def qa_handoff_agent(
         self,
@@ -156,7 +204,7 @@ class HybridEvalAgents(Agents):
             f"policy_notes={policy_notes}\n"
             "Approve only if the draft is safe, relevant, and within policy."
         )
-        return self._llm.with_structured_output(QaHandoffOutput).invoke(prompt)
+        return self._runtime.invoke_structured_text(prompt, schema=QaHandoffOutput).parsed_output
 
 
 def _build_app_and_store(*, use_real_llm: bool = False):
@@ -171,6 +219,7 @@ def _build_app_and_store(*, use_real_llm: bool = False):
     app = create_app()
     app.dependency_overrides[get_container] = lambda: ServiceContainer(
         agents_factory=lambda: HybridEvalAgents() if use_real_llm else Agents(),
+        response_quality_judge_factory=lambda: FakeEvalResponseQualityJudge(),
         gmail_client_factory=lambda: FakeEvalGmailClient(),
         knowledge_provider_factory=lambda: FakeEvalKnowledgeProvider(),
         policy_provider_factory=lambda: FakeEvalPolicyProvider(),
@@ -196,19 +245,30 @@ def build_report(records: list[dict]) -> dict:
         for item in records
         if item["needs_escalation"] == item["expected_escalation"]
     )
-    quality_scores = [item["response_quality"]["overall_score"] for item in records]
-    trajectory_scores = [item["trajectory_evaluation"]["score"] for item in records]
+    quality_scores = [
+        score
+        for item in records
+        if (score := _get_nested_number(item.get("response_quality"), "overall_score")) is not None
+    ]
+    trajectory_scores = [
+        score
+        for item in records
+        if (score := _get_nested_number(item.get("trajectory_evaluation"), "score")) is not None
+    ]
+    judge_statuses = [_get_response_quality_status(item) for item in records]
     failures = [
         {
             "sample_id": item["sample_id"],
             "route_mismatch": item["primary_route"] != item["expected_primary_route"],
             "escalation_mismatch": item["needs_escalation"] != item["expected_escalation"],
-            "trajectory_score": item["trajectory_evaluation"]["score"],
+            "trajectory_score": _get_nested_number(item.get("trajectory_evaluation"), "score"),
+            "response_quality_status": _get_response_quality_status(item),
         }
         for item in records
         if item["primary_route"] != item["expected_primary_route"]
         or item["needs_escalation"] != item["expected_escalation"]
-        or item["trajectory_evaluation"]["score"] < 5.0
+        or (_get_nested_number(item.get("trajectory_evaluation"), "score") or 0.0) < 5.0
+        or _get_response_quality_status(item) != "succeeded"
     ]
 
     return {
@@ -222,8 +282,56 @@ def build_report(records: list[dict]) -> dict:
         "avg_trajectory_score": round(sum(trajectory_scores) / len(trajectory_scores), 3)
         if trajectory_scores
         else 0.0,
+        "response_quality_judge": {
+            "succeeded_count": sum(1 for status in judge_statuses if status == "succeeded"),
+            "failed_count": sum(1 for status in judge_statuses if status == "failed"),
+            "unavailable_count": sum(1 for status in judge_statuses if status == "unavailable"),
+        },
         "failed_samples": failures,
     }
+
+
+def _get_nested_number(payload: dict | None, key: str) -> float | int | None:
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get(key)
+    if isinstance(value, (int, float)):
+        return value
+    return None
+
+
+def _get_response_quality_status(item: dict) -> str:
+    status = str(item.get("response_quality_status") or "").strip().lower()
+    if status in {"succeeded", "failed", "unavailable"}:
+        return status
+    return "succeeded" if item.get("response_quality") is not None else "failed"
+
+
+def _extract_response_quality_status(trace_payload: dict) -> str:
+    for event in trace_payload.get("events", []):
+        if event.get("event_name") != "response_quality_judge":
+            continue
+        metadata = event.get("metadata") or {}
+        status = str(metadata.get("judge_status") or "").strip().lower()
+        if status in {"succeeded", "failed"}:
+            return status
+        event_status = str(event.get("status") or "").strip().lower()
+        if event_status in {"succeeded", "failed"}:
+            return event_status
+    return "succeeded" if trace_payload.get("response_quality") is not None else "unavailable"
+
+
+def _extract_final_action(*, trace_payload: dict, snapshot_payload: dict) -> str | None:
+    for event in trace_payload.get("events", []):
+        if event.get("event_name") != "final_action":
+            continue
+        metadata = event.get("metadata") or {}
+        final_action = metadata.get("final_action")
+        if final_action:
+            return str(final_action)
+    latest_run = snapshot_payload.get("latest_run") or {}
+    final_action = latest_run.get("final_action")
+    return str(final_action) if final_action is not None else None
 
 
 def main(
@@ -292,15 +400,12 @@ def main(
                     for event in trace_payload["events"]
                 ),
                 "expected_escalation": sample["expected_escalation"],
-                "final_action": next(
-                    (
-                        (event.get("metadata") or {}).get("final_action")
-                        for event in trace_payload["events"]
-                        if event["event_name"] == "final_action"
-                    ),
-                    snapshot.get("latest_run", {}) or {},
+                "final_action": _extract_final_action(
+                    trace_payload=trace_payload,
+                    snapshot_payload=snapshot,
                 ),
-                "response_quality": trace_payload["response_quality"],
+                "response_quality": trace_payload.get("response_quality"),
+                "response_quality_status": _extract_response_quality_status(trace_payload),
                 "trajectory_evaluation": trace_payload["trajectory_evaluation"],
                 "latency_metrics": trace_payload["latency_metrics"],
                 "resource_metrics": trace_payload["resource_metrics"],
