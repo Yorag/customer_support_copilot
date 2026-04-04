@@ -1,409 +1,358 @@
 # Customer Support Copilot
 
-`Customer Support Copilot` 是一个基于 `LangGraph + FastAPI + Postgres + Gmail` 的客服工单执行系统，不再是最初的教程型“邮箱分类 + RAG + 草稿生成”示例。
+`Customer Support Copilot` 是一个基于 `LangGraph + FastAPI + Postgres + Gmail` 的客服工单后端。系统会把邮件或 API 输入转成 `ticket`，通过显式状态机和 worker 执行 LangGraph 工作流，最终产出客服草稿、澄清请求、人工升级结果、trace、metrics 与 customer memory。
 
-当前仓库已经完成 V1 主链路：
+当前仓库已经不是最早的“邮箱分类 + RAG + 草稿生成”示例，而是一个可运行、可追踪、可评测的工单执行系统。
 
-1. Gmail 邮件入库为 `ticket`
-2. 通过显式状态机管理 `business_status` 和 `processing_status`
-3. 用 `LangGraph` 执行真实 ticket workflow
-4. 生成草稿、澄清请求、人工升级或关闭结果
-5. 持久化 message log、draft、human review、customer memory、trace 和 metrics
-6. 通过业务 API 暴露 ingest/run/manual actions/trace/memory/metrics
+## 当前能力
 
-## What This Repo Is Now
+- 将 Gmail 邮件或业务 API 输入持久化为 `ticket`
+- 通过 `ticket` / `ticket_run` / `message_log` / `draft_artifact` / `human_review` / `trace_event` / `customer_memory` 管理完整生命周期
+- 使用显式业务状态与处理状态管理 `queued`、`running`、`awaiting_human_review`、`closed` 等阶段
+- 用 LangGraph 执行 `triage -> knowledge/policy -> drafting -> QA -> draft/handoff/close -> memory update`
+- 提供人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close`
+- 输出 trace、latency/resource metrics、response quality judge、trajectory evaluation
+- 提供离线评测与真实环境评测脚本
 
-系统定位已经从“AI 邮件自动化 Demo”升级为“可追踪的客服 Copilot 后端”。
+## 系统流程
 
-核心能力：
-
-1. `ticket`、`ticket_run`、`draft_artifact`、`human_review`、`trace_event`、`customer_memory` 持久化
-2. `knowledge_request`、`technical_issue`、`commercial_policy_request`、`feedback_intake`、`unrelated` 五类主路由
-3. 人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close`
-4. `LangSmith` 可选接入，以及本地 trace/latency/resource/response_quality/trajectory_evaluation 聚合
-5. 离线评测样本与可复现报告输出
-
-## V1 Scope
-
-V1 已包含：
-
-1. Gmail 工单化入口
-2. Ticket 状态机、lease、失败恢复、draft 幂等
-3. Graph/Agent 重构后的 ticket execution workflow
-4. 长期记忆查询与收尾回写
-5. 业务 API 和标准错误码
-6. Trace、metrics 和离线 eval
-
-V1 明确不包含：
-
-1. 人工审核动作与自动流程并发写同一工单的复杂冲突控制
-2. `RAG MCP` 外部知识接入
-3. 多渠道接入
-4. 控制台或后台页面
-5. 图片附件理解
-
-## Architecture
-
-### Main Flow
+要点：`POST /tickets/{ticket_id}/run` 只负责入队；真正执行由 worker 完成。
 
 ```mermaid
 flowchart TD
-    A[Gmail inbox or API ingest] --> B[POST /tickets/ingest-email]
-    B --> C[Message log + Ticket persistence]
+    A[Gmail poller or API ingest] --> B[POST /tickets/ingest-email]
+    B --> C[Ticket + message log persistence]
     C --> D[POST /tickets/{ticket_id}/run]
-    D --> E[load_ticket_context]
-    E --> F[load_memory]
-    F --> G[triage]
+    D --> E[Queued ticket run]
+    E --> F[Worker loop]
+    F --> G[load_ticket_context]
+    G --> H[load_memory]
+    H --> I[triage]
 
-    G -->|knowledge_request| H[knowledge_lookup]
-    G -->|commercial_policy_request| I[policy_check]
-    G -->|feedback_intake| J[draft_reply]
-    G -->|technical_issue + insufficient info| K[clarify_request]
-    G -->|unrelated| L[close_ticket]
+    I -->|knowledge_request| J[knowledge_lookup]
+    I -->|commercial_policy_request| K[policy_check]
+    I -->|feedback_intake| L[draft_reply]
+    I -->|technical_issue + missing info| M[clarify_request]
+    I -->|needs escalation| N[escalate_to_human]
+    I -->|unrelated| O[close_ticket]
 
-    H --> M{after knowledge}
-    I --> M
-    M -->|draft| N[customer_history_lookup]
-    M -->|handoff| O[escalate_to_human]
-
-    N --> P{after customer history}
-    P -->|draft| J
-    P -->|handoff| O
-
-    J --> Q[qa_review]
+    J --> P[customer_history_lookup or draft_reply]
+    K --> P
+    P --> L
+    L --> Q[qa_review]
     Q -->|pass| R[create_gmail_draft]
-    Q -->|rewrite| J
-    Q -->|handoff| O
+    Q -->|rewrite| L
+    Q -->|handoff| N
 
-    K --> S[collect_case_context]
-    R --> S
+    M --> S[collect_case_context]
+    N --> S
     O --> S
-    L --> S
-
+    R --> S
     S --> T[extract_memory_updates]
     T --> U[validate_memory_updates]
 ```
 
-系统流程图文本源也保存在 [docs/system-workflow.mmd](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/system-workflow.mmd)。
+工作流文本源见 `docs/system-workflow.mmd`，补充设计说明见 `docs/customer-support-copilot-technical-design.zh-CN.md`。
 
-### Key Modules
-
-1. `src/api/`
-   业务 API、DTO、错误处理、依赖注入
-2. `src/orchestration/`
-   ticket execution workflow、状态合同、条件路由和 checkpoint 构造
-3. `src/orchestration/nodes.py`
-   各节点的业务逻辑、trace 打点和 provider 调用
-4. `src/tickets/state_machine.py`
-   显式业务状态迁移、lease、失败恢复、人工动作前置校验
-5. `src/tickets/message_log.py`
-   邮件入库、reopen 判定、上下文读取
-6. `src/memory/` 和 `src/rag/`
-   长短期记忆、知识 provider 和本地 RAG 适配
-7. `src/telemetry/` 和 `src/evaluation/`
-   trace、metrics、response quality 和 trajectory evaluation
-8. `src/bootstrap/`、`src/contracts/` 和 `src/workers/`
-   容器装配、共享契约、enqueue-only run 的 worker orchestration 和 CLI
-9. `src/tools/`
-   Gmail 与 policy provider 实现，ticket store 适配入口
-
-## Repository Layout
+## 仓库结构
 
 ```text
 langgraph-email-automation/
-├── src/
-│   ├── agents/
-│   ├── api/
-│   ├── bootstrap/
-│   ├── contracts/
-│   ├── db/
-│   ├── evaluation/
-│   ├── llm/
-│   ├── memory/
-│   ├── orchestration/
-│   ├── prompts/
-│   ├── rag/
-│   ├── telemetry/
-│   ├── tickets/
-│   ├── tools/
-│   └── workers/
-├── docs/
-├── tests/
 ├── scripts/
-│   ├── build_index.py
-│   ├── init_db.py
-│   ├── run_offline_eval.py
-│   ├── run_poller.py
-│   ├── run_real_eval.py
-│   └── serve_api.py
-├── alembic/
-├── main.py
-├── deploy_api.py
-└── create_index.py
+│   ├── init_db.py               # 初始化 / 升级数据库
+│   ├── build_index.py           # 构建本地 Chroma 知识索引
+│   ├── run_offline_eval.py      # 本地隔离评测
+│   └── run_real_eval.py         # 真实环境 HTTP 评测
+├── serve_api.py                 # 启动 FastAPI
+├── run_worker.py                # 启动 worker loop
+├── run_poller.py                # Gmail 轮询并入队 ticket run
+├── src/
+│   ├── agents/                  # triage / drafting / QA / knowledge-policy agent 组合
+│   ├── api/                     # FastAPI app、路由、schema、service
+│   ├── bootstrap/               # ServiceContainer 装配
+│   ├── contracts/               # 核心枚举、ID、输出契约、协议
+│   ├── db/                      # SQLAlchemy model、repository、session
+│   ├── evaluation/              # response quality / trajectory evaluation
+│   ├── llm/                     # LLM runtime、model、judge 封装
+│   ├── memory/                  # customer memory 读写
+│   ├── orchestration/           # workflow、nodes、routes、checkpointing
+│   ├── prompts/                 # Prompt 模板与 loader
+│   ├── rag/                     # knowledge provider 适配
+│   ├── telemetry/               # trace 与 metrics
+│   ├── tickets/                 # state machine、message log
+│   ├── tools/                   # Gmail、policy provider、ticket store
+│   ├── triage/                  # triage 规则、模型与策略
+│   └── workers/                 # worker loop 与 run 执行
+├── tests/                       # pytest 测试套件
+├── docs/                        # 设计文档、规格、演示说明
+├── evals/                       # 评测说明与输出目录
+├── data/                        # 知识源文档
+└── db/                          # 本地 Chroma persist 目录
 ```
 
-## Requirements
+## 运行入口
 
-建议环境：
+当前仓库的入口按职责分为 3 类：
 
-1. Python `3.10+`
-2. Postgres `14+`
-3. Gmail OAuth 凭据
-4. OpenAI-compatible chat 接口
-5. 独立 embedding 接口
+- 核心服务
+  - `python serve_api.py`：启动业务 API
+  - `python run_worker.py`：启动 worker，持续消费 queued run 并执行 workflow
+- 可选输入任务
+  - `python run_poller.py`：从 Gmail 拉取新邮件，执行 `ingest + enqueue`
+- 维护任务
+  - `python scripts/build_index.py`：构建或重建本地知识索引
 
-安装依赖：
+需要明确的是：
 
-```bash
+- `serve_api.py` 和 `run_worker.py` 是核心运行面；没有 worker，run 只会停留在队列里
+- `run_poller.py` 不是执行器，它只是 Gmail 输入适配器
+- 如果你不接 Gmail，只运行 API + worker 即可
+- `build_index.py` 不是常驻服务，只在知识库需要重建时运行
+
+## 技术模块映射
+
+- `src/api/`：业务 API、DTO、错误处理、依赖注入、服务层
+- `src/orchestration/workflow.py`：LangGraph workflow 组装
+- `src/orchestration/nodes_ticket.py`：ticket workflow 节点实现
+- `src/tickets/state_machine.py`：显式状态迁移、lease、失败恢复、人工动作前置校验
+- `src/tickets/message_log.py`：邮件入库、thread 关联、reopen 判定、上下文提取
+- `src/bootstrap/container.py`：Gmail、RAG、policy、judge、store 等依赖装配
+- `src/workers/ticket_worker.py`：claim / renew lease / resume / execute run
+- `src/contracts/core.py`：路由、状态、动作、ID 等共享契约
+- `src/evaluation/` 与 `src/telemetry/`：评测与可观测性
+
+## 环境要求
+
+- Python `3.10+`
+- 运行 API / worker 时需要可用的 Postgres
+- 运行真实 Gmail 入口时需要 Gmail OAuth 凭证
+- 运行主流程时需要兼容 OpenAI API 的聊天模型
+- 仅在构建本地知识索引时需要 embedding 服务
+
+## 配置
+
+先基于 `.env.example` 创建 `.env`。
+
+Windows:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+关键配置分组如下：
+
+- 运行主流程必需：`MY_EMAIL`、`LLM_API_KEY`
+- Gmail：`GMAIL_ENABLED`、`GMAIL_CREDENTIALS_PATH`、`GMAIL_TOKEN_PATH`
+- 数据库：`DATABASE_URL` 或 `POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
+- 构建知识索引时必需：`EMBEDDING_API_URL`、`EMBEDDING_MODEL`，以及按需配置 `EMBEDDING_API_KEY`
+- 可选观测：`LANGSMITH_TRACING`、`LANGSMITH_API_KEY`、`LANGSMITH_PROJECT`
+- API：`API_HOST`、`API_PORT`、`CORS_ALLOW_ORIGINS`
+
+如果你只想本地调试 API / worker 而不接真实 Gmail，可以将 `GMAIL_ENABLED=false`；但 worker 和 poller 运行时仍需要 `MY_EMAIL` 与 `LLM_API_KEY`。
+
+## 安装与初始化
+
+### 1. 创建虚拟环境并安装依赖
+
+```powershell
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Configuration
+### 2. 初始化数据库
 
-复制 `.env.example` 并按本地环境填写。
-
-最小运行配置：
-
-```env
-GMAIL_ENABLED=true
-MY_EMAIL=your_email@gmail.com
-LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_CHAT_MODEL=gpt-4o-mini
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/customer_support_copilot
-EMBEDDING_API_URL=https://your-embedding-endpoint/v1/embeddings
-EMBEDDING_API_KEY=your_embedding_api_key
-EMBEDDING_MODEL=bge-large-zh-v1.5
-```
-
-其余关键变量：
-
-1. `GMAIL_CREDENTIALS_PATH`
-2. `GMAIL_TOKEN_PATH`
-3. `KNOWLEDGE_SOURCE_PATH`
-4. `KNOWLEDGE_DB_PATH`
-5. `EMBEDDING_TIMEOUT_SECONDS`
-6. `EMBEDDING_API_KEY_HEADER`
-7. `EMBEDDING_API_KEY_PREFIX`
-8. `LANGSMITH_TRACING`
-9. `LANGSMITH_API_KEY`
-10. `LANGSMITH_ENDPOINT`
-11. `API_HOST`
-12. `API_PORT`
-
-如果当前环境还没有 Gmail OAuth，可以先设置 `GMAIL_ENABLED=false`。
-这样 `POST /tickets/ingest-email -> POST /tickets/{ticket_id}/run` 这条 API 主链路仍可运行，但建议使用 `python scripts/run_poller.py` 作为正式 Gmail 轮询入口，`main.py` 仅保留兼容包装。
-
-## Setup
-
-### 1. Initialize Database
-
-```bash
+```powershell
 python scripts/init_db.py
 ```
 
-### 2. Build the Local Knowledge Index
+这个脚本会执行 Alembic migration 到 `head`。
 
-默认知识源是 [data/agency.txt](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/data/agency.txt)。
+### 3. 构建本地知识索引
 
-```bash
+```powershell
 python scripts/build_index.py
 ```
 
-### 3. Prepare Gmail OAuth
+### 4. 准备 Gmail OAuth（可选）
 
-需要本地准备：
+- 将 Gmail OAuth 客户端凭证放到 `credentials.json`
+- 首次真实调用 Gmail 时会在 `GMAIL_TOKEN_PATH` 位置生成 `token.json`
+- 不接 Gmail 时可直接设置 `GMAIL_ENABLED=false`
 
-1. `credentials.json`
-2. `token.json`
+## 启动方式
 
-Gmail 认证和草稿写入逻辑位于 [src/tools/gmail_client.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/gmail_client.py)。
+推荐启动顺序：
 
-## Running
+1. 首次部署或知识源变更后，运行 `python scripts/build_index.py`
+2. 启动 API：`python serve_api.py`
+3. 启动 worker：`python run_worker.py`
+4. 如果需要 Gmail 自动摄入，再运行 `python run_poller.py` 或把它配置成定时任务
 
-### API Server
+### API 服务
 
-```bash
-python scripts/serve_api.py
+```powershell
+python serve_api.py
 ```
 
-默认监听 `http://localhost:8000`，OpenAPI 文档位于 `/docs`。
-
-### Poller Batch
-
-```bash
-python scripts/run_poller.py
-```
-
-它会：
-
-1. 从 Gmail 拉取未处理线程
-2. 调用 `ingest_email`
-3. 调用 `run_ticket` 只创建 `queued` run
-
-它不是 worker，只是一次性的 Gmail poller 批处理入口。
+- 默认地址：`http://localhost:8000`
+- OpenAPI 文档：`http://localhost:8000/docs`
 
 ### Worker
 
-```bash
-python -m src.workers.ticket_worker --once
+持续轮询队列：
+
+```powershell
+python run_worker.py
 ```
 
-循环模式：
+只处理一个任务后退出：
 
-```bash
-python -m src.workers.ticket_worker --loop --poll-interval-seconds 5
+```powershell
+python run_worker.py --once
 ```
 
-worker 负责真正领取 `queued` run、续租 lease、执行 graph 和处理 crash-resume。
+worker 是唯一正式执行 ticket workflow 的进程。
 
-### Offline Eval
+### Gmail Poller 批处理
 
-```bash
-python scripts/run_offline_eval.py
+```powershell
+python run_poller.py
 ```
 
-默认样本为 [tests/samples/eval/customer_support_eval.jsonl](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval.jsonl)，报告输出到 [tests/samples/eval/customer_support_eval_report.json](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval_report.json)。
+`run_poller.py` 会从 Gmail 拉取未回复邮件，并为每封邮件创建 / 复用 ticket，然后入队一个 worker run。
+它不负责 claim run、续租 lease 或执行 workflow。
 
-### Real Eval
-
-如果你要用真实环境配置来跑自建测试集，而不是 fake provider，可以使用：
-
-```bash
-python scripts/run_real_eval.py --rebuild-index
-```
-
-常见用法：
-
-```bash
-python scripts/run_real_eval.py ^
-  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
-  --report-path evals/customer_support_real_eval_report.json ^
-  --knowledge-source-path data/agency.txt ^
-  --knowledge-db-path db ^
-  --rebuild-index
-```
-
-如果 API 已经独立运行，也可以直接打到现有服务：
-
-```bash
-python scripts/run_real_eval.py ^
-  --api-base-url http://127.0.0.1:8000 ^
-  --samples-path path/to/your_eval.jsonl ^
-  --report-path evals/your_real_eval_report.json
-```
-
-这个脚本会：
-
-1. 可选地按当前 embedding 配置重建知识索引
-2. 默认关闭 Gmail 轮询入口，仅验证非 Gmail 主流程
-3. 通过真实 HTTP 调用 `ingest-email -> run -> trace`
-4. 复用系统内建的 `response_quality`、`trajectory_evaluation`、`latency_metrics`、`resource_metrics`
-5. 输出与离线评测一致结构的 JSON 报告
-
-自建测试集格式与 [tests/samples/eval/customer_support_eval.jsonl](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval.jsonl) 一致。建议至少覆盖这些类型：
-
-1. `knowledge_request`，包含已知答案和知识缺口两类
-2. `technical_issue`，区分信息充分与需要澄清
-3. `commercial_policy_request`，包含退款、补偿、合同边界
-4. `feedback_intake`，包含纯反馈与功能建议
-5. `unrelated`
-6. `multi_intent`
-7. 高风险升级场景
-8. 容易误分类的边界场景
-
-## API Surface
+## API 概览
 
 写接口：
 
-1. `POST /tickets/ingest-email`
-2. `POST /tickets/{ticket_id}/run`
-3. `POST /tickets/{ticket_id}/approve`
-4. `POST /tickets/{ticket_id}/edit-and-approve`
-5. `POST /tickets/{ticket_id}/rewrite`
-6. `POST /tickets/{ticket_id}/escalate`
-7. `POST /tickets/{ticket_id}/close`
+- `POST /tickets/ingest-email`
+- `POST /tickets/{ticket_id}/run`
+- `POST /tickets/{ticket_id}/approve`
+- `POST /tickets/{ticket_id}/edit-and-approve`
+- `POST /tickets/{ticket_id}/rewrite`
+- `POST /tickets/{ticket_id}/escalate`
+- `POST /tickets/{ticket_id}/close`
 
 查接口：
 
-1. `GET /tickets/{ticket_id}`
-2. `GET /tickets/{ticket_id}/trace`
-3. `GET /customers/{customer_id}/memory`
-4. `GET /metrics/summary`
+- `GET /tickets/{ticket_id}`
+- `GET /tickets/{ticket_id}/trace`
+- `GET /customers/{customer_id}/memory`
+- `GET /metrics/summary`
 
 请求头约定：
 
-1. `X-Actor-Id`
-2. `X-Request-Id`
-3. `Idempotency-Key`
+- `X-Actor-Id`
+- `X-Request-Id`
+- `Idempotency-Key`
 
-人工动作接口要求显式提供 `X-Actor-Id`。
+说明：
 
-## Quick Demo
+- 手工动作接口必须显式提供 `X-Actor-Id`
+- `run` 接口返回的是“已入队”，真正执行需要 worker 消费
+- `trace` 接口可以查看 run 的节点、决策、LLM、tool、worker 事件
 
-### Demo 1: Happy Path API Run
+## 本地演示建议
 
-适合演示“知识问答排队 -> worker 执行 -> 草稿生成 -> trace 查询”。
+最小 happy path：
 
-1. 启动 API：`python scripts/serve_api.py`
-2. 启动 worker：`python -m src.workers.ticket_worker --loop`
+1. 启动 API：`python serve_api.py`
+2. 启动 worker：`python run_worker.py`
 3. 调用 `POST /tickets/ingest-email`
 4. 调用 `POST /tickets/{ticket_id}/run`
 5. 查看 `GET /tickets/{ticket_id}`
 6. 查看 `GET /tickets/{ticket_id}/trace`
 
-可直接参考 [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_enqueues_run_without_sync_execution`，再配合 [test_ticket_worker.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_ticket_worker.py) 中的 worker 接管用例。
+可参考的测试文件：
 
-### Demo 2: High-Risk Policy Handoff
+- `tests/test_api_contract.py`
+- `tests/test_ticket_worker.py`
+- `tests/test_triage_service.py`
 
-适合演示“高风险商业/退款请求不会自动答复，而是升级人工”。
+更完整的演示说明见 `docs/demo-cases.zh-CN.md`。
 
-可直接参考 [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_only_queues_high_risk_case`，再由 worker 消费后观察进入人工审核路径。
+## 评测
 
-### Demo 3: Manual Review Lifecycle
+### 离线评测
 
-适合演示 `approve`、`close`、memory 回写和 metrics 查询。
+```powershell
+python scripts/run_offline_eval.py ^
+  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
+  --report-path tests/samples/eval/customer_support_eval_report.json
+```
 
-可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_approve_and_close_update_memory_and_metrics_queries`。
+特点：
 
-完整演示说明见 [docs/demo-cases.zh-CN.md](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/demo-cases.zh-CN.md)。
+- 使用本地 TestClient 调 API
+- 默认隔离 Gmail、知识 provider、policy provider 与数据库依赖
+- 适合验证路由、升级、轨迹与输出结构
 
-## Testing
+### 真实环境评测
 
-运行测试：
+```powershell
+python scripts/run_real_eval.py ^
+  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
+  --report-path evals/customer_support_real_eval_report.json
+```
 
-```bash
+可选参数：
+
+- `--api-base-url`：对接已运行 API，而不是临时启动本地服务
+- `--rebuild-index`：评测前备份并重建知识索引
+- `--knowledge-source-path` / `--knowledge-db-path`：覆盖评测使用的知识源或索引目录
+- `--keep-gmail-enabled`：评测时保留 Gmail 开关，不强制关闭
+
+评测样本默认位于 `tests/samples/eval/customer_support_eval.jsonl`。
+
+## 测试
+
+运行全部测试：
+
+```powershell
 pytest -q
 ```
 
-关键测试覆盖：
+推荐优先运行的定向测试：
 
-1. API 契约
-2. 状态机与 lease
-3. 消息日志与 reopen
-4. triage 输出和路由决策
-5. graph 节点与人工升级分支
-6. trace、metrics、offline eval
+```powershell
+pytest tests/test_api_contract.py -q
+pytest tests/test_ticket_worker.py -q
+pytest tests/test_triage_service.py tests/test_triage_outputs.py -q
+pytest tests/test_offline_eval.py tests/test_real_eval.py -q
+```
 
-## Known Gaps
+测试套件大量使用 fake provider 与临时 SQLite，不依赖真实 Gmail 或生产数据库。
 
-当前仓库已经可演示，但还存在明确缺口：
+## 当前范围与已知边界
 
-1. 离线评测报告不是全绿，说明路由与轨迹规则仍有偏差
-2. 目前没有前端控制台
-3. 多渠道接入和 `RAG MCP` 仍属于后续版本
-4. 人工动作与自动 worker 的复杂并发控制未进入 V1
+当前 V1 重点覆盖：
 
-这类边界和失败样例已经整理在 [docs/demo-cases.zh-CN.md](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/docs/demo-cases.zh-CN.md)。
+- Gmail / API 入站 ticket 化
+- ticket 状态机、lease、worker 恢复
+- triage、knowledge/policy、drafting、QA、人工升级
+- customer memory、trace、metrics、evaluation
 
-## V2 Direction
+当前明确不覆盖：
 
-V2 预计聚焦：
+- 多渠道接入
+- 管理后台或前端控制台
+- 图片附件理解
+- 复杂的人审与自动流程并发冲突控制
+- 外部 `RAG MCP` 知识接入
 
-1. 更强的人工审核并发控制
-2. 外部知识接入与 `RAG MCP`
-3. 多渠道入口
-4. 运维/审核控制台
-5. 更完整的评测闭环和回归门禁
+## 相关文档
+
+- `docs/customer-support-copilot-requirements.zh-CN.md`
+- `docs/customer-support-copilot-technical-design.zh-CN.md`
+- `docs/customer-support-copilot-implementation-tracker.zh-CN.md`
+- `docs/demo-cases.zh-CN.md`
+- `docs/specs/`
+- `evals/README.zh-CN.md`
+
+## 安全说明
+
+- 不要提交 `.env`、`credentials.json`、`token.json`、数据库凭证或真实客户数据
+- `db/` 是本地 Chroma 索引目录，不是关系型数据库 schema 目录
+- 如果改动知识源或 embedding 配置，请明确说明是否需要重建本地索引

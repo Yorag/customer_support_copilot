@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import pytest
+import run_worker
 
 from src.bootstrap.container import ServiceContainer
 from src.contracts.core import EntityIdPrefix, generate_prefixed_id
@@ -12,7 +13,6 @@ from src.orchestration.checkpointing import build_test_checkpointer
 from src.tickets.state_machine import TicketStateService
 from src.tools.ticket_store import SqlAlchemyTicketStore
 from src.workers.runner import TicketRunner
-from src.workers import ticket_worker
 from src.workers.ticket_worker import TicketWorker
 
 
@@ -148,12 +148,11 @@ def test_worker_claim_next_skips_ticket_without_queued_or_resumable_run():
 
 
 def test_worker_cli_parser_defaults_to_loop_mode():
-    parser = ticket_worker.build_worker_arg_parser()
+    parser = run_worker.build_worker_arg_parser()
 
     args = parser.parse_args([])
 
     assert args.once is False
-    assert args.loop is False
     assert args.poll_interval_seconds == TicketWorker.DEFAULT_POLL_INTERVAL_SECONDS
     assert args.worker_id.startswith("worker-")
 
@@ -172,11 +171,11 @@ def test_worker_main_runs_once_when_once_flag_is_set(monkeypatch):
     class FakeContainer:
         ticket_store = object()
 
-    monkeypatch.setattr(ticket_worker, "validate_required_settings", lambda _: None)
-    monkeypatch.setattr(ticket_worker, "get_service_container", lambda: FakeContainer())
-    monkeypatch.setattr(ticket_worker, "TicketWorker", FakeWorker)
+    monkeypatch.setattr(run_worker, "validate_required_settings", lambda _: None)
+    monkeypatch.setattr(run_worker, "get_service_container", lambda: FakeContainer())
+    monkeypatch.setattr(run_worker, "TicketWorker", FakeWorker)
 
-    result = ticket_worker.main(["--once", "--worker-id", "worker-test"])
+    result = run_worker.main(["--once", "--worker-id", "worker-test"])
 
     assert result == 0
     assert observed == [("init", "worker-test"), ("run_once", 1)]
@@ -200,13 +199,13 @@ def test_worker_main_loops_by_default(monkeypatch):
         observed.append(("sleep", seconds))
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(ticket_worker, "validate_required_settings", lambda _: None)
-    monkeypatch.setattr(ticket_worker, "get_service_container", lambda: FakeContainer())
-    monkeypatch.setattr(ticket_worker, "TicketWorker", FakeWorker)
-    monkeypatch.setattr(ticket_worker.time, "sleep", fake_sleep)
+    monkeypatch.setattr(run_worker, "validate_required_settings", lambda _: None)
+    monkeypatch.setattr(run_worker, "get_service_container", lambda: FakeContainer())
+    monkeypatch.setattr(run_worker, "TicketWorker", FakeWorker)
+    monkeypatch.setattr(run_worker.time, "sleep", fake_sleep)
 
     with pytest.raises(KeyboardInterrupt):
-        ticket_worker.main(["--worker-id", "worker-loop", "--poll-interval-seconds", "7"])
+        run_worker.main(["--worker-id", "worker-loop", "--poll-interval-seconds", "7"])
 
     assert observed == [
         ("init", "worker-loop"),

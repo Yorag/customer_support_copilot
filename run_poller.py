@@ -1,15 +1,8 @@
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 from colorama import Fore, Style
-
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.api.services import TicketApiService
 from src.bootstrap.container import get_service_container
@@ -26,7 +19,7 @@ def main() -> None:
     settings = get_settings()
     if not settings.gmail.enabled:
         raise SettingsError(
-            "Gmail polling is disabled. Set `GMAIL_ENABLED=true` and configure Gmail OAuth to use `scripts/run_poller.py`."
+            "Gmail polling is disabled. Set `GMAIL_ENABLED=true` and configure Gmail OAuth to use `run_poller.py`."
         )
 
     validate_required_settings(RUNTIME_REQUIRED_SETTINGS)
