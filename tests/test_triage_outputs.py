@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.core_schema import ResponseStrategy, TicketPriority, TicketRoute, TicketTag
-from src.structure_outputs import TriageOutput
+from src.contracts.core import ResponseStrategy, TicketPriority, TicketRoute, TicketTag
+from src.contracts.outputs import TriageOutput
 
 
 def test_triage_output_matches_spec_example_and_syncs_tags():

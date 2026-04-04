@@ -4,22 +4,22 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from src.nodes import Nodes
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
-from src.db.base import Base
-from src.db.repositories import build_repository_bundle
-from src.db.models import Ticket, TicketRun
-from src.db.session import build_engine, create_session_factory, session_scope
-from src.state import Email, build_ticket_run_state
-from src.tools.types import KnowledgeAnswer
-from src.structure_outputs import (
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
+from src.contracts.outputs import (
     DraftingOutput,
     KnowledgePolicyOutput,
     QaHandoffOutput,
     TriageOutput,
 )
-from src.message_log import MessageLogService
-from src.ticket_state_machine import TicketStateService
+from src.db.base import Base
+from src.db.repositories import build_repository_bundle
+from src.db.models import Ticket, TicketRun
+from src.db.session import build_engine, create_session_factory, session_scope
+from src.orchestration.nodes_ticket import TicketNodes
+from src.orchestration.state import build_ticket_run_state
+from src.rag.provider import KnowledgeAnswer
+from src.tickets.message_log import MessageLogService
+from src.tickets.state_machine import TicketStateService
 
 
 class FakeGmailClient:
@@ -106,6 +106,32 @@ class FakeAgents:
             )
         )
 
+    def knowledge_policy_agent_detailed(
+        self,
+        *,
+        primary_route,
+        response_strategy,
+        normalized_email,
+        knowledge_answers=None,
+        policy_notes="",
+        knowledge_confidence=None,
+        needs_escalation=False,
+    ):
+        return SimpleNamespace(
+            output=self.knowledge_policy_agent(
+                primary_route=primary_route,
+                response_strategy=response_strategy,
+                normalized_email=normalized_email,
+                knowledge_answers=knowledge_answers,
+                policy_notes=policy_notes,
+                knowledge_confidence=knowledge_confidence,
+                needs_escalation=needs_escalation,
+            ),
+            llm_invocation=None,
+            fallback_used=True,
+            guardrails_adjusted=False,
+        )
+
     def knowledge_policy_agent(
         self,
         *,
@@ -148,6 +174,36 @@ class FakeAgents:
             applied_response_strategy=response_strategy,
         )
 
+    def drafting_agent_detailed(
+        self,
+        *,
+        customer_email,
+        subject,
+        primary_route,
+        response_strategy,
+        normalized_email,
+        knowledge_summary,
+        policy_notes,
+        rewrite_guidance=None,
+        allowed_actions=None,
+        disallowed_actions=None,
+    ):
+        return SimpleNamespace(
+            output=self.drafting_agent(
+                customer_email=customer_email,
+                subject=subject,
+                primary_route=primary_route,
+                response_strategy=response_strategy,
+                normalized_email=normalized_email,
+                knowledge_summary=knowledge_summary,
+                policy_notes=policy_notes,
+                rewrite_guidance=rewrite_guidance,
+            ),
+            llm_invocation=None,
+            fallback_used=True,
+            guardrails_adjusted=False,
+        )
+
     def qa_handoff_agent(
         self,
         *,
@@ -168,6 +224,30 @@ class FakeAgents:
             human_handoff_summary="needs human review" if needs_escalation else None,
         )
 
+    def qa_handoff_agent_detailed(
+        self,
+        *,
+        primary_route,
+        draft_text,
+        knowledge_confidence,
+        needs_escalation,
+        rewrite_count,
+        policy_notes,
+    ):
+        return SimpleNamespace(
+            output=self.qa_handoff_agent(
+                primary_route=primary_route,
+                draft_text=draft_text,
+                knowledge_confidence=knowledge_confidence,
+                needs_escalation=needs_escalation,
+                rewrite_count=rewrite_count,
+                policy_notes=policy_notes,
+            ),
+            llm_invocation=None,
+            fallback_used=True,
+            guardrails_adjusted=False,
+        )
+
 
 class FakeServices:
     def __init__(self, gmail_client):
@@ -177,105 +257,45 @@ class FakeServices:
         self.ticket_store = FakeTicketStore()
 
 
-def test_load_new_emails_uses_gmail_provider(sample_email_payload):
-    gmail_client = FakeGmailClient(emails=[sample_email_payload])
-    nodes = Nodes(agents=FakeAgents(), service_container=FakeServices(gmail_client))
-
-    result = nodes.load_new_emails({})
-
-    assert len(result["pending_emails"]) == 1
-    assert result["emails"][0].subject == "Pricing question"
-    assert result["raw_email"].subject == "Pricing question"
-
-
-def test_retrieve_from_rag_uses_knowledge_provider():
-    nodes = Nodes(
-        agents=FakeAgents(),
-        service_container=FakeServices(FakeGmailClient()),
-    )
-
-    result = nodes.retrieve_from_rag({"rag_queries": ["pricing", "billing"]})
-
-    assert "pricing" in result["retrieved_documents"]
-    assert "answer for billing" in result["retrieved_documents"]
-
-
-def test_create_draft_response_uses_gmail_provider(sample_email_payload):
-    gmail_client = FakeGmailClient()
-    nodes = Nodes(agents=FakeAgents(), service_container=FakeServices(gmail_client))
-    email = Email(**sample_email_payload)
-
-    result = nodes.create_draft_response(
-        build_ticket_run_state(raw_email=email) | {"generated_email": "Here is the answer"}
-    )
-
-    assert result["retrieved_documents"] == ""
-    assert result["trials"] == 0
-    assert result["applied_response_strategy"] is None
-    assert gmail_client.created_drafts == [(email, "Here is the answer")]
-
-
-def test_triage_email_returns_structured_output_and_legacy_category(sample_email_payload):
-    gmail_client = FakeGmailClient(emails=[sample_email_payload])
-    nodes = Nodes(agents=FakeAgents(), service_container=FakeServices(gmail_client))
-
-    result = nodes.triage_email(
-        build_ticket_run_state(pending_emails=[Email(**sample_email_payload)])
-    )
-
-    assert result["current_email"].subject == "Pricing question"
-    assert result["raw_email"].subject == "Pricing question"
-    assert result["triage_result"]["primary_route"] == "knowledge_request"
-    assert result["primary_route"] == "knowledge_request"
-    assert result["email_category"] == "product_enquiry"
-
-
-def test_route_email_based_on_triage_uses_primary_route():
-    nodes = Nodes(
+def test_route_ticket_prioritizes_escalation_and_policy_secondary_intent():
+    nodes = TicketNodes(
         agents=FakeAgents(),
         service_container=FakeServices(FakeGmailClient()),
     )
 
     assert (
-        nodes.route_email_based_on_triage(
-            {"triage_result": {"primary_route": "knowledge_request"}}
+        nodes.route_ticket(
+            {
+                "primary_route": "knowledge_request",
+                "secondary_routes": ["commercial_policy_request"],
+                "needs_escalation": True,
+                "needs_clarification": False,
+            }
         )
-        == "product related"
+        == "escalate_to_human"
     )
     assert (
-        nodes.route_email_based_on_triage(
-            {"triage_result": {"primary_route": "unrelated"}}
+        nodes.route_ticket(
+            {
+                "primary_route": "knowledge_request",
+                "secondary_routes": ["commercial_policy_request"],
+                "needs_escalation": False,
+                "needs_clarification": False,
+            }
         )
-        == "unrelated"
+        == "policy_check"
     )
     assert (
-        nodes.route_email_based_on_triage(
-            {"triage_result": {"primary_route": "feedback_intake"}}
+        nodes.route_ticket(
+            {
+                "primary_route": "unrelated",
+                "secondary_routes": [],
+                "needs_escalation": True,
+                "needs_clarification": False,
+            }
         )
-        == "not product related"
+        == "escalate_to_human"
     )
-
-
-def test_write_draft_email_updates_ticket_run_draft_fields(sample_email_payload):
-    nodes = Nodes(
-        agents=FakeAgents(),
-        service_container=FakeServices(FakeGmailClient()),
-    )
-    state = build_ticket_run_state(raw_email=sample_email_payload)
-    state.update(
-        {
-            "email_category": "product_enquiry",
-            "retrieved_documents": "knowledge summary",
-            "draft_versions": [],
-        }
-    )
-
-    result = nodes.write_draft_email(state)
-
-    assert result["trials"] == 1
-    assert result["rewrite_count"] == 1
-    assert result["draft_versions"][0]["version_index"] == 1
-    assert "draft based on" in result["generated_email"]
 
 
 @contextmanager
@@ -340,7 +360,7 @@ def _build_ticket_execution_nodes(sample_email_payload, *, triage_output: Triage
         session.flush()
         repositories = build_repository_bundle(session)
         state_service = TicketStateService(session, repositories=repositories)
-        nodes = Nodes(
+        nodes = TicketNodes(
             agents=TicketExecutionAgents(),
             service_container=FakeServices(FakeGmailClient()),
             session=session,
@@ -442,6 +462,76 @@ def test_ticket_execution_nodes_route_high_risk_case_to_human_review(sample_emai
         assert "needs_escalation" in state["memory_updates"]["risk_tags_to_add"]
 
 
+def test_ticket_execution_nodes_route_policy_secondary_intent_to_policy_check(
+    sample_email_payload,
+):
+    triage_output = TriageOutput(
+        primary_route="knowledge_request",
+        secondary_routes=["commercial_policy_request"],
+        tags=["billing_question", "needs_escalation"],
+        response_strategy="answer",
+        multi_intent=True,
+        intent_confidence=0.84,
+        priority="high",
+        needs_clarification=False,
+        needs_escalation=True,
+        routing_reason="The main ask is product guidance, but the email also includes a billing dispute.",
+    )
+    with _build_ticket_execution_nodes(sample_email_payload, triage_output=triage_output) as (
+        nodes,
+        ticket,
+        run,
+        session,
+    ):
+        state = build_ticket_run_state(
+            ticket_id=ticket.ticket_id,
+            business_status=ticket.business_status,
+            processing_status=ticket.processing_status,
+            ticket_version=ticket.version,
+            trace_id=run.trace_id,
+            run_id=run.run_id,
+        )
+        state.update(nodes.load_ticket_context(state))
+        state.update(nodes.load_memory(state))
+        state.update(nodes.triage_ticket(state))
+
+        assert nodes.route_ticket(state) == "escalate_to_human"
+
+
+def test_ticket_execution_nodes_route_unrelated_escalation_to_human(sample_email_payload):
+    triage_output = TriageOutput(
+        primary_route="unrelated",
+        secondary_routes=[],
+        tags=["needs_escalation"],
+        response_strategy="acknowledgement",
+        multi_intent=False,
+        intent_confidence=0.42,
+        priority="medium",
+        needs_clarification=False,
+        needs_escalation=True,
+        routing_reason="The intent is unclear, so a human should review it instead of auto-closing.",
+    )
+    with _build_ticket_execution_nodes(sample_email_payload, triage_output=triage_output) as (
+        nodes,
+        ticket,
+        run,
+        session,
+    ):
+        state = build_ticket_run_state(
+            ticket_id=ticket.ticket_id,
+            business_status=ticket.business_status,
+            processing_status=ticket.processing_status,
+            ticket_version=ticket.version,
+            trace_id=run.trace_id,
+            run_id=run.run_id,
+        )
+        state.update(nodes.load_ticket_context(state))
+        state.update(nodes.load_memory(state))
+        state.update(nodes.triage_ticket(state))
+
+        assert nodes.route_ticket(state) == "escalate_to_human"
+
+
 def test_ticket_execution_nodes_route_technical_issue_to_clarification(sample_email_payload):
     triage_output = TriageOutput(
         primary_route="technical_issue",
@@ -481,4 +571,5 @@ def test_ticket_execution_nodes_route_technical_issue_to_clarification(sample_em
 
         assert state["business_status"] == "awaiting_customer_input"
         assert state["final_action"] == "request_clarification"
+        assert state["clarification_history"][0]["source"] == "clarify_request"
         assert state["memory_updates"]["historical_case_ref"]["outcome"] == "awaiting_customer_input"

@@ -8,12 +8,90 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.api.dependencies import get_container
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
+from src.bootstrap.container import ServiceContainer
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
+from src.contracts.outputs import (
+    DraftingOutput,
+    KnowledgePolicyOutput,
+    QaHandoffOutput,
+    TriageOutput,
+)
 from src.db.base import Base
 from src.db.models import CustomerMemoryProfile, DraftArtifact, Ticket, TicketRun
 from src.db.session import build_engine, create_session_factory
-from src.tools.service_container import ServiceContainer
+from src.orchestration.checkpointing import build_test_checkpointer
 from src.tools.ticket_store import SqlAlchemyTicketStore
+
+
+class FakeResponseQualityJudge:
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self._should_fail = should_fail
+
+    def evaluate(
+        self,
+        *,
+        email_subject,
+        email_body,
+        draft_text,
+        evidence_summary,
+        policy_summary,
+        primary_route,
+        final_action,
+    ):
+        if self._should_fail:
+            return type(
+                "JudgeEval",
+                (),
+                {
+                    "response_quality": None,
+                    "llm_metadata": {
+                        "model": "fake-judge-model",
+                        "provider": "openai-compatible",
+                        "prompt_tokens": 9,
+                        "completion_tokens": 0,
+                        "total_tokens": 9,
+                        "token_source": "estimated",
+                        "request_id": "req_judge_fail",
+                        "finish_reason": None,
+                        "prompt_version": "response_quality_judge_v1",
+                        "judge_name": "response_quality_judge",
+                        "judge_status": "failed",
+                        "error_message": "judge timeout",
+                        "raw_text": None,
+                        "latency_ms": 12,
+                    },
+                },
+            )()
+        return type(
+            "JudgeEval",
+            (),
+            {
+                "response_quality": {
+                    "overall_score": 4.25,
+                    "subscores": {
+                        "relevance": 5,
+                        "correctness": 4,
+                        "intent_alignment": 4,
+                        "clarity": 4,
+                    },
+                    "reason": "Judge accepted the draft.",
+                },
+                "llm_metadata": {
+                    "model": "fake-judge-model",
+                    "provider": "openai-compatible",
+                    "prompt_tokens": 9,
+                    "completion_tokens": 5,
+                    "total_tokens": 14,
+                    "token_source": "provider_actual",
+                    "request_id": "req_judge_ok",
+                    "finish_reason": "stop",
+                    "prompt_version": "response_quality_judge_v1",
+                    "judge_name": "response_quality_judge",
+                    "judge_status": "succeeded",
+                    "latency_ms": 12,
+                },
+            },
+        )()
 
 
 class FakeApiGmailClient:
@@ -34,6 +112,123 @@ class FakeApiPolicyProvider:
         return f"policy for {category or 'default'}"
 
 
+class FakeApiAgents:
+    def triage_email_with_rules_detailed(self, *, subject, email, context=None):
+        normalized = f"{subject or ''}\n{email}".lower()
+        if "refund" in normalized or "charged twice" in normalized:
+            output = TriageOutput(
+                primary_route="commercial_policy_request",
+                secondary_routes=[],
+                tags=["needs_escalation"],
+                response_strategy="policy_constrained",
+                multi_intent=False,
+                intent_confidence=0.91,
+                priority="high",
+                needs_clarification=False,
+                needs_escalation=True,
+                routing_reason="Refund disputes require manual review.",
+            )
+        elif "error" in normalized or "failed" in normalized:
+            output = TriageOutput(
+                primary_route="technical_issue",
+                secondary_routes=[],
+                tags=["needs_clarification"],
+                response_strategy="troubleshooting",
+                multi_intent=False,
+                intent_confidence=0.88,
+                priority="medium",
+                needs_clarification=True,
+                needs_escalation=False,
+                routing_reason="Technical issue is missing diagnostic detail.",
+            )
+        else:
+            output = TriageOutput(
+                primary_route="knowledge_request",
+                secondary_routes=[],
+                tags=[],
+                response_strategy="answer",
+                multi_intent=False,
+                intent_confidence=0.91,
+                priority="medium",
+                needs_clarification=False,
+                needs_escalation=False,
+                routing_reason="Customer asks about product usage.",
+            )
+        return type(
+            "Decision",
+            (),
+            {
+                "output": output,
+                "selected_rule": "fake_runtime",
+                "matched_rules": ("fake_runtime",),
+                "escalation_reasons": (),
+                "llm_invocation": None,
+            },
+        )()
+
+    def knowledge_policy_agent(
+        self,
+        *,
+        primary_route,
+        response_strategy,
+        normalized_email,
+        knowledge_answers=None,
+        policy_notes="",
+        knowledge_confidence=None,
+        needs_escalation=False,
+    ):
+        answers = knowledge_answers or []
+        return KnowledgePolicyOutput(
+            queries=[item["question"] for item in answers],
+            knowledge_summary="\n".join(item["answer"] for item in answers)
+            or "fallback knowledge summary",
+            citations=[],
+            knowledge_confidence=knowledge_confidence if knowledge_confidence is not None else 0.9,
+            risk_level="high" if needs_escalation else "low",
+            allowed_actions=["answer_question"],
+            disallowed_actions=[],
+            policy_notes=policy_notes or "policy for default",
+        )
+
+    def drafting_agent(
+        self,
+        *,
+        customer_email,
+        subject,
+        primary_route,
+        response_strategy,
+        normalized_email,
+        knowledge_summary,
+        policy_notes,
+        rewrite_guidance=None,
+    ):
+        return DraftingOutput(
+            draft_text=f"Hello,\n\n{knowledge_summary or policy_notes}\n\nBest regards",
+            draft_rationale="deterministic drafting for api tests",
+            applied_response_strategy=response_strategy,
+        )
+
+    def qa_handoff_agent(
+        self,
+        *,
+        primary_route,
+        draft_text,
+        knowledge_confidence,
+        needs_escalation,
+        rewrite_count,
+        policy_notes,
+    ):
+        return QaHandoffOutput(
+            approved=not needs_escalation,
+            issues=["risk_requires_human_review"] if needs_escalation else [],
+            rewrite_guidance=[],
+            quality_scores={"clarity": 4.0},
+            escalate=needs_escalation,
+            reason="deterministic qa for api tests",
+            human_handoff_summary="needs human review" if needs_escalation else None,
+        )
+
+
 def _build_app():
     fd, path = mkstemp(suffix=".db")
     close(fd)
@@ -45,10 +240,13 @@ def _build_app():
     )
     app = create_app()
     app.dependency_overrides[get_container] = lambda: ServiceContainer(
+        agents_factory=lambda: FakeApiAgents(),
+        response_quality_judge_factory=lambda: FakeResponseQualityJudge(),
         gmail_client_factory=lambda: FakeApiGmailClient(),
         knowledge_provider_factory=lambda: FakeApiKnowledgeProvider(),
         policy_provider_factory=lambda: FakeApiPolicyProvider(),
         ticket_store_factory=lambda: store,
+        checkpointer_factory=build_test_checkpointer,
     )
     return app, store
 
@@ -124,9 +322,15 @@ def _seed_review_ticket(
                 attempt_index=1,
                 latency_metrics={"end_to_end_ms": 1000, "slowest_node": "triage"},
                 resource_metrics={
+                    "prompt_tokens_total": 90,
+                    "completion_tokens_total": 30,
                     "total_tokens": 120,
                     "llm_call_count": 1,
                     "tool_call_count": 0,
+                    "actual_token_call_count": 1,
+                    "estimated_token_call_count": 0,
+                    "unavailable_token_call_count": 0,
+                    "token_coverage_ratio": 1.0,
                 },
                 response_quality={
                     "overall_score": 4.5,
@@ -250,7 +454,7 @@ def test_ingest_email_rejects_duplicate_idempotency_key():
     assert second.json()["error"]["code"] == "duplicate_request"
 
 
-def test_run_ticket_creates_run_trace_and_draft_created_status():
+def test_run_ticket_enqueues_run_without_sync_execution():
     app, store = _build_app()
     client = TestClient(app)
 
@@ -269,69 +473,75 @@ def test_run_ticket_creates_run_trace_and_draft_created_status():
     assert response.status_code == 202
     payload = response.json()
     assert payload["ticket_id"] == ticket.ticket_id
-    assert payload["processing_status"] == "completed"
+    assert payload["processing_status"] == "queued"
 
     snapshot = client.get(f"/tickets/{ticket.ticket_id}")
     assert snapshot.status_code == 200
     snapshot_payload = snapshot.json()
-    assert snapshot_payload["ticket"]["business_status"] == "draft_created"
+    assert snapshot_payload["ticket"]["business_status"] == "triaged"
+    assert snapshot_payload["ticket"]["processing_status"] == "queued"
+    assert snapshot_payload["ticket"]["claimed_by"] is None
+    assert snapshot_payload["ticket"]["claimed_at"] is None
+    assert snapshot_payload["ticket"]["lease_until"] is None
     assert snapshot_payload["latest_run"]["trace_id"] == payload["trace_id"]
-    assert snapshot_payload["latest_draft"]["qa_status"] == "passed"
+    assert snapshot_payload["latest_run"]["status"] == "queued"
+    assert "events" not in snapshot_payload["latest_run"]
+    assert "latency_metrics" not in snapshot_payload["latest_run"]
+    assert "resource_metrics" not in snapshot_payload["latest_run"]
+    assert "response_quality" not in snapshot_payload["latest_run"]
+    assert "trajectory_evaluation" not in snapshot_payload["latest_run"]
+    assert snapshot_payload["latest_run"]["evaluation_summary_ref"] == {
+        "status": "not_available",
+        "trace_id": payload["trace_id"],
+        "has_response_quality": False,
+        "response_quality_overall_score": None,
+        "has_trajectory_evaluation": False,
+        "trajectory_score": None,
+        "trajectory_violation_count": None,
+    }
+    assert snapshot_payload["latest_draft"] is None
 
-    trace = client.get(f"/tickets/{ticket.ticket_id}/trace")
-    assert trace.status_code == 200
-    trace_payload = trace.json()
-    assert trace_payload["run_id"] == payload["run_id"]
-    assert trace_payload["trace_id"] == payload["trace_id"]
-    assert len(trace_payload["events"]) >= 2
-    assert "prompt_tokens_total" in trace_payload["resource_metrics"]
-    assert "node_latencies" in trace_payload["latency_metrics"]
+    with store.session_scope() as session:
+        persisted_run = session.get(TicketRun, payload["run_id"])
+        assert persisted_run is not None
+        assert persisted_run.status == "queued"
+        assert persisted_run.started_at is None
+        assert persisted_run.ended_at is None
+        assert persisted_run.response_quality is None
+        assert persisted_run.trajectory_evaluation is None
 
 
-def test_run_ticket_succeeds_when_gmail_is_disabled(monkeypatch):
-    monkeypatch.setenv("GMAIL_ENABLED", "false")
-
-    from src.config import get_settings
-    from src.tools.service_container import ServiceContainer
-
-    get_settings.cache_clear()
+def test_run_ticket_rejects_when_ticket_already_has_queued_run():
     app, store = _build_app()
-    app.dependency_overrides[get_container] = lambda: ServiceContainer(
-        knowledge_provider_factory=lambda: FakeApiKnowledgeProvider(),
-        policy_provider_factory=lambda: FakeApiPolicyProvider(),
-        ticket_store_factory=lambda: store,
-    )
     client = TestClient(app)
+    ticket = _create_ticket(store, business_status="triaged", processing_status="queued", version=2)
 
-    try:
-        ticket = _create_ticket(store, business_status="new", processing_status="queued", version=1)
-
-        response = client.post(
-            f"/tickets/{ticket.ticket_id}/run",
-            json={
-                "ticket_version": 1,
-                "trigger_type": "manual_api",
-                "force_retry": False,
-            },
-            headers={"X-Actor-Id": "api-user", "X-Request-Id": "req-no-gmail"},
+    with store.session_scope() as session:
+        queued_run = TicketRun(
+            run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="queued",
+            attempt_index=1,
         )
+        session.add(queued_run)
+        persisted_ticket = session.get(Ticket, ticket.ticket_id)
+        assert persisted_ticket is not None
+        persisted_ticket.current_run_id = queued_run.run_id
 
-        assert response.status_code == 202
-        payload = response.json()
-        snapshot = client.get(f"/tickets/{ticket.ticket_id}")
-        assert snapshot.status_code == 200
-        assert snapshot.json()["ticket"]["business_status"] == "draft_created"
+    response = client.post(
+        f"/tickets/{ticket.ticket_id}/run",
+        json={
+            "ticket_version": 2,
+            "trigger_type": "manual_api",
+            "force_retry": False,
+        },
+        headers={"X-Actor-Id": "api-user", "X-Request-Id": "req-queued-conflict"},
+    )
 
-        trace = client.get(f"/tickets/{ticket.ticket_id}/trace")
-        assert trace.status_code == 200
-        tool_events = [
-            event for event in trace.json()["events"] if event["event_name"] == "tool.gmail_client.create_draft_reply"
-        ]
-        assert tool_events
-        assert payload["processing_status"] == "completed"
-    finally:
-        app.dependency_overrides.clear()
-        get_settings.cache_clear()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "invalid_state_transition"
 
 
 def test_get_ticket_trace_supports_explicit_run_selection():
@@ -354,9 +564,15 @@ def test_get_ticket_trace_supports_explicit_run_selection():
                 attempt_index=2,
                 latency_metrics={"end_to_end_ms": 2400, "slowest_node": "draft_reply"},
                 resource_metrics={
+                    "prompt_tokens_total": 180,
+                    "completion_tokens_total": 60,
                     "total_tokens": 240,
                     "llm_call_count": 2,
                     "tool_call_count": 1,
+                    "actual_token_call_count": 0,
+                    "estimated_token_call_count": 1,
+                    "unavailable_token_call_count": 1,
+                    "token_coverage_ratio": 0.0,
                 },
                 response_quality={
                     "overall_score": 3.9,
@@ -412,7 +628,252 @@ def test_get_ticket_trace_rejects_run_id_from_other_ticket():
     }
 
 
-def test_run_ticket_routes_high_risk_case_to_human_review():
+def test_ticket_snapshot_returns_null_latest_run_when_no_runs_exist():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(store, business_status="new", processing_status="queued", version=1)
+
+    response = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_run"] is None
+
+
+def test_ticket_snapshot_returns_partial_eval_summary_when_only_trajectory_exists():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="draft_created",
+        processing_status="completed",
+        version=2,
+        primary_route="technical_issue",
+    )
+    run_id = generate_prefixed_id(EntityIdPrefix.RUN)
+    trace_id = generate_prefixed_id(EntityIdPrefix.TRACE)
+    with store.session_scope() as session:
+        session.add(
+            TicketRun(
+                run_id=run_id,
+                ticket_id=ticket.ticket_id,
+                trace_id=trace_id,
+                trigger_type="manual_api",
+                status="succeeded",
+                started_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                ended_at=datetime.now(timezone.utc),
+                final_action="create_draft",
+                attempt_index=1,
+                response_quality=None,
+                trajectory_evaluation={
+                    "score": 4.0,
+                    "expected_route": "technical_issue",
+                    "actual_route": "technical_issue",
+                    "violations": ["missing_required_diagnostic_step"],
+                },
+            )
+        )
+
+    response = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_run"]["evaluation_summary_ref"] == {
+        "status": "partial",
+        "trace_id": trace_id,
+        "has_response_quality": False,
+        "response_quality_overall_score": None,
+        "has_trajectory_evaluation": True,
+        "trajectory_score": 4.0,
+        "trajectory_violation_count": 1,
+    }
+
+
+def test_ticket_snapshot_returns_not_available_eval_summary_for_running_run():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(store, business_status="triaged", processing_status="running", version=2)
+    run_id = generate_prefixed_id(EntityIdPrefix.RUN)
+    trace_id = generate_prefixed_id(EntityIdPrefix.TRACE)
+    with store.session_scope() as session:
+        session.add(
+            TicketRun(
+                run_id=run_id,
+                ticket_id=ticket.ticket_id,
+                trace_id=trace_id,
+                trigger_type="manual_api",
+                status="running",
+                started_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                ended_at=None,
+                final_action=None,
+                attempt_index=1,
+                response_quality=None,
+                trajectory_evaluation=None,
+            )
+        )
+
+    response = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_run"]["evaluation_summary_ref"] == {
+        "status": "not_available",
+        "trace_id": trace_id,
+        "has_response_quality": False,
+        "response_quality_overall_score": None,
+        "has_trajectory_evaluation": False,
+        "trajectory_score": None,
+        "trajectory_violation_count": None,
+    }
+
+
+def test_ticket_snapshot_projects_current_claim_fields():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="triaged",
+        processing_status="running",
+        version=3,
+        primary_route="technical_issue",
+    )
+    current_run_id = generate_prefixed_id(EntityIdPrefix.RUN)
+    other_run_id = generate_prefixed_id(EntityIdPrefix.RUN)
+    lease_until = datetime(2026, 4, 3, 2, 5, tzinfo=timezone.utc)
+    started_at = datetime(2026, 4, 3, 2, 0, tzinfo=timezone.utc)
+    with store.session_scope() as session:
+        current_run = TicketRun(
+            run_id=current_run_id,
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="running",
+            started_at=started_at,
+            created_at=started_at - timedelta(minutes=30),
+            attempt_index=1,
+        )
+        latest_finished = TicketRun(
+            run_id=other_run_id,
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=started_at - timedelta(minutes=10),
+            ended_at=started_at - timedelta(minutes=9),
+            final_action="create_draft",
+            attempt_index=2,
+            created_at=started_at - timedelta(minutes=20),
+            response_quality={
+                "overall_score": 4.0,
+                "subscores": {
+                    "relevance": 4.0,
+                    "correctness": 4.0,
+                    "intent_alignment": 4.0,
+                    "clarity": 4.0,
+                },
+                "reason": "ok",
+            },
+            trajectory_evaluation={
+                "score": 4.0,
+                "expected_route": "technical_issue",
+                "actual_route": "technical_issue",
+                "violations": [],
+            },
+        )
+        session.add(current_run)
+        session.add(latest_finished)
+        persisted_ticket = session.get(Ticket, ticket.ticket_id)
+        assert persisted_ticket is not None
+        persisted_ticket.current_run_id = current_run_id
+        persisted_ticket.lease_owner = "worker-9"
+        persisted_ticket.lease_expires_at = lease_until
+
+    response = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticket"]["claimed_by"] == "worker-9"
+    assert payload["ticket"]["claimed_at"] == "2026-04-03T02:00:00+00:00"
+    assert payload["ticket"]["lease_until"] == "2026-04-03T02:05:00+00:00"
+    assert payload["latest_run"]["run_id"] == other_run_id
+
+
+def test_ticket_snapshot_selects_latest_run_by_created_at_then_run_id():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="draft_created",
+        processing_status="completed",
+        version=2,
+        primary_route="technical_issue",
+    )
+    shared_created_at = datetime.now(timezone.utc)
+    with store.session_scope() as session:
+        older_started_later = TicketRun(
+            run_id="run_00000000000000000000000001",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=shared_created_at + timedelta(minutes=5),
+            ended_at=shared_created_at + timedelta(minutes=6),
+            final_action="create_draft",
+            attempt_index=1,
+            created_at=shared_created_at,
+            response_quality={
+                "overall_score": 3.5,
+                "subscores": {
+                    "relevance": 3.5,
+                    "correctness": 3.5,
+                    "intent_alignment": 3.5,
+                    "clarity": 3.5,
+                },
+                "reason": "older created_at",
+            },
+            trajectory_evaluation={
+                "score": 3.0,
+                "expected_route": "technical_issue",
+                "actual_route": "technical_issue",
+                "violations": [],
+            },
+        )
+        newer_created = TicketRun(
+            run_id="run_00000000000000000000000002",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=shared_created_at,
+            ended_at=shared_created_at + timedelta(minutes=1),
+            final_action="create_draft",
+            attempt_index=2,
+            created_at=shared_created_at,
+            response_quality=None,
+            trajectory_evaluation={
+                "score": 4.2,
+                "expected_route": "technical_issue",
+                "actual_route": "technical_issue",
+                "violations": [],
+            },
+        )
+        session.add(older_started_later)
+        session.add(newer_created)
+
+    response = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_run"]["run_id"] == "run_00000000000000000000000002"
+    assert payload["latest_run"]["evaluation_summary_ref"]["status"] == "partial"
+
+
+def test_run_ticket_only_queues_high_risk_case():
     app, store = _build_app()
     client = TestClient(app)
 
@@ -442,8 +903,10 @@ def test_run_ticket_routes_high_risk_case_to_human_review():
     )
 
     assert run.status_code == 202
+    assert run.json()["processing_status"] == "queued"
     snapshot = client.get(f"/tickets/{ticket_id}")
-    assert snapshot.json()["ticket"]["business_status"] == "awaiting_human_review"
+    assert snapshot.json()["ticket"]["business_status"] == "triaged"
+    assert snapshot.json()["ticket"]["processing_status"] == "queued"
     assert snapshot.json()["latest_draft"] is None
 
 
@@ -544,6 +1007,10 @@ def test_metrics_summary_filters_by_route():
     payload = response.json()
     assert payload["latency"]["p50_ms"] == 1000.0
     assert payload["resources"]["avg_total_tokens"] == 120.0
+    assert payload["resources"]["avg_actual_token_call_count"] == 1.0
+    assert payload["resources"]["avg_estimated_token_call_count"] == 0.0
+    assert payload["resources"]["avg_unavailable_token_call_count"] == 0.0
+    assert payload["resources"]["avg_token_coverage_ratio"] == 1.0
     assert payload["trajectory_evaluation"]["avg_score"] == 4.8
 
 

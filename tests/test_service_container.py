@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from src.config import get_settings
-from src.tools.service_container import ServiceContainer
-from src.tools.service_container import create_default_service_container
+from src.bootstrap.container import ServiceContainer
+from src.bootstrap.container import create_default_service_container
 
 
 def test_service_container_caches_provider_instances():
     calls = {
         "agents": 0,
+        "judge": 0,
         "gmail": 0,
         "knowledge": 0,
         "policy": 0,
@@ -16,6 +17,7 @@ def test_service_container_caches_provider_instances():
 
     container = ServiceContainer(
         agents_factory=lambda: calls.__setitem__("agents", calls["agents"] + 1) or object(),
+        response_quality_judge_factory=lambda: calls.__setitem__("judge", calls["judge"] + 1) or object(),
         gmail_client_factory=lambda: calls.__setitem__("gmail", calls["gmail"] + 1) or object(),
         knowledge_provider_factory=lambda: calls.__setitem__("knowledge", calls["knowledge"] + 1) or object(),
         policy_provider_factory=lambda: calls.__setitem__("policy", calls["policy"] + 1) or object(),
@@ -23,11 +25,19 @@ def test_service_container_caches_provider_instances():
     )
 
     assert container.agents is container.agents
+    assert container.response_quality_judge is container.response_quality_judge
     assert container.gmail_client is container.gmail_client
     assert container.knowledge_provider is container.knowledge_provider
     assert container.policy_provider is container.policy_provider
     assert container.ticket_store is container.ticket_store
-    assert calls == {"agents": 1, "gmail": 1, "knowledge": 1, "policy": 1, "ticket": 1}
+    assert calls == {
+        "agents": 1,
+        "judge": 1,
+        "gmail": 1,
+        "knowledge": 1,
+        "policy": 1,
+        "ticket": 1,
+    }
 
 
 def test_service_container_uses_null_gmail_client_when_disabled(monkeypatch):

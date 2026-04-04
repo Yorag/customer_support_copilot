@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.core_schema import (
+from src.contracts.core import (
     CoreSchemaError,
     DraftType,
     EntityIdPrefix,
@@ -17,7 +17,7 @@ from src.core_schema import (
 from src.db.base import Base
 from src.db.models import DraftArtifact, Ticket, TicketRun
 from src.db.session import build_engine, create_session_factory, session_scope
-from src.ticket_state_machine import (
+from src.tickets.state_machine import (
     TicketBusinessStateMachine,
     TicketProcessingStateMachine,
     TicketStateService,
@@ -87,6 +87,7 @@ def test_get_allowed_processing_status_transitions_matches_spec_for_running():
     allowed = get_allowed_processing_status_transitions("running")
 
     assert [status.value for status in allowed] == [
+        "queued",
         "waiting_external",
         "completed",
         "error",
@@ -185,6 +186,16 @@ def test_claim_ticket_sets_lease_fields_and_increments_version():
     with session_scope(session_factory) as session:
         ticket = _build_ticket(version=3)
         session.add(ticket)
+        session.add(
+            TicketRun(
+                run_id="run-001",
+                ticket_id=ticket.ticket_id,
+                trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+                trigger_type="manual_api",
+                status="queued",
+                attempt_index=1,
+            )
+        )
         session.flush()
 
         service = TicketStateService(session)
@@ -203,6 +214,66 @@ def test_claim_ticket_sets_lease_fields_and_increments_version():
         assert updated.version == 4
 
 
+def test_enqueue_ticket_run_sets_current_run_id_and_keeps_ticket_queued():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        ticket = _build_ticket(version=3)
+        session.add(ticket)
+        session.flush()
+
+        service = TicketStateService(session)
+        updated = service.enqueue_ticket_run(
+            ticket.ticket_id,
+            run_id="run-enqueued-1",
+            expected_version=3,
+        )
+
+        assert updated.business_status == "triaged"
+        assert updated.processing_status == "queued"
+        assert updated.current_run_id == "run-enqueued-1"
+        assert updated.lease_owner is None
+        assert updated.lease_expires_at is None
+        assert updated.version == 4
+
+
+def test_enqueue_ticket_run_rejects_existing_active_run():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        existing_run = TicketRun(
+            run_id="run-existing",
+            ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="queued",
+            attempt_index=1,
+        )
+        ticket = _build_ticket(
+            business_status="triaged",
+            processing_status="queued",
+            version=3,
+            current_run_id=existing_run.run_id,
+        )
+        existing_run.ticket_id = ticket.ticket_id
+        session.add(ticket)
+        session.add(existing_run)
+        session.flush()
+
+        service = TicketStateService(session)
+
+        with pytest.raises(InvalidStateTransitionError):
+            service.enqueue_ticket_run(
+                ticket.ticket_id,
+                run_id="run-next",
+                expected_version=3,
+            )
+
+
 def test_claim_ticket_rejects_active_lease():
     engine = build_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -214,8 +285,19 @@ def test_claim_ticket_rejects_active_lease():
             processing_status="queued",
             lease_owner="worker-a",
             lease_expires_at=now + timedelta(minutes=1),
+            current_run_id="run-002",
         )
         session.add(ticket)
+        session.add(
+            TicketRun(
+                run_id="run-002",
+                ticket_id=ticket.ticket_id,
+                trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+                trigger_type="manual_api",
+                status="queued",
+                attempt_index=1,
+            )
+        )
         session.flush()
 
         service = TicketStateService(session)
@@ -390,6 +472,18 @@ def test_reclaim_expired_lease_returns_ticket_to_queue():
         session.flush()
 
         service = TicketStateService(session)
+        run = TicketRun(
+            run_id="run-lease-expired",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="running",
+            started_at=now - timedelta(minutes=5),
+            attempt_index=1,
+        )
+        ticket.current_run_id = run.run_id
+        session.add(run)
+        session.flush()
         updated = service.reclaim_expired_lease(
             ticket.ticket_id,
             expected_version=9,
@@ -400,6 +494,48 @@ def test_reclaim_expired_lease_returns_ticket_to_queue():
         assert updated.lease_owner is None
         assert updated.lease_expires_at is None
         assert updated.version == 10
+        assert session.get(TicketRun, run.run_id).status == "queued"
+
+
+def test_complete_run_rejects_stale_run_after_current_run_switched():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    now = datetime(2026, 4, 1, 9, 0, tzinfo=timezone.utc)
+
+    with session_scope(session_factory) as session:
+        ticket = _build_ticket(
+            business_status="triaged",
+            processing_status="running",
+            version=4,
+            current_run_id="run-new",
+            lease_owner="worker-a",
+            lease_expires_at=now + timedelta(minutes=5),
+        )
+        session.add(ticket)
+        session.add(
+            TicketRun(
+                run_id="run-new",
+                ticket_id=ticket.ticket_id,
+                trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+                trigger_type="manual_api",
+                status="running",
+                started_at=now,
+                attempt_index=1,
+            )
+        )
+        session.flush()
+
+        service = TicketStateService(session)
+        with pytest.raises(LeaseConflictError):
+            service.complete_run(
+                ticket.ticket_id,
+                worker_id="worker-a",
+                run_id="run-old",
+                business_status="draft_created",
+                expected_version=4,
+                now=now,
+            )
 
 
 def test_service_transitions_ticket_by_id_with_expected_version():

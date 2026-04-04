@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.db.base import Base
 from src.db.models import CustomerMemoryProfile, Ticket, TicketRun
 from src.db.session import build_engine

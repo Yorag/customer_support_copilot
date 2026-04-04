@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.db.base import Base
 from src.db.models import Ticket, TicketMessage, TicketRun
 from src.db.session import build_engine, create_session_factory, session_scope

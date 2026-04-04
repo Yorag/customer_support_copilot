@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.core_schema import (
+from src.contracts.core import (
     EntityIdPrefix,
     build_customer_identity,
     generate_prefixed_id,

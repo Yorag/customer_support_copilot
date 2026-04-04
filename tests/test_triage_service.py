@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.core_schema import (
+from src.contracts.core import (
     ResponseStrategy,
     TicketPriority,
     TicketRoute,

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.db.base import Base
 from src.db.models import DraftArtifact, Ticket, TicketRun
 from src.db.session import build_engine, create_session_factory, session_scope
-from src.message_log import DraftMessagePayload, IngestEmailPayload, MessageLogService
+from src.tickets.message_log import DraftMessagePayload, IngestEmailPayload, MessageLogService
 
 
 def _ingest_payload(**overrides) -> IngestEmailPayload:

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
-from src.core_schema import EntityIdPrefix, generate_prefixed_id
+from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.db.base import Base
 from src.db.models import DraftArtifact, HumanReview, Ticket, TicketRun, TraceEvent
 from src.db.session import build_engine, create_session_factory, session_scope
@@ -110,6 +110,21 @@ def test_ticket_run_requires_fixed_response_quality_keys():
         )
 
 
+def test_ticket_run_accepts_queued_status_before_worker_start():
+    run = TicketRun(
+        run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+        ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+        trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+        trigger_type="manual_api",
+        status="queued",
+        started_at=None,
+        attempt_index=1,
+    )
+
+    assert run.status == "queued"
+    assert run.started_at is None
+
+
 def test_trace_event_requires_minimum_metadata_keys_for_decisions():
     engine = build_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -141,6 +156,47 @@ def test_trace_event_requires_minimum_metadata_keys_for_decisions():
                     start_time=datetime.now(timezone.utc),
                     status="succeeded",
                     event_metadata={"primary_route": "technical_issue"},
+                )
+            )
+
+
+def test_trace_event_requires_token_source_for_llm_call():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    ticket = _build_ticket(ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET))
+    run = TicketRun(
+        run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+        ticket_id=ticket.ticket_id,
+        trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+        trigger_type="manual_api",
+        status="running",
+        started_at=datetime.now(timezone.utc),
+        attempt_index=1,
+    )
+
+    with pytest.raises(ValueError):
+        with session_scope(session_factory) as session:
+            session.add(ticket)
+            session.add(run)
+            session.add(
+                TraceEvent(
+                    event_id=generate_prefixed_id(EntityIdPrefix.MEMORY_EVENT),
+                    trace_id=run.trace_id,
+                    run_id=run.run_id,
+                    ticket_id=ticket.ticket_id,
+                    event_type="llm_call",
+                    event_name="llm.triage",
+                    start_time=datetime.now(timezone.utc),
+                    status="succeeded",
+                    event_metadata={
+                        "model": "gpt-4o-mini",
+                        "provider": "openai-compatible",
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                        "total_tokens": 15,
+                    },
                 )
             )
 
@@ -184,6 +240,14 @@ def test_related_entities_can_be_persisted_end_to_end():
             "expected_route": "commercial_policy_request",
             "actual_route": "commercial_policy_request",
             "violations": [],
+        },
+        app_metadata={
+            "checkpoint": {
+                "thread_id": ticket.ticket_id,
+                "checkpoint_ns": "run_demo",
+                "restore_mode": "fresh",
+                "last_checkpoint_node": None,
+            }
         },
     )
     draft = DraftArtifact(
@@ -233,6 +297,14 @@ def test_related_entities_can_be_persisted_end_to_end():
     with session_scope(session_factory) as session:
         assert session.query(Ticket).count() == 1
         assert session.query(TicketRun).count() == 1
+        assert session.query(TicketRun).one().app_metadata == {
+            "checkpoint": {
+                "thread_id": ticket.ticket_id,
+                "checkpoint_ns": "run_demo",
+                "restore_mode": "fresh",
+                "last_checkpoint_node": None,
+            }
+        }
         assert session.query(DraftArtifact).count() == 1
         assert session.query(HumanReview).count() == 1
         assert session.query(TraceEvent).count() == 1

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.core_schema import (
+from src.contracts.core import (
     CoreSchemaError,
     EntityIdPrefix,
     SourceChannel,
