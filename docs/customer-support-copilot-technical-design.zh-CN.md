@@ -22,95 +22,104 @@
 
 ## 2.1 当前目录结构
 
-当前仓库的核心目录如下：
+当前仓库在目录迁移完成后的核心目录如下：
 
 ```text
 langgraph-email-automation/
+├── scripts/
+│   ├── run_poller.py
+│   ├── serve_api.py
+│   └── build_index.py
 ├── main.py
 ├── deploy_api.py
 ├── create_index.py
 ├── data/
 │   └── agency.txt
-├── db/
-│   └── chroma.sqlite3 + Chroma 索引文件
 ├── docs/
 │   ├── customer-support-copilot-requirements.zh-CN.md
 │   └── customer-support-copilot-technical-design.zh-CN.md
 └── src/
-    ├── agents.py
-    ├── graph.py
-    ├── nodes.py
-    ├── prompts.py
-    ├── state.py
-    ├── structure_outputs.py
-    └── tools/
-        └── GmailTools.py
+    ├── agents/
+    ├── api/
+    ├── db/
+    ├── orchestration/
+    ├── llm/
+    ├── memory/
+    ├── prompts/
+    ├── rag/
+    ├── contracts/
+    ├── telemetry/
+    ├── tickets/
+    ├── tools/
+    └── workers/
 ```
 
 如果用一句话概括各层职责：
 
-1. `main.py` 负责本地跑一次流程。
-2. `deploy_api.py` 负责把流程暴露成 API。
-3. `create_index.py` 负责离线构建本地知识库索引。
-4. `src/graph.py` 定义 LangGraph 流程图。
-5. `src/nodes.py` 定义每个节点的执行逻辑。
-6. `src/agents.py` 定义底层 LLM 链与检索链。
-7. `src/state.py` 定义图中共享状态。
-8. `src/tools/GmailTools.py` 负责 Gmail API 集成。
+1. `scripts/run_poller.py` 负责 Gmail poller 的 `ingest + enqueue` 批处理入口。
+2. `scripts/serve_api.py` 负责启动业务 API。
+3. `scripts/build_index.py` 负责离线构建本地知识库索引。
+4. `main.py`、`deploy_api.py`、`create_index.py` 仅保留兼容包装入口。
+5. `src/orchestration/` 定义 LangGraph workflow、状态合同、条件路由与 checkpoint。
+6. `src/orchestration/nodes.py` 定义每个节点的执行逻辑。
+7. `src/agents/` 和 `src/llm/` 定义角色型 Agent 与统一 LLM runtime。
+8. `src/memory/`、`src/rag/`、`src/telemetry/` 分别承载记忆、知识访问与观测评测。
+9. `src/tools/` 负责 Gmail API 集成与 provider 抽象。
+10. `src/workers/` 负责 worker 领取、续租、恢复与 graph 执行。
 
 ---
 
 ## 2.2 当前系统如何启动
 
-当前仓库有两个启动入口。
+当前仓库有三个正式启动入口。
 
-### 2.2.1 本地脚本入口 `main.py`
+### 2.2.1 本地脚本入口 `scripts/run_poller.py`
 
-`main.py` 的职责很简单：
+`scripts/run_poller.py` 当前扮演 Gmail poller：
 
-1. 加载 `.env`。
-2. 定义 `config = {"recursion_limit": 100}`。
-3. 创建 `Workflow` 实例并拿到 `app`。
-4. 构造初始状态 `initial_state`。
-5. 调用 `app.stream(initial_state, config)` 执行图。
+1. 拉取未处理 Gmail 线程。
+2. 将邮件 ingest 为 ticket。
+3. 调用 `run_ticket` 只创建 `queued` run。
 
 这里有两个很重要的事实：
 
-1. 当前系统是批处理式运行，不是常驻监听邮箱。
-2. 当前系统每次启动时，都是从一个默认空状态开始。
+1. 当前系统的 Gmail 入口仍是批处理式运行，不是常驻 worker。
+2. `scripts/run_poller.py` 不再直接执行 graph。
 
 这意味着：
 
-1. 它适合作为定时任务或手动执行脚本。
-2. 它暂时没有正式的任务持久化和故障恢复。
+1. 它适合作为定时任务或手动 poller。
+2. 正式执行、lease 与 crash-resume 都由 worker 负责。
 
-### 2.2.2 API 入口 `deploy_api.py`
+### 2.2.2 API 入口 `scripts/serve_api.py`
 
-`deploy_api.py` 使用 FastAPI 加 LangServe 暴露图流程。
+`scripts/serve_api.py` 当前只负责启动业务 `FastAPI` 应用。
 
 它做的事情有：
 
-1. 加载 `.env`。
-2. 创建 FastAPI 应用。
-3. 打开全量 CORS。
-4. 调用 `Workflow().app` 获取 runnable。
-5. 用 `add_routes` 暴露默认 LangServe 路由。
+1. 读取统一配置。
+2. 调用 `src.api.app.create_app()` 构造应用。
+3. 通过 `uvicorn` 启动业务 API。
 
-这说明当前仓库已经具备一个很重要的扩展基础：
+### 2.2.3 Worker 入口 `src/workers/ticket_worker.py`
 
-1. 图本身不是只能在命令行里跑。
-2. 它已经可以被外部系统作为接口调用。
+worker 是当前正式执行 graph 的唯一入口，职责包括：
 
-但也要注意：
+1. 领取 `queued` run。
+2. 续租与失租保护。
+3. fresh/resume 决策。
+4. 调用 `src.orchestration.workflow.Workflow` 执行 ticket workflow。
 
-1. 当前 API 只是把图暴露出去。
-2. 它没有工单系统、审批流、任务表或专门的业务接口抽象。
+说明：
+
+1. 下文 `2.3` 到 `2.10` 保留了早期教程型原型的拆解，主要用于解释重构动机。
+2. 当前正式实现与模块落点应以 `src/orchestration/`、`src/agents/`、`src/llm/`、`src/memory/`、`src/rag/`、`src/telemetry/`、`src/evaluation/`、`src/workers/` 以及 `docs/specs/*.md` 为准。
 
 ---
 
 ## 2.3 当前流程图结构
 
-当前 LangGraph 定义在 `src/graph.py`。
+当前正式 LangGraph workflow 定义在 `src/orchestration/workflow.py`。
 
 ### 2.3.1 当前节点列表
 
@@ -198,7 +207,7 @@ skip_unrelated_email
 
 ## 2.4 当前状态设计
 
-当前状态定义在 `src/state.py`。
+当前正式状态合同定义在 `src/orchestration/state.py`。
 
 ### 2.4.1 `Email` 模型
 
@@ -338,7 +347,7 @@ proofreader 的判定结果，表示当前草稿是否通过。
 
 ## 2.5 当前节点逻辑逐个解释
 
-当前节点实现都在 `src/nodes.py`。
+当前节点实现都在 `src/orchestration/nodes.py`。
 
 ## 2.5.1 `load_new_emails`
 
@@ -501,9 +510,9 @@ proofreader 是当前流程里唯一的质量控制节点。
 
 ---
 
-## 2.6 当前 Agent 设计
+## 2.6 原型 Agent 设计
 
-当前 `src/agents.py` 中定义的其实不是“会互相协作的自治 Agent 团队”，而是 5 条职责明确的 LLM / RAG 链。
+原型阶段的单文件 Agent 实现后来被拆入 `src/agents/`，其最初形态更像 5 条职责明确的 LLM / RAG 链，而不是会互相协作的自治 Agent 团队。
 
 ### 2.6.1 模型选择
 
@@ -607,7 +616,7 @@ proofreader 输出的是 `ProofReaderOutput`，包含：
 
 ## 2.7 当前 Prompt 设计
 
-Prompt 全部位于 `src/prompts.py`。
+Prompt 已按能力拆分到 `src/prompts/` 目录下。
 
 ### 2.7.1 分类 Prompt
 
@@ -691,7 +700,7 @@ proofreader 主要检查三件事：
 
 ## 2.8 当前 Gmail 集成设计
 
-Gmail 相关逻辑位于 `src/tools/GmailTools.py`。
+Gmail 相关逻辑位于 `src/tools/gmail_client.py`。
 
 ## 2.8.1 认证方式
 
@@ -772,7 +781,7 @@ Gmail 查询条件是：
 
 ## 2.9.1 索引构建
 
-`create_index.py` 负责离线构建知识库。
+`scripts/build_index.py` 负责离线构建知识库。
 
 流程如下：
 
@@ -786,7 +795,7 @@ Gmail 查询条件是：
 
 ## 2.9.2 运行期检索
 
-运行期检索在 `src/agents.py` 中完成：
+当前正式运行期检索主要落在 `src/rag/local_provider.py`，并由 `src/agents/knowledge_policy_agent.py` 发起：
 
 1. 打开 `persist_directory="db"`。
 2. 创建 retriever，`k=3`。
@@ -1117,7 +1126,6 @@ customer-support-copilot/
 │   └── tools/
 │       ├── gmail_client.py
 │       ├── ticket_store.py
-│       ├── knowledge_provider.py
 │       └── policy_provider.py
 └── tests/
 ```
@@ -2116,7 +2124,7 @@ Trace 至少采集以下 4 类事件：
 
 ## 3.11 目标 API 设计
 
-虽然当前已经有 LangServe API，但如果要更像完整系统，建议补充业务接口。
+当前已经有正式业务 API；如果继续扩展系统，重点应放在接口能力深化，而不是回退到 runnable 暴露模式。
 
 ### 输入接口
 
@@ -2195,7 +2203,7 @@ Trace 至少采集以下 4 类事件：
 
 建议做法：
 
-1. 保留 `main.py` 作为本地直接运行入口。
+1. 保留 `scripts/run_poller.py` 作为正式本地运行入口，`main.py` 作为兼容包装。
 2. 先在文档中定义固定测试样本和字段规范，实现阶段再补离线评测脚本或等价入口。
 3. 每条样本映射为统一的 `initial_state`，至少填充 `current_email.subject`、`current_email.body` 及必要元数据。
 4. 通过 `Workflow().app` 直接执行图，而不是先经过 Gmail 拉取层。

@@ -90,40 +90,52 @@ flowchart TD
 
 1. `src/api/`
    业务 API、DTO、错误处理、依赖注入
-2. `src/graph.py`
-   ticket execution workflow 定义
-3. `src/nodes.py`
+2. `src/orchestration/`
+   ticket execution workflow、状态合同、条件路由和 checkpoint 构造
+3. `src/orchestration/nodes.py`
    各节点的业务逻辑、trace 打点和 provider 调用
-4. `src/ticket_state_machine.py`
+4. `src/tickets/state_machine.py`
    显式业务状态迁移、lease、失败恢复、人工动作前置校验
-5. `src/message_log.py`
+5. `src/tickets/message_log.py`
    邮件入库、reopen 判定、上下文读取
-6. `src/customer_memory.py`
-   记忆读取与收尾回写
-7. `src/observability.py`
+6. `src/memory/` 和 `src/rag/`
+   长短期记忆、知识 provider 和本地 RAG 适配
+7. `src/telemetry/` 和 `src/evaluation/`
    trace、metrics、response quality 和 trajectory evaluation
-8. `src/tools/`
-   Gmail、knowledge、policy、ticket store provider 抽象
+8. `src/bootstrap/`、`src/contracts/` 和 `src/workers/`
+   容器装配、共享契约、enqueue-only run 的 worker orchestration 和 CLI
+9. `src/tools/`
+   Gmail 与 policy provider 实现，ticket store 适配入口
 
 ## Repository Layout
 
 ```text
 langgraph-email-automation/
 ├── src/
+│   ├── agents/
 │   ├── api/
+│   ├── bootstrap/
+│   ├── contracts/
 │   ├── db/
-│   ├── agents.py
-│   ├── customer_memory.py
-│   ├── graph.py
-│   ├── message_log.py
-│   ├── nodes.py
-│   ├── observability.py
-│   ├── state.py
-│   ├── ticket_state_machine.py
-│   └── tools/
+│   ├── evaluation/
+│   ├── llm/
+│   ├── memory/
+│   ├── orchestration/
+│   ├── prompts/
+│   ├── rag/
+│   ├── telemetry/
+│   ├── tickets/
+│   ├── tools/
+│   └── workers/
 ├── docs/
 ├── tests/
 ├── scripts/
+│   ├── build_index.py
+│   ├── init_db.py
+│   ├── run_offline_eval.py
+│   ├── run_poller.py
+│   ├── run_real_eval.py
+│   └── serve_api.py
 ├── alembic/
 ├── main.py
 ├── deploy_api.py
@@ -182,7 +194,7 @@ EMBEDDING_MODEL=bge-large-zh-v1.5
 12. `API_PORT`
 
 如果当前环境还没有 Gmail OAuth，可以先设置 `GMAIL_ENABLED=false`。
-这样 `POST /tickets/ingest-email -> POST /tickets/{ticket_id}/run` 这条 API 主链路仍可运行，但 `python main.py` 的 Gmail 轮询入口不可用。
+这样 `POST /tickets/ingest-email -> POST /tickets/{ticket_id}/run` 这条 API 主链路仍可运行，但建议使用 `python scripts/run_poller.py` 作为正式 Gmail 轮询入口，`main.py` 仅保留兼容包装。
 
 ## Setup
 
@@ -197,7 +209,7 @@ python scripts/init_db.py
 默认知识源是 [data/agency.txt](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/data/agency.txt)。
 
 ```bash
-python create_index.py
+python scripts/build_index.py
 ```
 
 ### 3. Prepare Gmail OAuth
@@ -207,14 +219,14 @@ python create_index.py
 1. `credentials.json`
 2. `token.json`
 
-Gmail 认证和草稿写入逻辑位于 [src/tools/gmail_client.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/gmail_client.py) 和 [src/tools/GmailTools.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/GmailTools.py)。
+Gmail 认证和草稿写入逻辑位于 [src/tools/gmail_client.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/src/tools/gmail_client.py)。
 
 ## Running
 
 ### API Server
 
 ```bash
-python deploy_api.py
+python scripts/serve_api.py
 ```
 
 默认监听 `http://localhost:8000`，OpenAPI 文档位于 `/docs`。
@@ -222,16 +234,30 @@ python deploy_api.py
 ### Poller Batch
 
 ```bash
-python main.py
+python scripts/run_poller.py
 ```
 
 它会：
 
 1. 从 Gmail 拉取未处理线程
 2. 调用 `ingest_email`
-3. 立即执行 `run_ticket`
+3. 调用 `run_ticket` 只创建 `queued` run
 
-这不是常驻 worker，而是一次批处理入口。
+它不是 worker，只是一次性的 Gmail poller 批处理入口。
+
+### Worker
+
+```bash
+python -m src.workers.ticket_worker --once
+```
+
+循环模式：
+
+```bash
+python -m src.workers.ticket_worker --loop --poll-interval-seconds 5
+```
+
+worker 负责真正领取 `queued` run、续租 lease、执行 graph 和处理 crash-resume。
 
 ### Offline Eval
 
@@ -319,21 +345,22 @@ python scripts/run_real_eval.py ^
 
 ### Demo 1: Happy Path API Run
 
-适合演示“知识问答 -> 草稿生成 -> trace 查询”。
+适合演示“知识问答排队 -> worker 执行 -> 草稿生成 -> trace 查询”。
 
-1. 启动 API：`python deploy_api.py`
-2. 调用 `POST /tickets/ingest-email`
-3. 调用 `POST /tickets/{ticket_id}/run`
-4. 查看 `GET /tickets/{ticket_id}`
-5. 查看 `GET /tickets/{ticket_id}/trace`
+1. 启动 API：`python scripts/serve_api.py`
+2. 启动 worker：`python -m src.workers.ticket_worker --loop`
+3. 调用 `POST /tickets/ingest-email`
+4. 调用 `POST /tickets/{ticket_id}/run`
+5. 查看 `GET /tickets/{ticket_id}`
+6. 查看 `GET /tickets/{ticket_id}/trace`
 
-可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_creates_run_trace_and_draft_created_status`。
+可直接参考 [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_enqueues_run_without_sync_execution`，再配合 [test_ticket_worker.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_ticket_worker.py) 中的 worker 接管用例。
 
 ### Demo 2: High-Risk Policy Handoff
 
 适合演示“高风险商业/退款请求不会自动答复，而是升级人工”。
 
-可直接参考 [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_routes_high_risk_case_to_human_review`。
+可直接参考 [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_only_queues_high_risk_case`，再由 worker 消费后观察进入人工审核路径。
 
 ### Demo 3: Manual Review Lifecycle
 

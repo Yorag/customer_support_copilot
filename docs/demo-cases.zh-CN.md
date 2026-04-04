@@ -22,9 +22,10 @@
 
 1. 安装依赖：`pip install -r requirements.txt`
 2. 初始化数据库：`python scripts/init_db.py`
-3. 构建本地知识索引：`python create_index.py`
+3. 构建本地知识索引：`python scripts/build_index.py`
 4. 配置 `.env`
-5. 启动 API：`python deploy_api.py`
+5. 启动 API：`python scripts/serve_api.py`
+6. 启动 worker：`python -m src.workers.ticket_worker --loop`
 
 如果只做本地可重复演示，也可以直接运行测试：
 
@@ -39,27 +40,31 @@ pytest -q tests/test_api_contract.py
 目标：
 
 1. 演示 ticket 被成功 ingest
-2. 演示 `run` 进入真实 graph
-3. 演示最终进入 `draft_created`
-4. 演示 trace 和 resource metrics 可查
+2. 演示 `run` 先进入 `queued`
+3. 演示 worker 接管并进入真实 graph
+4. 演示最终进入 `draft_created`
+5. 演示 trace 和 resource metrics 可查
 
 推荐依据：
 
-1. [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_creates_run_trace_and_draft_created_status`
+1. [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_enqueues_run_without_sync_execution`
+2. [test_ticket_worker.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_ticket_worker.py) 中的 worker 接管相关用例
 
 演示步骤：
 
 1. `POST /tickets/ingest-email`
 2. `POST /tickets/{ticket_id}/run`
-3. `GET /tickets/{ticket_id}`
-4. `GET /tickets/{ticket_id}/trace`
+3. 等待 worker 消费该 `queued` run
+4. `GET /tickets/{ticket_id}`
+5. `GET /tickets/{ticket_id}/trace`
 
 预期结果：
 
-1. `processing_status = completed`
-2. `business_status = draft_created`
-3. `latest_draft.qa_status = passed`
-4. trace 中存在事件列表、`resource_metrics` 和 `latency_metrics`
+1. 刚触发 `run` 时，`processing_status = queued`
+2. worker 接管后，`processing_status = completed`
+3. `business_status = draft_created`
+4. `latest_draft.qa_status = passed`
+5. trace 中存在事件列表、`resource_metrics` 和 `latency_metrics`
 
 推荐请求体：
 
@@ -85,13 +90,14 @@ pytest -q tests/test_api_contract.py
 
 推荐依据：
 
-1. [tests/test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_routes_high_risk_case_to_human_review`
+1. [test_api_contract.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/test_api_contract.py) 中的 `test_run_ticket_only_queues_high_risk_case`
 
 演示步骤：
 
 1. `POST /tickets/ingest-email`
 2. `POST /tickets/{ticket_id}/run`
-3. `GET /tickets/{ticket_id}`
+3. 等待 worker 消费该 `queued` run
+4. `GET /tickets/{ticket_id}`
 
 推荐请求体：
 
@@ -110,9 +116,10 @@ pytest -q tests/test_api_contract.py
 
 预期结果：
 
-1. `business_status = awaiting_human_review`
-2. `latest_draft = null`
-3. run 最终不是自动发起客户答复，而是转人工
+1. 触发 `run` 后先进入 `queued`
+2. worker 执行后 `business_status = awaiting_human_review`
+3. `latest_draft = null`
+4. run 最终不是自动发起客户答复，而是转人工
 
 ### 3.3 人工审核与记忆回写
 
