@@ -81,8 +81,8 @@
 1. 正式 workflow、状态与 checkpoint 已收敛到 `src/orchestration/`。
 2. 正式 Agent、LLM runtime、记忆、RAG、telemetry、evaluation 与 worker 已分别收敛到 `src/agents/`、`src/llm/`、`src/memory/`、`src/rag/`、`src/telemetry/`、`src/evaluation/`、`src/workers/`。
 3. 旧平铺文件 `src/graph.py`、`src/state.py`、`src/agents.py`、`src/customer_memory.py`、`src/observability.py`、`src/llm.py` 及相关薄兼容层已全部删除，仓库内部导入已统一切换到正式目录落点。
-4. `deploy_api.py` 已是业务 API 入口，`POST /tickets/{ticket_id}/run` 已是 enqueue-only 语义，真正 graph 执行只由 worker 承担。
-5. `main.py` 已收口为 Gmail poller，只负责 `ingest + enqueue`，不再同步执行 graph。
+4. `serve_api.py` 已是业务 API 入口，`POST /tickets/{ticket_id}/run` 已是 enqueue-only 语义，真正 graph 执行只由 worker 承担。
+5. `run_poller.py` 已收口为 Gmail poller，只负责 `ingest + enqueue`，不再同步执行 graph。
 
 后续若继续推进，应继续按 `spec -> 子任务 -> 代码落地 -> 回填进度表` 的方式执行。
 

@@ -24,8 +24,8 @@
 2. 初始化数据库：`python scripts/init_db.py`
 3. 构建本地知识索引：`python scripts/build_index.py`
 4. 配置 `.env`
-5. 启动 API：`python scripts/serve_api.py`
-6. 启动 worker：`python -m src.workers.ticket_worker --loop`
+5. 启动 API：`python serve_api.py`
+6. 启动 worker：`python run_worker.py --loop`
 
 如果只做本地可重复演示，也可以直接运行测试：
 

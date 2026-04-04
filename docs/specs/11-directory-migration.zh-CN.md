@@ -266,7 +266,7 @@ src/
 
 1. 新增 `src/workers/ticket_worker.py`
 2. API 从“直接执行 graph”切到“enqueue + worker 消费”
-3. `main.py` 切到 poller 角色
+3. `run_poller.py` 切到 poller 角色
 
 本阶段必须同时对齐：
 
@@ -480,4 +480,3 @@ src/
 4. 不通过不得继续
 
 这四条同时成立，缺一不可。
-

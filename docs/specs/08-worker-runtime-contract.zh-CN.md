@@ -40,12 +40,12 @@
 
 V1.1 中，正式执行 Ticket workflow 的主体固定为独立 worker 进程。
 
-`main.py` 的角色固定为：
+`run_poller.py` 的角色固定为：
 
 1. Gmail 轮询与入库
 2. 可选地触发 enqueue
 
-`main.py` 不再承担正式 graph 执行职责。
+`run_poller.py` 不承担正式 graph 执行职责。
 
 ---
 
@@ -333,9 +333,9 @@ V1.1 worker 实现路径固定为：
 
 明确禁止：
 
-1. 把 worker 主循环塞回 `main.py`
+1. 把 worker 主循环塞回 `run_poller.py`
 2. 把 worker 主循环塞进 `api/services.py`
-3. 在 `deploy_api.py` 启动时顺带开后台线程跑 worker
+3. 在 `serve_api.py` 启动时顺带开后台线程跑 worker
 
 ### 10.1 CLI 合同
 
@@ -441,4 +441,3 @@ worker 调用 graph 时必须：
 4. `claimed_by/claimed_at/lease_until` 有固定投影规则
 5. 崩溃恢复、租约回收、失租拒绝写入可验证
 6. 不存在第二套领取逻辑入口
-

@@ -26,13 +26,11 @@
 
 ```text
 langgraph-email-automation/
+├── serve_api.py
+├── run_worker.py
+├── run_poller.py
 ├── scripts/
-│   ├── run_poller.py
-│   ├── serve_api.py
 │   └── build_index.py
-├── main.py
-├── deploy_api.py
-├── create_index.py
 ├── data/
 │   └── agency.txt
 ├── docs/
@@ -56,10 +54,10 @@ langgraph-email-automation/
 
 如果用一句话概括各层职责：
 
-1. `scripts/run_poller.py` 负责 Gmail poller 的 `ingest + enqueue` 批处理入口。
-2. `scripts/serve_api.py` 负责启动业务 API。
-3. `scripts/build_index.py` 负责离线构建本地知识库索引。
-4. `main.py`、`deploy_api.py`、`create_index.py` 仅保留兼容包装入口。
+1. `run_poller.py` 负责 Gmail poller 的 `ingest + enqueue` 批处理入口。
+2. `serve_api.py` 负责启动业务 API。
+3. `run_worker.py` 负责启动 worker loop。
+4. `scripts/build_index.py` 负责离线构建本地知识库索引。
 5. `src/orchestration/` 定义 LangGraph workflow、状态合同、条件路由与 checkpoint。
 6. `src/orchestration/nodes.py` 定义每个节点的执行逻辑。
 7. `src/agents/` 和 `src/llm/` 定义角色型 Agent 与统一 LLM runtime。
@@ -73,9 +71,9 @@ langgraph-email-automation/
 
 当前仓库有三个正式启动入口。
 
-### 2.2.1 本地脚本入口 `scripts/run_poller.py`
+### 2.2.1 本地脚本入口 `run_poller.py`
 
-`scripts/run_poller.py` 当前扮演 Gmail poller：
+`run_poller.py` 当前扮演 Gmail poller：
 
 1. 拉取未处理 Gmail 线程。
 2. 将邮件 ingest 为 ticket。
@@ -84,16 +82,16 @@ langgraph-email-automation/
 这里有两个很重要的事实：
 
 1. 当前系统的 Gmail 入口仍是批处理式运行，不是常驻 worker。
-2. `scripts/run_poller.py` 不再直接执行 graph。
+2. `run_poller.py` 不再直接执行 graph。
 
 这意味着：
 
 1. 它适合作为定时任务或手动 poller。
 2. 正式执行、lease 与 crash-resume 都由 worker 负责。
 
-### 2.2.2 API 入口 `scripts/serve_api.py`
+### 2.2.2 API 入口 `serve_api.py`
 
-`scripts/serve_api.py` 当前只负责启动业务 `FastAPI` 应用。
+`serve_api.py` 当前只负责启动业务 `FastAPI` 应用。
 
 它做的事情有：
 
@@ -2203,7 +2201,7 @@ Trace 至少采集以下 4 类事件：
 
 建议做法：
 
-1. 保留 `scripts/run_poller.py` 作为正式本地运行入口，`main.py` 作为兼容包装。
+1. 保留 `run_poller.py` 作为正式本地运行入口。
 2. 先在文档中定义固定测试样本和字段规范，实现阶段再补离线评测脚本或等价入口。
 3. 每条样本映射为统一的 `initial_state`，至少填充 `current_email.subject`、`current_email.body` 及必要元数据。
 4. 通过 `Workflow().app` 直接执行图，而不是先经过 Gmail 拉取层。

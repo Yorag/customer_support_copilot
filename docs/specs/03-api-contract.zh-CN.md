@@ -474,11 +474,9 @@ V1 统一预留：
 
 ## 15. 与当前实现的差距
 
-当前 [deploy_api.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/deploy_api.py#L28) 仍然只暴露 LangServe runnable。
+当前实现已经由 [serve_api.py](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/serve_api.py) 启动业务 `FastAPI` 应用。
 
-V1 必须补充：
+当前协议的剩余关注点应转向：
 
-1. 业务路由层
-2. DTO 校验层
-3. Ticket store
-4. 版本和幂等处理
+1. 路由、DTO 与服务层的演进是否持续和本规格保持一致
+2. Ticket store、版本和幂等处理是否覆盖新增场景
