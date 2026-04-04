@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.core_schema import SourceChannel, to_api_timestamp
+from src.contracts.core import SourceChannel, to_api_timestamp
 
 
 def _serialize_datetime(value: datetime) -> str:
@@ -156,6 +156,9 @@ class TicketSummary(ApiModel):
     ticket_id: str
     business_status: str
     processing_status: str
+    claimed_by: Optional[str] = None
+    claimed_at: Optional[str] = None
+    lease_until: Optional[str] = None
     priority: str
     primary_route: Optional[str] = None
     multi_intent: bool
@@ -163,11 +166,22 @@ class TicketSummary(ApiModel):
     version: int
 
 
+class EvaluationSummaryRef(ApiModel):
+    status: Literal["not_available", "partial", "complete"]
+    trace_id: str
+    has_response_quality: bool
+    response_quality_overall_score: Optional[float] = None
+    has_trajectory_evaluation: bool
+    trajectory_score: Optional[float] = None
+    trajectory_violation_count: Optional[int] = None
+
+
 class TicketRunSummary(ApiModel):
     run_id: str
     trace_id: str
     status: str
     final_action: Optional[str] = None
+    evaluation_summary_ref: EvaluationSummaryRef
 
 
 class TicketDraftSummary(ApiModel):

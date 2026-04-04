@@ -22,7 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
-from src.core_schema import (
+from src.contracts.core import (
     DraftQaStatus,
     DraftType,
     HumanReviewAction,
@@ -107,9 +107,11 @@ def _ensure_trace_metadata_keys(
     required_keys_by_type = {
         TraceEventType.LLM_CALL.value: {
             "model",
+            "provider",
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
+            "token_source",
         },
         TraceEventType.TOOL_CALL.value: {"tool_name", "input_ref", "output_ref"},
         TraceEventType.DECISION.value: {
@@ -118,6 +120,19 @@ def _ensure_trace_metadata_keys(
             "needs_clarification",
             "needs_escalation",
             "final_action",
+        },
+        TraceEventType.CHECKPOINT.value: {
+            "thread_id",
+            "checkpoint_ns",
+            "restore_mode",
+            "restored",
+        },
+        TraceEventType.WORKER.value: {
+            "ticket_id",
+            "run_id",
+            "worker_id",
+            "lease_owner",
+            "lease_expires_at",
         },
     }
     required_keys = required_keys_by_type.get(event_type)
@@ -392,7 +407,7 @@ class TicketRun(Base):
     trigger_type: Mapped[str] = mapped_column(String(32), nullable=False)
     triggered_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -415,6 +430,10 @@ class TicketRun(Base):
         nullable=True,
     )
     trajectory_evaluation: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSON_FIELD,
+        nullable=True,
+    )
+    app_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(
         JSON_FIELD,
         nullable=True,
     )

@@ -1,0 +1,9 @@
+Using the following pieces of retrieved context, answer the question comprehensively and concisely.
+Ensure your response fully addresses the question based on the given context.
+
+IMPORTANT:
+Just provide the answer and never mention or refer to having access to the external context or information in your answer.
+If you are unable to determine the answer from the provided context, state 'I don't know.'
+
+Question: {question}
+Context: {context}

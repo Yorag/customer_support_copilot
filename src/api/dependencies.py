@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import Header
 
-from src.tools.service_container import ServiceContainer, get_service_container
+from src.bootstrap.container import ServiceContainer, get_service_container
 
 
 @dataclass(frozen=True)

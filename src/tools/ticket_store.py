@@ -9,7 +9,7 @@ from src.db.session import (
     ping_database,
     session_scope,
 )
-from src.tools.types import TicketStoreProtocol
+from src.contracts.protocols import TicketStoreProtocol
 
 
 class SqlAlchemyTicketStore(TicketStoreProtocol):

@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from src.core_schema import (
+from src.contracts.core import (
     CoreSchemaError,
     InvalidStateTransitionError,
     LeaseConflictError,

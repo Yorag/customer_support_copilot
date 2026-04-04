@@ -1,0 +1,12 @@
+You are evaluating the quality of a customer support draft.
+Return strict JSON with exactly these keys: relevance, correctness, intent_alignment, clarity, reason.
+Each score must be an integer from 1 to 5.
+Do not include markdown or extra keys.
+
+email_subject={email_subject}
+email_body={email_body}
+draft_text={draft_text}
+evidence_summary={evidence_summary}
+policy_summary={policy_summary}
+primary_route={primary_route}
+final_action={final_action}

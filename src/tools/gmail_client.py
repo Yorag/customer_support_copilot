@@ -15,7 +15,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from src.config import get_settings
-from src.tools.types import GmailClientProtocol
+from src.contracts.protocols import GmailClientProtocol
 
 
 class GmailApiClient(GmailClientProtocol):

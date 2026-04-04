@@ -35,6 +35,8 @@ class LLMSettings:
     api_key: str | None
     base_url: str | None
     chat_model: str
+    judge_model: str
+    judge_timeout_seconds: int
 
 
 @dataclass(frozen=True)
@@ -193,6 +195,12 @@ def get_settings() -> Settings:
             api_key=_clean_env_value("LLM_API_KEY"),
             base_url=_clean_env_value("LLM_BASE_URL"),
             chat_model=_clean_env_value("LLM_CHAT_MODEL") or "gpt-4o-mini",
+            judge_model=(
+                _clean_env_value("LLM_JUDGE_MODEL")
+                or _clean_env_value("LLM_CHAT_MODEL")
+                or "gpt-4o-mini"
+            ),
+            judge_timeout_seconds=_get_int_env("LLM_JUDGE_TIMEOUT_SECONDS", 20),
         ),
         embedding=EmbeddingSettings(
             api_url=_clean_env_value("EMBEDDING_API_URL"),

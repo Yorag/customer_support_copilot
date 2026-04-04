@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
 
 from src.db.models import (
@@ -32,6 +32,9 @@ class TicketRepositoryProtocol(Protocol):
         ...
 
     def list_all(self) -> list[Ticket]:
+        ...
+
+    def list_worker_ready_candidates(self) -> list[Ticket]:
         ...
 
 
@@ -150,6 +153,28 @@ class SqlAlchemyTicketRepository(TicketRepositoryProtocol):
 
     def list_all(self) -> list[Ticket]:
         return list(self._session.scalars(select(Ticket)))
+
+    def list_worker_ready_candidates(self) -> list[Ticket]:
+        priority_rank = case(
+            (Ticket.priority == "critical", 0),
+            (Ticket.priority == "high", 1),
+            (Ticket.priority == "medium", 2),
+            else_=3,
+        )
+        statement = (
+            select(Ticket)
+            .join(TicketRun, TicketRun.run_id == Ticket.current_run_id)
+            .where(
+                Ticket.business_status.not_in(("approved", "closed")),
+                TicketRun.ended_at.is_(None),
+                or_(
+                    Ticket.processing_status.in_(("queued", "error")),
+                    Ticket.lease_expires_at.is_not(None),
+                ),
+            )
+            .order_by(priority_rank.asc(), Ticket.created_at.asc(), Ticket.ticket_id.asc())
+        )
+        return list(self._session.scalars(statement))
 
 
 class SqlAlchemyTicketRunRepository(TicketRunRepositoryProtocol):

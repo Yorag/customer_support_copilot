@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import wraps
-from typing import Optional
+from typing import NoReturn, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.core_schema import TicketRoute
-from src.message_log import IngestEmailPayload
+from src.contracts.core import TicketRoute
+from src.tickets.message_log import IngestEmailPayload
 
 from .dependencies import RequestContext, get_container, get_request_context
 from .errors import ApiError
@@ -34,7 +34,6 @@ from .schemas import (
 from .services import (
     CustomerNotFoundError,
     DuplicateRequestError,
-    RunExecutionFailedError,
     RunNotFoundError,
     TicketApiService,
     TicketNotFoundError,
@@ -48,6 +47,38 @@ def get_ticket_api_service(container=Depends(get_container)) -> TicketApiService
     return TicketApiService(container.ticket_store, container=container)
 
 
+def _raise_service_api_error(exc: Exception) -> NoReturn:
+    if isinstance(exc, TicketNotFoundError):
+        raise ApiError(
+            code="not_found",
+            message=str(exc),
+            status_code=404,
+            details={"ticket_id": exc.ticket_id},
+        ) from exc
+    if isinstance(exc, CustomerNotFoundError):
+        raise ApiError(
+            code="not_found",
+            message=str(exc),
+            status_code=404,
+            details={"customer_id": exc.customer_id},
+        ) from exc
+    if isinstance(exc, RunNotFoundError):
+        raise ApiError(
+            code="not_found",
+            message=str(exc),
+            status_code=404,
+            details={"ticket_id": exc.ticket_id, "run_id": exc.run_id},
+        ) from exc
+    if isinstance(exc, DuplicateRequestError):
+        raise ApiError(
+            code="duplicate_request",
+            message=str(exc),
+            status_code=409,
+            details={"idempotency_key": exc.key},
+        ) from exc
+    raise exc
+
+
 def _map_service_errors(func):
     """Decorator that maps common service exceptions to ApiError responses."""
 
@@ -55,20 +86,13 @@ def _map_service_errors(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except TicketNotFoundError as exc:
-            raise ApiError(
-                code="not_found",
-                message=str(exc),
-                status_code=404,
-                details={"ticket_id": exc.ticket_id},
-            ) from exc
-        except DuplicateRequestError as exc:
-            raise ApiError(
-                code="duplicate_request",
-                message=str(exc),
-                status_code=409,
-                details={"idempotency_key": exc.key},
-            ) from exc
+        except (
+            CustomerNotFoundError,
+            DuplicateRequestError,
+            RunNotFoundError,
+            TicketNotFoundError,
+        ) as exc:
+            _raise_service_api_error(exc)
 
     return wrapper
 
@@ -122,23 +146,16 @@ def _validate_metrics_summary_query(
     response_model=IngestEmailResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@_map_service_errors
 def ingest_email(
     request: IngestEmailRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> IngestEmailResponse:
-    try:
-        ticket, created = service.ingest_email(
-            payload=IngestEmailPayload(**request.model_dump()),
-            idempotency_key=context.idempotency_key,
-        )
-    except DuplicateRequestError as exc:
-        raise ApiError(
-            code="duplicate_request",
-            message=str(exc),
-            status_code=409,
-            details={"idempotency_key": exc.key},
-        ) from exc
+    ticket, created = service.ingest_email(
+        payload=IngestEmailPayload(**request.model_dump()),
+        idempotency_key=context.idempotency_key,
+    )
 
     return IngestEmailResponse(
         ticket_id=ticket.ticket_id,
@@ -150,25 +167,27 @@ def ingest_email(
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketSnapshotResponse)
+@_map_service_errors
 def get_ticket(
     ticket_id: str,
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketSnapshotResponse:
-    try:
-        ticket, latest_run, latest_draft = service.get_ticket_snapshot(ticket_id)
-    except TicketNotFoundError as exc:
-        raise ApiError(
-            code="not_found",
-            message=str(exc),
-            status_code=404,
-            details={"ticket_id": exc.ticket_id},
-        ) from exc
+    (
+        ticket,
+        latest_run,
+        claim_projection,
+        evaluation_summary_ref,
+        latest_draft,
+    ) = service.get_ticket_snapshot(ticket_id)
 
     return TicketSnapshotResponse(
         ticket=TicketSummary(
             ticket_id=ticket.ticket_id,
             business_status=ticket.business_status,
             processing_status=ticket.processing_status,
+            claimed_by=claim_projection.claimed_by,
+            claimed_at=claim_projection.claimed_at,
+            lease_until=claim_projection.lease_until,
             priority=ticket.priority,
             primary_route=ticket.primary_route,
             multi_intent=ticket.multi_intent,
@@ -181,6 +200,7 @@ def get_ticket(
                 trace_id=latest_run.trace_id,
                 status=latest_run.status,
                 final_action=latest_run.final_action,
+                evaluation_summary_ref=evaluation_summary_ref.__dict__,
             )
             if latest_run is not None
             else None
@@ -201,48 +221,22 @@ def get_ticket(
     response_model=RunTicketResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
+@_map_service_errors
 def run_ticket(
     ticket_id: str,
     request: RunTicketRequest,
     context: RequestContext = Depends(get_request_context),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> RunTicketResponse:
-    try:
-        result = service.run_ticket(
-            ticket_id=ticket_id,
-            ticket_version=request.ticket_version,
-            trigger_type=request.trigger_type,
-            force_retry=request.force_retry,
-            actor_id=context.actor_id,
-            request_id=context.request_id,
-            idempotency_key=context.idempotency_key,
-        )
-    except TicketNotFoundError as exc:
-        raise ApiError(
-            code="not_found",
-            message=str(exc),
-            status_code=404,
-            details={"ticket_id": exc.ticket_id},
-        ) from exc
-    except DuplicateRequestError as exc:
-        raise ApiError(
-            code="duplicate_request",
-            message=str(exc),
-            status_code=409,
-            details={"idempotency_key": exc.key},
-        ) from exc
-    except RunExecutionFailedError as exc:
-        raise ApiError(
-            code="external_dependency_failed",
-            message="Ticket run failed. Inspect the stored trace for execution details.",
-            status_code=502,
-            details={
-                "ticket_id": exc.ticket.ticket_id,
-                "run_id": exc.run.run_id,
-                "trace_id": exc.run.trace_id,
-            },
-        ) from exc
-
+    result = service.run_ticket(
+        ticket_id=ticket_id,
+        ticket_version=request.ticket_version,
+        trigger_type=request.trigger_type,
+        force_retry=request.force_retry,
+        actor_id=context.actor_id,
+        request_id=context.request_id,
+        idempotency_key=context.idempotency_key,
+    )
     return RunTicketResponse(
         ticket_id=result.ticket.ticket_id,
         run_id=result.run.run_id,
@@ -402,19 +396,12 @@ def close_ticket(
 
 
 @router.get("/customers/{customer_id}/memory", response_model=CustomerMemoryResponse)
+@_map_service_errors
 def get_customer_memory(
     customer_id: str,
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> CustomerMemoryResponse:
-    try:
-        profile = service.get_customer_memory(customer_id)
-    except CustomerNotFoundError as exc:
-        raise ApiError(
-            code="not_found",
-            message=str(exc),
-            status_code=404,
-            details={"customer_id": exc.customer_id},
-        ) from exc
+    profile = service.get_customer_memory(customer_id)
 
     return CustomerMemoryResponse(
         customer_id=profile.customer_id,
@@ -427,27 +414,13 @@ def get_customer_memory(
 
 
 @router.get("/tickets/{ticket_id}/trace", response_model=TicketTraceResponse)
+@_map_service_errors
 def get_ticket_trace(
     ticket_id: str,
     run_id: Optional[str] = Query(default=None),
     service: TicketApiService = Depends(get_ticket_api_service),
 ) -> TicketTraceResponse:
-    try:
-        ticket, run, events = service.get_ticket_trace(ticket_id, run_id=run_id)
-    except TicketNotFoundError as exc:
-        raise ApiError(
-            code="not_found",
-            message=str(exc),
-            status_code=404,
-            details={"ticket_id": exc.ticket_id},
-        ) from exc
-    except RunNotFoundError as exc:
-        raise ApiError(
-            code="not_found",
-            message=str(exc),
-            status_code=404,
-            details={"ticket_id": exc.ticket_id, "run_id": exc.run_id},
-        ) from exc
+    ticket, run, events = service.get_ticket_trace(ticket_id, run_id=run_id)
 
     return TicketTraceResponse(
         ticket_id=ticket.ticket_id,

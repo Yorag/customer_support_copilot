@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.tools.types import PolicyProviderProtocol
+from src.contracts.protocols import PolicyProviderProtocol
 
 
 DEFAULT_POLICY = """
