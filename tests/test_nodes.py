@@ -419,6 +419,52 @@ def test_ticket_execution_nodes_route_knowledge_request_to_gmail_draft(sample_em
         assert state["memory_updates"]["historical_case_ref"]["outcome"] == "draft_created"
 
 
+def test_triage_ticket_updates_routing_fields_without_retriaging_state():
+    triage_output = TriageOutput(
+        primary_route="knowledge_request",
+        secondary_routes=[],
+        tags=[],
+        response_strategy="answer",
+        multi_intent=False,
+        intent_confidence=0.91,
+        priority="medium",
+        needs_clarification=False,
+        needs_escalation=False,
+        routing_reason="Knowledge request.",
+    )
+    payload = {
+        "messageId": "<product-enquiry@test.local>",
+        "sender": '"Customer" <customer@example.com>',
+        "subject": "How do I enable SSO?",
+        "body": "We are on the pro plan. Where do I enable SSO?",
+        "references": None,
+    }
+    with _build_ticket_execution_nodes(payload, triage_output=triage_output) as (
+        nodes,
+        ticket,
+        run,
+        session,
+    ):
+        ticket.business_status = "triaged"
+        session.flush()
+        state = build_ticket_run_state(
+            ticket_id=ticket.ticket_id,
+            business_status="triaged",
+            processing_status=ticket.processing_status,
+            ticket_version=ticket.version,
+            trace_id=run.trace_id,
+            run_id=run.run_id,
+        )
+        state.update(nodes.load_ticket_context(state))
+        state.update(nodes.load_memory(state))
+
+        result = nodes.triage_ticket(state)
+
+        assert result["business_status"] == "triaged"
+        assert result["primary_route"] == "knowledge_request"
+        assert result["routing_reason"] == "Knowledge request."
+
+
 def test_ticket_execution_nodes_route_high_risk_case_to_human_review(sample_email_payload):
     triage_output = TriageOutput(
         primary_route="commercial_policy_request",

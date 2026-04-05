@@ -16,6 +16,7 @@ from src.contracts.core import (
     RunStatus,
     RunTriggerType,
     TicketBusinessStatus,
+    TicketProcessingStatus,
     TicketRoute,
     TraceEventStatus,
     TraceEventType,
@@ -371,6 +372,14 @@ class TicketRunner:
         run: TicketRun,
         worker_id: str,
     ) -> None:
+        if (
+            ticket.current_run_id == run.run_id
+            and ticket.processing_status in {
+                TicketProcessingStatus.WAITING_EXTERNAL.value,
+                TicketProcessingStatus.COMPLETED.value,
+            }
+        ):
+            return
         lease_expires_at = normalize_optional_datetime(ticket.lease_expires_at)
         if (
             ticket.lease_owner != worker_id

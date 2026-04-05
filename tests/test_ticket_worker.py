@@ -6,10 +6,11 @@ import run_worker
 
 from src.bootstrap.container import ServiceContainer
 from src.contracts.core import EntityIdPrefix, generate_prefixed_id
+from src.contracts.core import TicketProcessingStatus
 from src.db.base import Base
 from src.db.models import Ticket, TicketRun, TraceEvent
 from src.db.session import build_engine, create_session_factory, session_scope
-from src.orchestration.checkpointing import build_test_checkpointer
+from src.orchestration.checkpointing import ManagedCheckpointer, build_test_checkpointer
 from src.tickets.state_machine import TicketStateService
 from src.tools.ticket_store import SqlAlchemyTicketStore
 from src.workers.runner import TicketRunner
@@ -276,6 +277,33 @@ def test_worker_claim_next_records_worker_events():
         assert "worker_start_run" in event_names
 
 
+def test_worker_initialization_prewarms_managed_checkpointer() -> None:
+    store = _build_store()
+    events: list[str] = []
+
+    class FakeManagedCheckpointer(ManagedCheckpointer):
+        def __init__(self) -> None:
+            super().__init__(lambda: self)
+
+        def __enter__(self):
+            events.append("get")
+            return object()
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            events.append("exit")
+            self._manager = None
+            self._checkpointer = None
+
+    container = ServiceContainer(
+        ticket_store_factory=lambda: store,
+        checkpointer_factory=lambda: FakeManagedCheckpointer(),
+    )
+
+    TicketWorker(store=store, container=container, worker_id="worker-prewarm")
+
+    assert events == ["get", "exit"]
+
+
 def test_execute_claimed_run_rejects_state_updates_after_lease_loss(monkeypatch):
     store = _build_store()
     checkpointer = build_test_checkpointer()
@@ -369,3 +397,98 @@ def test_execute_claimed_run_rejects_state_updates_after_lease_loss(monkeypatch)
         ]
         assert len(lose_lease_events) == 1
         assert lose_lease_events[0].event_metadata["worker_id"] == "worker-a"
+
+
+def test_execute_claimed_run_allows_terminal_processing_state_without_active_lease(monkeypatch):
+    store = _build_store()
+    checkpointer = build_test_checkpointer()
+    container = ServiceContainer(
+        ticket_store_factory=lambda: store,
+        checkpointer_factory=lambda: checkpointer,
+    )
+    now = datetime.now(timezone.utc)
+
+    class FakeWorkflowApp:
+        def __init__(self) -> None:
+            self.checkpointer = checkpointer
+
+        def stream(self, stream_input, config=None):
+            persisted_ticket = session.get(Ticket, ticket.ticket_id)
+            assert persisted_ticket is not None
+            persisted_ticket.processing_status = TicketProcessingStatus.WAITING_EXTERNAL.value
+            persisted_ticket.lease_owner = None
+            persisted_ticket.lease_expires_at = None
+            yield {"escalate_to_human": {"current_node": "escalate_to_human"}}
+
+    class FakeWorkflow:
+        def __init__(self, **kwargs) -> None:
+            self.app = FakeWorkflowApp()
+            self.checkpointer = checkpointer
+
+    with store.session_scope() as session:
+        ticket = _create_ticket(
+            priority="medium",
+            business_status="awaiting_human_review",
+            processing_status="running",
+            version=4,
+        )
+        run = TicketRun(
+            run_id="run-terminal-no-lease",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            triggered_by="api-user",
+            status="running",
+            started_at=now - timedelta(seconds=5),
+            attempt_index=1,
+        )
+        ticket.current_run_id = run.run_id
+        ticket.lease_owner = "worker-a"
+        ticket.lease_expires_at = now + timedelta(minutes=5)
+        session.add(ticket)
+        session.add(run)
+        session.flush()
+        repositories = store.repositories(session)
+        state_service = TicketStateService(session, repositories=repositories)
+        runner = TicketRunner(
+            session=session,
+            repositories=repositories,
+            container=container,
+            checkpointer=checkpointer,
+        )
+
+        monkeypatch.setattr("src.workers.runner.Workflow", FakeWorkflow)
+        monkeypatch.setattr(
+            runner,
+            "_prepare_checkpoint_context",
+            lambda **kwargs: {"restore_mode": "fresh", "stream_config": {"configurable": {}}},
+        )
+        monkeypatch.setattr(runner, "_build_response_quality", lambda **kwargs: None)
+        monkeypatch.setattr(
+            runner,
+            "_build_trajectory_evaluation",
+            lambda *args, **kwargs: {
+                "score": 5.0,
+                "expected_route": ["triage", "escalate_to_human"],
+                "actual_route": ["triage", "escalate_to_human"],
+                "violations": [],
+            },
+        )
+        monkeypatch.setattr(runner.trace_recorder, "list_run_events", lambda run_id: [])
+        monkeypatch.setattr(runner.trace_recorder, "build_latency_metrics", lambda **kwargs: {})
+        monkeypatch.setattr(runner.trace_recorder, "build_resource_metrics", lambda **kwargs: {})
+        monkeypatch.setattr(runner.trace_recorder, "finalize_run", lambda **kwargs: None)
+
+        result = runner.execute_claimed_run(
+            ticket=ticket,
+            run=run,
+            actor_id="api-user",
+            worker_id="worker-a",
+            state_service=state_service,
+            restore_mode="fresh",
+            renew_interval_seconds=60,
+        )
+        session.flush()
+
+        assert result.run.status == "succeeded"
+        assert result.ticket.processing_status == "waiting_external"

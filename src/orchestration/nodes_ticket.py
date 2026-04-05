@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from colorama import Fore, Style
 
 from src.triage import TriageContext
+from src.tickets.state_machine import TicketStatusUpdate
 
 from .state import GraphState, get_active_email, set_active_email
 from ..contracts.core import (
@@ -149,24 +150,25 @@ class TicketExecutionNodesMixin:
                     "matched_rules": matched_rules,
                 },
             )
-        routed = self._require_state_service().transition_business_status(
+        routed = self._require_state_service().update_ticket_statuses(
             ticket.ticket_id,
-            target_status=TicketBusinessStatus.TRIAGED,
             expected_version=ticket.version,
-            metadata_updates={
-                "primary_route": triage_output["primary_route"],
-                "secondary_routes": triage_output["secondary_routes"],
-                "tags": triage_output["tags"],
-                "priority": triage_output["priority"],
-                "intent_confidence": triage_output["intent_confidence"],
-                "response_strategy": triage_output["response_strategy"],
-                "multi_intent": triage_output["multi_intent"],
-                "needs_clarification": triage_output["needs_clarification"],
-                "needs_escalation": triage_output["needs_escalation"],
-                "routing_reason": triage_output["routing_reason"],
-                "risk_reasons": escalation_reasons,
-            },
-            clear_error=True,
+            update=TicketStatusUpdate(
+                fields={
+                    "primary_route": triage_output["primary_route"],
+                    "secondary_routes": triage_output["secondary_routes"],
+                    "tags": triage_output["tags"],
+                    "priority": triage_output["priority"],
+                    "intent_confidence": triage_output["intent_confidence"],
+                    "response_strategy": triage_output["response_strategy"],
+                    "multi_intent": triage_output["multi_intent"],
+                    "needs_clarification": triage_output["needs_clarification"],
+                    "needs_escalation": triage_output["needs_escalation"],
+                    "routing_reason": triage_output["routing_reason"],
+                    "risk_reasons": escalation_reasons,
+                },
+                clear_error=True,
+            ),
         )
         self._record_node_event(
             ticket=routed,

@@ -14,6 +14,7 @@ from src.contracts.core import (
 )
 from src.contracts.protocols import TicketStoreProtocol
 from src.db.models import Ticket, TicketRun
+from src.orchestration.checkpointing import ManagedCheckpointer
 from src.tickets.state_machine import TicketStateService
 from src.workers.runner import TicketRunner, normalize_optional_datetime
 
@@ -45,6 +46,11 @@ class TicketWorker:
         self._container = container or get_service_container()
         self._worker_id = worker_id
         self._renew_interval_seconds = renew_interval_seconds
+        # Ensure checkpointer setup runs outside the per-run DB transaction.
+        checkpointer = self._container.checkpointer
+        if isinstance(checkpointer, ManagedCheckpointer):
+            checkpointer.get()
+            checkpointer.__exit__(None, None, None)
 
     def _build_runner(self, *, session, repositories) -> TicketRunner:
         return TicketRunner(

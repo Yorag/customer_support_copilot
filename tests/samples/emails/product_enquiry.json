@@ -1,9 +1,9 @@
 {
-  "id": "email_001",
-  "threadId": "thread_001",
-  "messageId": "<message_001@example.com>",
+  "id": "email_product_enquiry_001",
+  "threadId": "thread_product_enquiry_001",
+  "messageId": "<product-enquiry-001@test.local>",
   "references": "",
-  "sender": "customer@example.com",
+  "sender": "\"Customer\" <customer@example.com>",
   "subject": "Pricing question",
-  "body": "Can you explain the pricing options for annual billing?"
+  "body": "How do I configure SSO for my workspace?"
 }
