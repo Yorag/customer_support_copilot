@@ -2,6 +2,7 @@ langchain-core
 langsmith
 langchain_community 
 langgraph 
+langgraph-checkpoint-postgres
 langchain-openai
 langchain_chroma
 chromadb

@@ -78,6 +78,16 @@ class DatabaseSettings:
             f"@{self.host}:{self.port}/{self.name}"
         )
 
+    @property
+    def checkpoint_conn_string(self) -> str:
+        if self.url:
+            if self.url.startswith("postgresql+psycopg://"):
+                return self.url.replace("postgresql+psycopg://", "postgresql://", 1)
+            return self.url
+
+        password_part = f":{self.password}" if self.password else ""
+        return f"postgresql://{self.user}{password_part}@{self.host}:{self.port}/{self.name}"
+
 
 @dataclass(frozen=True)
 class LangSmithSettings:

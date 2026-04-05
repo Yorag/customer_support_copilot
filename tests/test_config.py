@@ -32,6 +32,32 @@ def test_database_dsn_builds_postgres_url_from_parts():
     assert settings.dsn == "postgresql+psycopg://postgres:secret@db.internal:5432/copilot"
 
 
+def test_database_checkpoint_conn_string_strips_sqlalchemy_driver():
+    settings = DatabaseSettings(
+        url="postgresql+psycopg://user:pass@localhost:5432/app",
+        host="localhost",
+        port=5432,
+        name="app",
+        user="user",
+        password="pass",
+    )
+
+    assert settings.checkpoint_conn_string == "postgresql://user:pass@localhost:5432/app"
+
+
+def test_database_checkpoint_conn_string_builds_plain_postgres_url_from_parts():
+    settings = DatabaseSettings(
+        url=None,
+        host="db.internal",
+        port=5432,
+        name="copilot",
+        user="postgres",
+        password="secret",
+    )
+
+    assert settings.checkpoint_conn_string == "postgresql://postgres:secret@db.internal:5432/copilot"
+
+
 def test_llm_settings_support_openai_compatible_configuration():
     settings = LLMSettings(
         api_key="test-key",
