@@ -133,3 +133,17 @@ def test_knowledge_db_default_path_uses_artifacts_directory(monkeypatch):
         assert settings.knowledge.chroma_persist_directory == expected
     finally:
         get_settings.cache_clear()
+
+
+def test_knowledge_source_default_path_uses_customer_support_knowledge_file(monkeypatch):
+    monkeypatch.setenv("KNOWLEDGE_SOURCE_PATH", "")
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+        expected = (
+            settings.project_root / "data" / "customer_support_knowledge_zh.txt"
+        ).resolve()
+        assert settings.knowledge.source_document_path == expected
+    finally:
+        get_settings.cache_clear()

@@ -28,7 +28,7 @@ from src.evaluation import RuleBasedResponseQualityBaseline
 from src.workers.ticket_worker import TicketWorker
 
 
-DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
+DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "evals" / "samples" / "customer_support_eval_zh.jsonl"
 DEFAULT_REPORT_PATH = PROJECT_ROOT / ".artifacts" / "evals" / "real_eval_report.json"
 
 

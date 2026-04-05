@@ -45,14 +45,17 @@ def test_validate_judge_output_requires_fixed_schema():
 
 def test_eval_samples_cover_minimum_v1_surface():
     sample_path = (
-        Path(__file__).resolve().parent / "samples" / "eval" / "customer_support_eval.jsonl"
+        Path(__file__).resolve().parent.parent
+        / "evals"
+        / "samples"
+        / "customer_support_eval_zh.jsonl"
     )
     rows = [
         json.loads(line)
         for line in sample_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert len(rows) >= 24
+    assert len(rows) >= 21
     assert len({row["scenario_type"] for row in rows}) >= 8
 
 

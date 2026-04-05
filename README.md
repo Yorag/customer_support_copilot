@@ -148,6 +148,8 @@ Copy-Item .env.example .env
 - 可选观测：`LANGSMITH_TRACING`、`LANGSMITH_API_KEY`、`LANGSMITH_PROJECT`
 - API：`API_HOST`、`API_PORT`、`CORS_ALLOW_ORIGINS`
 
+默认运行知识源是 `data/customer_support_knowledge_zh.txt`。
+
 如果你只想本地调试 API / worker 而不接真实 Gmail，可以将 `GMAIL_ENABLED=false`；但 worker 和 poller 运行时仍需要 `MY_EMAIL` 与 `LLM_API_KEY`。
 
 ## 安装与初始化
@@ -173,6 +175,8 @@ python scripts/init_db.py
 ```powershell
 python scripts/build_index.py
 ```
+
+默认会从 `data/customer_support_knowledge_zh.txt` 构建本地知识索引。
 
 ### 4. 准备 Gmail OAuth（可选）
 
@@ -279,7 +283,7 @@ python run_poller.py
 
 ```powershell
 python scripts/run_offline_eval.py ^
-  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
+  --samples-path evals/samples/customer_support_eval_zh.jsonl ^
   --report-path .artifacts/evals/offline_eval_report.json
 ```
 
@@ -293,8 +297,9 @@ python scripts/run_offline_eval.py ^
 
 ```powershell
 python scripts/run_real_eval.py ^
-  --samples-path tests/samples/eval/customer_support_eval.jsonl ^
-  --report-path .artifacts/evals/real_eval_report.json
+  --samples-path evals/samples/customer_support_eval_zh.jsonl ^
+  --report-path .artifacts/evals/real_eval_report.json ^
+  --rebuild-index
 ```
 
 可选参数：
@@ -304,7 +309,7 @@ python scripts/run_real_eval.py ^
 - `--knowledge-source-path` / `--knowledge-db-path`：覆盖评测使用的知识源或索引目录
 - `--keep-gmail-enabled`：评测时保留 Gmail 开关，不强制关闭
 
-评测样本默认位于 `tests/samples/eval/customer_support_eval.jsonl`。
+默认评测样本位于 `evals/samples/customer_support_eval_zh.jsonl`。真实评测默认复用运行时知识源配置，也就是 `KNOWLEDGE_SOURCE_PATH` / `KNOWLEDGE_DB_PATH` 指向的真实知识库；只有在需要对比实验时才显式覆盖。
 
 ## 测试
 
@@ -355,5 +360,5 @@ pytest tests/test_offline_eval.py tests/test_real_eval.py -q
 
 - 不要提交 `.env`、`credentials.json`、`token.json`、数据库凭证或真实客户数据
 - `.artifacts/knowledge_db/` 是本地 Chroma 索引目录，不是关系型数据库 schema 目录
-- `.artifacts/evals/` 是默认评测输出目录；`tests/samples/eval/` 只保留输入样本
+- `.artifacts/evals/` 是默认评测输出目录；`evals/` 存放评测样本、评测知识源和基线报告
 - 如果改动知识源或 embedding 配置，请明确说明是否需要重建本地索引

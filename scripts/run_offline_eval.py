@@ -30,7 +30,7 @@ from src.tools.ticket_store import SqlAlchemyTicketStore
 from src.triage import TriageContext, TriageDecision, TriageDecisionService
 
 
-DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
+DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "evals" / "samples" / "customer_support_eval_zh.jsonl"
 DEFAULT_REPORT_PATH = PROJECT_ROOT / ".artifacts" / "evals" / "offline_eval_report.json"
 
 

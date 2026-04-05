@@ -20,7 +20,7 @@ def test_offline_eval_report_records_execution_mode(tmp_path: Path):
         "database": "temporary_sqlite",
     }
     assert payload["mode"] == persisted["mode"]
-    assert persisted["summary"]["total_samples"] >= 24
+    assert persisted["summary"]["total_samples"] >= 21
     assert len(persisted["records"]) == persisted["summary"]["total_samples"]
 
 

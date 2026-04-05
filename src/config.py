@@ -218,7 +218,7 @@ def get_settings() -> Settings:
         knowledge=KnowledgeSettings(
             source_document_path=_resolve_path(
                 _clean_env_value("KNOWLEDGE_SOURCE_PATH"),
-                PROJECT_ROOT / "data" / "agency.txt",
+                PROJECT_ROOT / "data" / "customer_support_knowledge_zh.txt",
             ),
             chroma_persist_directory=_resolve_path(
                 _clean_env_value("KNOWLEDGE_DB_PATH"),

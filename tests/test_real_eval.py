@@ -90,7 +90,7 @@ def test_run_real_eval_drives_local_worker_before_fetching_trace(monkeypatch, tm
                     (),
                     {
                         "chroma_persist_directory": tmp_path / "db",
-                        "source_document_path": tmp_path / "agency.txt",
+                        "source_document_path": tmp_path / "customer_support_knowledge_zh.txt",
                     },
                 )(),
                 "llm": type("Llm", (), {"chat_model": "test-model"})(),
