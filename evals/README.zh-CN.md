@@ -21,9 +21,9 @@
 ```bash
 python scripts/run_real_eval.py ^
   --samples-path evals/samples/customer_support_eval_zh.jsonl ^
-  --report-path evals/reports/customer_support_eval_zh_report.json ^
+  --report-path .artifacts/evals/customer_support_eval_zh_report.json ^
   --knowledge-source-path evals/knowledge/customer_support_eval_zh.txt ^
-  --knowledge-db-path evals/knowledge_db_zh ^
+  --knowledge-db-path .artifacts/evals/knowledge_db_zh ^
   --rebuild-index
 ```
 

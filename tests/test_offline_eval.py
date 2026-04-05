@@ -7,7 +7,7 @@ from scripts.run_offline_eval import build_report, main
 
 
 def test_offline_eval_report_records_execution_mode(tmp_path: Path):
-    report_path = tmp_path / "eval_report.json"
+    report_path = tmp_path / "nested" / "eval_report.json"
 
     payload = main(report_path=report_path, use_real_llm=False)
 

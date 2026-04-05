@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.config import get_settings
 from src.config import DatabaseSettings, EmbeddingSettings, LLMSettings
 
@@ -117,5 +119,17 @@ def test_judge_settings_default_to_chat_model(monkeypatch):
         settings = get_settings()
         assert settings.llm.judge_model == "test-chat-model"
         assert settings.llm.judge_timeout_seconds == 45
+    finally:
+        get_settings.cache_clear()
+
+
+def test_knowledge_db_default_path_uses_artifacts_directory(monkeypatch):
+    monkeypatch.setenv("KNOWLEDGE_DB_PATH", "")
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+        expected = (settings.project_root / ".artifacts" / "knowledge_db").resolve()
+        assert settings.knowledge.chroma_persist_directory == expected
     finally:
         get_settings.cache_clear()

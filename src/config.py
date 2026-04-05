@@ -222,7 +222,7 @@ def get_settings() -> Settings:
             ),
             chroma_persist_directory=_resolve_path(
                 _clean_env_value("KNOWLEDGE_DB_PATH"),
-                PROJECT_ROOT / "db",
+                PROJECT_ROOT / ".artifacts" / "knowledge_db",
             ),
             retriever_k=_get_int_env("KNOWLEDGE_RETRIEVER_K", 3),
         ),

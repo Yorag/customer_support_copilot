@@ -12,7 +12,7 @@ This repository now uses a modular package layout under `src/`. Prefer updating 
 - `src/tools/` contains Gmail, policy-provider, null-client, and ticket-store adapters.
 - `tests/` contains the pytest suite.
 - `docs/` and `docs/specs/` contain design notes and implementation specs.
-- `evals/` and `tests/samples/eval/` contain evaluation docs, fixtures, and reports.
+- `evals/` contains evaluation docs, fixtures, and baseline assets; `.artifacts/evals/` stores local evaluation outputs.
 
 ## Build, Test, and Development Commands
 Use Python 3.10+ in a virtual environment.
@@ -26,8 +26,8 @@ Use Python 3.10+ in a virtual environment.
 - `python run_worker.py` starts the worker loop.
 - `python run_worker.py --once` processes at most one queued run.
 - `python run_poller.py` runs one Gmail poller batch.
-- `python scripts/run_offline_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path tests/samples/eval/customer_support_eval_report.json` runs isolated evaluation.
-- `python scripts/run_real_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path evals/customer_support_real_eval_report.json` runs real-environment HTTP evaluation.
+- `python scripts/run_offline_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path .artifacts/evals/offline_eval_report.json` runs isolated evaluation.
+- `python scripts/run_real_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path .artifacts/evals/real_eval_report.json` runs real-environment HTTP evaluation.
 - `pytest -q` runs the test suite.
 
 Operational note: `POST /tickets/{ticket_id}/run` is enqueue-only. A worker must be running to execute queued runs.
@@ -69,5 +69,5 @@ PRs should include:
 - Index building requires embedding configuration such as `EMBEDDING_API_URL` and `EMBEDDING_MODEL`.
 - Database configuration can come from `DATABASE_URL` or the `POSTGRES_*` variables.
 - `LANGSMITH_*` settings are optional.
-- Treat `db/` as local Chroma state unless a change explicitly requires rebuilding or replacing the knowledge index.
+- Treat `.artifacts/knowledge_db/` as local Chroma state unless a change explicitly requires rebuilding or replacing the knowledge index.
 - Prefer `GMAIL_ENABLED=false` for local API or test work that does not need live Gmail access.

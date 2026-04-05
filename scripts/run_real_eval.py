@@ -29,7 +29,7 @@ from src.workers.ticket_worker import TicketWorker
 
 
 DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
-DEFAULT_REPORT_PATH = PROJECT_ROOT / "evals" / "customer_support_real_eval_report.json"
+DEFAULT_REPORT_PATH = PROJECT_ROOT / ".artifacts" / "evals" / "real_eval_report.json"
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:

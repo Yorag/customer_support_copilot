@@ -151,7 +151,7 @@ pytest -q tests/test_api_contract.py
 
 当前最适合展示的失败案例来源是：
 
-1. [tests/samples/eval/customer_support_eval_report.json](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/tests/samples/eval/customer_support_eval_report.json)
+1. [customer_support_eval_report.json](/C:/Users/lkw/Desktop/github/agent-project/langgraph-email-automation/evals/baselines/customer_support_eval_report.json)
 
 运行方式：
 

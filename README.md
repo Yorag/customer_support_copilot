@@ -85,9 +85,9 @@ langgraph-email-automation/
 │   └── workers/                 # worker loop 与 run 执行
 ├── tests/                       # pytest 测试套件
 ├── docs/                        # 设计文档、规格、演示说明
-├── evals/                       # 评测说明与输出目录
+├── evals/                       # 评测说明、样本与基线资产
 ├── data/                        # 知识源文档
-└── db/                          # 本地 Chroma persist 目录
+└── .artifacts/                  # 本地知识索引、评测报告等运行产物
 ```
 
 ## 运行入口
@@ -280,7 +280,7 @@ python run_poller.py
 ```powershell
 python scripts/run_offline_eval.py ^
   --samples-path tests/samples/eval/customer_support_eval.jsonl ^
-  --report-path tests/samples/eval/customer_support_eval_report.json
+  --report-path .artifacts/evals/offline_eval_report.json
 ```
 
 特点：
@@ -294,7 +294,7 @@ python scripts/run_offline_eval.py ^
 ```powershell
 python scripts/run_real_eval.py ^
   --samples-path tests/samples/eval/customer_support_eval.jsonl ^
-  --report-path evals/customer_support_real_eval_report.json
+  --report-path .artifacts/evals/real_eval_report.json
 ```
 
 可选参数：
@@ -354,5 +354,6 @@ pytest tests/test_offline_eval.py tests/test_real_eval.py -q
 ## 安全说明
 
 - 不要提交 `.env`、`credentials.json`、`token.json`、数据库凭证或真实客户数据
-- `db/` 是本地 Chroma 索引目录，不是关系型数据库 schema 目录
+- `.artifacts/knowledge_db/` 是本地 Chroma 索引目录，不是关系型数据库 schema 目录
+- `.artifacts/evals/` 是默认评测输出目录；`tests/samples/eval/` 只保留输入样本
 - 如果改动知识源或 embedding 配置，请明确说明是否需要重建本地索引

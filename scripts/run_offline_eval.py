@@ -31,7 +31,7 @@ from src.triage import TriageContext, TriageDecision, TriageDecisionService
 
 
 DEFAULT_SAMPLES_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval.jsonl"
-DEFAULT_REPORT_PATH = PROJECT_ROOT / "tests" / "samples" / "eval" / "customer_support_eval_report.json"
+DEFAULT_REPORT_PATH = PROJECT_ROOT / ".artifacts" / "evals" / "offline_eval_report.json"
 
 
 class FakeEvalGmailClient:
@@ -424,6 +424,7 @@ def main(
         "records": records,
         "summary": report,
     }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return payload
 
