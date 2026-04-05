@@ -143,6 +143,7 @@ def test_run_real_eval_drives_local_worker_before_fetching_trace(monkeypatch, tm
     )
 
     snapshot_calls = 0
+    seen_sender_email_raw: list[str] = []
 
     class FakeResponse:
         def __init__(self, status_code: int, payload: dict) -> None:
@@ -159,6 +160,7 @@ def test_run_real_eval_drives_local_worker_before_fetching_trace(monkeypatch, tm
     class FakeSession:
         def post(self, url: str, json: dict, headers=None, timeout: int = 0):
             if url.endswith("/tickets/ingest-email"):
+                seen_sender_email_raw.append(json["sender_email_raw"])
                 return FakeResponse(200, {"ticket_id": "ticket-1", "version": 1})
             if url.endswith("/tickets/ticket-1/run"):
                 return FakeResponse(202, {"run_id": "run-1", "trace_id": "trace-1"})
@@ -240,5 +242,6 @@ def test_run_real_eval_drives_local_worker_before_fetching_trace(monkeypatch, tm
     )
 
     assert worker_runner.calls >= 1
+    assert seen_sender_email_raw == ['"Real Eval User" <real-eval+sample-1@example.com>']
     assert payload["records"][0]["trace_id"] == "trace-1"
     assert payload["records"][0]["primary_route"] == "knowledge_request"

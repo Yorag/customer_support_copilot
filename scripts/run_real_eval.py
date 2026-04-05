@@ -171,9 +171,11 @@ def _write_report(
 
 def _clear_runtime_caches() -> None:
     from src.config import get_settings
+    from src.prompts.loader import load_prompt_template
 
     get_settings.cache_clear()
     get_service_container.cache_clear()
+    load_prompt_template.cache_clear()
 
 
 def _apply_runtime_overrides(
@@ -203,6 +205,35 @@ def _backup_existing_index(index_path: Path) -> Path | None:
 
 def _ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _reset_eval_customer_memory(samples: list[dict[str, Any]]) -> None:
+    """Delete customer memory profiles created by previous eval runs so that
+    stale business flags (e.g. ``requires_manual_approval``) do not pollute the
+    next evaluation."""
+    from src.contracts.core import build_customer_identity
+    from src.db.models import CustomerMemoryEvent, CustomerMemoryProfile
+    from src.db.session import session_scope
+
+    eval_customer_ids: set[str] = set()
+    for sample in samples:
+        email_raw = f"real-eval+{sample['sample_id']}@example.com"
+        identity = build_customer_identity(email_raw)
+        if identity is not None:
+            eval_customer_ids.add(identity.customer_id)
+
+    if not eval_customer_ids:
+        return
+
+    with session_scope() as session:
+        for cid in eval_customer_ids:
+            session.query(CustomerMemoryEvent).filter(
+                CustomerMemoryEvent.customer_id == cid,
+            ).delete(synchronize_session=False)
+            session.query(CustomerMemoryProfile).filter(
+                CustomerMemoryProfile.customer_id == cid,
+            ).delete(synchronize_session=False)
+        print(f"[real-eval] Reset customer memory for {len(eval_customer_ids)} eval identities.")
 
 
 class LocalApiServer:
@@ -408,6 +439,9 @@ def run_real_eval(
         knowledge_db_path=knowledge_db_path,
     )
 
+    samples = load_jsonl(samples_path)
+    _reset_eval_customer_memory(samples)
+
     settings = get_settings()
     active_knowledge_db_path = settings.knowledge.chroma_persist_directory
     active_knowledge_source_path = settings.knowledge.source_document_path
@@ -422,7 +456,6 @@ def run_real_eval(
         active_knowledge_source_path = settings.knowledge.source_document_path
 
     records: list[dict[str, Any]] = []
-    samples = load_jsonl(samples_path)
     total_samples = len(samples)
     eval_run_id = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_" + uuid4().hex[:8]
 
@@ -430,6 +463,7 @@ def run_real_eval(
         session = requests.Session()
 
         for index, sample in enumerate(samples, start=1):
+            eval_sender_email = f"real-eval+{sample['sample_id']}@example.com"
             print(f"[real-eval] {index}/{total_samples} {sample['sample_id']} ingest")
             ingest_response = session.post(
                 f"{base_url}/tickets/ingest-email",
@@ -437,7 +471,7 @@ def run_real_eval(
                     "source_channel": "gmail",
                     "source_thread_id": f"real-eval-thread-{eval_run_id}-{sample['sample_id']}",
                     "source_message_id": f"<{sample['sample_id']}.{eval_run_id}@real-eval.local>",
-                    "sender_email_raw": '"Real Eval User" <real-eval@example.com>',
+                    "sender_email_raw": f'"Real Eval User" <{eval_sender_email}>',
                     "subject": sample["email_subject"],
                     "body_text": sample["email_body"],
                     "message_timestamp": f"2026-04-02T10:{index:02d}:00+08:00",
