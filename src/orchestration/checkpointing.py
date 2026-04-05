@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src.config import get_settings
@@ -13,10 +14,11 @@ class CheckpointConfigurationError(RuntimeError):
     """Raised when the configured LangGraph checkpointer cannot be created."""
 
 
-class CheckpointNamespaceAdapter:
+class CheckpointNamespaceAdapter(BaseCheckpointSaver):
     """Preserve checkpoint_ns across LangGraph saver operations."""
 
     def __init__(self, saver: Any) -> None:
+        super().__init__()
         self._saver = saver
 
     def get(self, config: dict[str, Any]) -> Any:
@@ -150,14 +152,14 @@ class CheckpointIdentity:
 
 
 class ManagedCheckpointer(AbstractContextManager):
-    def __init__(self, factory_cm) -> None:
-        self._factory_cm = factory_cm
+    def __init__(self, factory: Callable[[], AbstractContextManager[Any]]) -> None:
+        self._factory = factory
         self._manager = None
         self._checkpointer = None
 
     def get(self) -> Any:
         if self._checkpointer is None:
-            self._manager = self._factory_cm
+            self._manager = self._factory()
             self._checkpointer = CheckpointNamespaceAdapter(self._manager.__enter__())
         return self._checkpointer
 
@@ -203,11 +205,13 @@ def build_default_checkpointer() -> ManagedCheckpointer:
         ) from exc
 
     try:
-        saver_cm = PostgresSaver.from_conn_string(settings.database.dsn)
+        saver_factory = lambda: PostgresSaver.from_conn_string(  # noqa: E731
+            settings.database.checkpoint_conn_string
+        )
 
         class _PostgresManagedCheckpointer(ManagedCheckpointer):
-            def __init__(self, factory_cm) -> None:
-                super().__init__(factory_cm)
+            def __init__(self, factory) -> None:
+                super().__init__(factory)
                 self._is_setup_complete = False
 
             def get(self) -> Any:
@@ -218,7 +222,7 @@ def build_default_checkpointer() -> ManagedCheckpointer:
                     self._is_setup_complete = True
                 return checkpointer
 
-        return _PostgresManagedCheckpointer(saver_cm)
+        return _PostgresManagedCheckpointer(saver_factory)
     except Exception as exc:  # pragma: no cover
         raise CheckpointConfigurationError(
             "Failed to create the Postgres-backed LangGraph checkpointer."

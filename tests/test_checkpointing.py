@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import builtins
+from types import SimpleNamespace
+
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src.orchestration.checkpointing import (
+    CheckpointConfigurationError,
     CheckpointIdentity,
     CheckpointNamespaceAdapter,
     build_checkpoint_config,
@@ -53,8 +57,27 @@ def test_build_test_checkpointer_returns_in_memory_saver() -> None:
     assert isinstance(saver._saver, InMemorySaver)
 
 
+def test_build_default_checkpointer_requires_postgres_package(monkeypatch) -> None:
+    real_import = builtins.__import__
+
+    def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "langgraph.checkpoint.postgres":
+            raise ModuleNotFoundError("No module named 'langgraph.checkpoint.postgres'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+    try:
+        build_default_checkpointer()
+    except CheckpointConfigurationError as exc:
+        assert "langgraph-checkpoint-postgres" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("Expected missing Postgres saver dependency to fail.")
+
+
 def test_build_default_checkpointer_runs_setup_on_first_get(monkeypatch) -> None:
     setup_calls: list[str] = []
+    conn_strings: list[str] = []
 
     class FakeSaver:
         def setup(self) -> None:
@@ -62,7 +85,9 @@ def test_build_default_checkpointer_runs_setup_on_first_get(monkeypatch) -> None
 
     class FakePostgresSaver:
         @staticmethod
-        def from_conn_string(_dsn: str):
+        def from_conn_string(dsn: str):
+            conn_strings.append(dsn)
+
             class _Manager:
                 def __enter__(self):
                     return FakeSaver()
@@ -77,6 +102,14 @@ def test_build_default_checkpointer_runs_setup_on_first_get(monkeypatch) -> None
         "langgraph.checkpoint.postgres",
         type("_FakeModule", (), {"PostgresSaver": FakePostgresSaver})(),
     )
+    monkeypatch.setattr(
+        "src.orchestration.checkpointing.get_settings",
+        lambda: SimpleNamespace(
+            database=SimpleNamespace(
+                checkpoint_conn_string="postgresql://postgres@localhost:5432/customer_support_copilot"
+            )
+        ),
+    )
 
     managed = build_default_checkpointer()
     first = managed.get()
@@ -84,7 +117,54 @@ def test_build_default_checkpointer_runs_setup_on_first_get(monkeypatch) -> None
 
     assert isinstance(first, CheckpointNamespaceAdapter)
     assert first is second
+    assert conn_strings == ["postgresql://postgres@localhost:5432/customer_support_copilot"]
     assert setup_calls == ["setup"]
+
+
+def test_managed_checkpointer_recreates_postgres_context_after_exit(monkeypatch) -> None:
+    entered: list[str] = []
+
+    class FakeSaver:
+        def setup(self) -> None:
+            return None
+
+    class FakePostgresSaver:
+        @staticmethod
+        def from_conn_string(_dsn: str):
+            class _Manager:
+                def __enter__(self):
+                    entered.append("enter")
+                    return FakeSaver()
+
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    entered.append("exit")
+                    return None
+
+            return _Manager()
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "langgraph.checkpoint.postgres",
+        type("_FakeModule", (), {"PostgresSaver": FakePostgresSaver})(),
+    )
+    monkeypatch.setattr(
+        "src.orchestration.checkpointing.get_settings",
+        lambda: SimpleNamespace(
+            database=SimpleNamespace(
+                checkpoint_conn_string="postgresql://postgres@localhost:5432/customer_support_copilot"
+            )
+        ),
+    )
+
+    managed = build_default_checkpointer()
+    first = managed.get()
+    managed.__exit__(None, None, None)
+    second = managed.get()
+
+    assert isinstance(first, CheckpointNamespaceAdapter)
+    assert isinstance(second, CheckpointNamespaceAdapter)
+    assert first is not second
+    assert entered == ["enter", "exit", "enter"]
 
 
 def test_workflow_compiles_with_provided_checkpointer() -> None:
