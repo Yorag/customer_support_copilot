@@ -88,6 +88,7 @@ class GraphState(TypedDict, total=False):
     retrieval_results: list[dict[str, Any]]
     citations: list[dict[str, Any]]
     knowledge_confidence: Optional[float]
+    retrieval_hit: bool
     policy_notes: str
     allowed_actions: list[str]
     disallowed_actions: list[str]
@@ -155,6 +156,7 @@ def build_initial_graph_state() -> GraphState:
         "retrieval_results": [],
         "citations": [],
         "knowledge_confidence": None,
+        "retrieval_hit": True,
         "policy_notes": "",
         "allowed_actions": [],
         "disallowed_actions": [],

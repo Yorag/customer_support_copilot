@@ -224,6 +224,10 @@ class KnowledgePolicyOutput(BaseModel):
         ...,
         description="Condensed policy guidance relevant to the case.",
     )
+    retrieval_hit: bool = Field(
+        default=True,
+        description="Whether RAG returned substantive evidence. False means all answers were empty or 'I don't know'.",
+    )
 
 
 class DraftingOutput(BaseModel):

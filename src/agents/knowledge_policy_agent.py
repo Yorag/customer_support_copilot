@@ -153,7 +153,9 @@ class KnowledgePolicyAgentMixin:
         knowledge_confidence: float | None = None,
         needs_escalation: bool = False,
     ) -> KnowledgePolicyOutput:
-        answers = knowledge_answers or []
+        raw_answers = knowledge_answers or []
+        answers = _filter_substantive_answers(raw_answers)
+        retrieval_hit = len(answers) > 0
         if primary_route == "knowledge_request":
             allowed_actions = ["answer_question"]
             disallowed_actions = ["promise_refund", "invent_features"]
@@ -224,6 +226,7 @@ class KnowledgePolicyAgentMixin:
             allowed_actions=allowed_actions,
             disallowed_actions=disallowed_actions,
             policy_notes=policy_notes or "No additional policy constraints.",
+            retrieval_hit=retrieval_hit,
         )
 
     def _merge_knowledge_policy_outputs(
@@ -264,6 +267,7 @@ class KnowledgePolicyAgentMixin:
             allowed_actions=allowed_actions,
             disallowed_actions=disallowed_actions,
             policy_notes=llm_output.policy_notes.strip() or deterministic_output.policy_notes,
+            retrieval_hit=deterministic_output.retrieval_hit,
         )
 
 
@@ -279,6 +283,34 @@ def _merge_unique_strings(*sequences: list[str]) -> list[str]:
             if normalized and normalized not in merged:
                 merged.append(normalized)
     return merged
+
+
+_NO_KNOWLEDGE_PATTERNS = (
+    "i don't know",
+    "i do not know",
+    "no relevant information",
+    "unable to determine",
+    "not enough information",
+)
+
+
+def _filter_substantive_answers(
+    answers: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Return only answers that contain substantive content.
+
+    RAG may return answers like "I don't know." when the vector store has no
+    matching chunks.  These should not count as successful retrieval hits.
+    """
+    substantive: list[dict[str, str]] = []
+    for item in answers:
+        answer_text = (item.get("answer") or "").strip().lower()
+        if not answer_text:
+            continue
+        if any(pattern in answer_text for pattern in _NO_KNOWLEDGE_PATTERNS):
+            continue
+        substantive.append(item)
+    return substantive
 
 
 __all__ = [

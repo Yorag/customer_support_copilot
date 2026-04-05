@@ -27,6 +27,7 @@ class QaHandoffAgentMixin:
         needs_escalation: bool,
         rewrite_count: int,
         policy_notes: str,
+        retrieval_hit: bool = True,
     ) -> QaHandoffOutput:
         return self.qa_handoff_agent_detailed(
             primary_route=primary_route,
@@ -35,6 +36,7 @@ class QaHandoffAgentMixin:
             needs_escalation=needs_escalation,
             rewrite_count=rewrite_count,
             policy_notes=policy_notes,
+            retrieval_hit=retrieval_hit,
         ).output
 
     def qa_handoff_agent_detailed(
@@ -46,6 +48,7 @@ class QaHandoffAgentMixin:
         needs_escalation: bool,
         rewrite_count: int,
         policy_notes: str,
+        retrieval_hit: bool = True,
     ) -> QaHandoffAgentResult:
         deterministic_output = self._build_deterministic_qa_handoff_output(
             primary_route=primary_route,
@@ -54,6 +57,7 @@ class QaHandoffAgentMixin:
             needs_escalation=needs_escalation,
             rewrite_count=rewrite_count,
             policy_notes=policy_notes,
+            retrieval_hit=retrieval_hit,
         )
         try:
             llm_invocation = self.invoke_qa_handoff_agent(
@@ -129,6 +133,7 @@ class QaHandoffAgentMixin:
         needs_escalation: bool,
         rewrite_count: int,
         policy_notes: str,
+        retrieval_hit: bool = True,
     ) -> QaHandoffOutput:
         quality_scores = {
             "relevance": 4.2,
@@ -154,7 +159,7 @@ class QaHandoffAgentMixin:
                 ),
             )
 
-        if knowledge_confidence < 0.6 and primary_route != "unrelated":
+        if knowledge_confidence < 0.6 and retrieval_hit and primary_route != "unrelated":
             return QaHandoffOutput(
                 approved=False,
                 issues=["knowledge_evidence_insufficient"],
@@ -166,6 +171,24 @@ class QaHandoffAgentMixin:
                     f"Route={primary_route}; insufficient evidence for a safe "
                     "automated response."
                 ),
+            )
+
+        if knowledge_confidence < 0.6 and not retrieval_hit and primary_route != "unrelated":
+            return QaHandoffOutput(
+                approved=False,
+                issues=["knowledge_retrieval_miss"],
+                rewrite_guidance=[
+                    "No matching knowledge was retrieved. Draft a conservative "
+                    "response that acknowledges the question, states the known "
+                    "boundary clearly, and avoids fabricating capabilities.",
+                ],
+                quality_scores=quality_scores,
+                escalate=False,
+                reason=(
+                    "RAG returned no substantive evidence. Allow one rewrite "
+                    "with conservative guidance instead of immediate escalation."
+                ),
+                human_handoff_summary=None,
             )
 
         if rewrite_count >= 3:

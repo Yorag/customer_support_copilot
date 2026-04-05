@@ -233,6 +233,7 @@ class FakeAgents:
         needs_escalation,
         rewrite_count,
         policy_notes,
+        retrieval_hit=True,
     ):
         return SimpleNamespace(
             output=self.qa_handoff_agent(

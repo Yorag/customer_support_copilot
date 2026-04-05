@@ -301,6 +301,7 @@ class TicketExecutionNodesMixin:
             ],
             "citations": payload["citations"],
             "knowledge_confidence": payload["knowledge_confidence"],
+            "retrieval_hit": payload.get("retrieval_hit", True),
             "policy_notes": payload["policy_notes"],
             "allowed_actions": payload["allowed_actions"],
             "disallowed_actions": payload["disallowed_actions"],
@@ -547,6 +548,7 @@ class TicketExecutionNodesMixin:
             needs_escalation=bool(state.get("needs_escalation", False)),
             rewrite_count=int(state.get("rewrite_count", 0)),
             policy_notes=state.get("policy_notes", ""),
+            retrieval_hit=bool(state.get("retrieval_hit", True)),
         )
         if agent_result.llm_invocation is not None:
             self._record_llm_invocation(
