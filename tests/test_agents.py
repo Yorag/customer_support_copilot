@@ -344,3 +344,24 @@ def test_agents_qa_handoff_role_escalates_when_risk_requires_manual_review(monke
     assert result.approved is False
     assert result.escalate is True
     assert result.human_handoff_summary is not None
+
+
+def test_agents_qa_handoff_role_keeps_second_rewrite_as_rewrite_not_escalation(monkeypatch):
+    monkeypatch.setattr(
+        "src.agents.LlmRuntime",
+        lambda temperature=0.1: FakeRuntime(failure=RuntimeError("llm unavailable")),
+    )
+    agents = Agents()
+
+    result = agents.qa_handoff_agent(
+        primary_route="knowledge_request",
+        draft_text="Too short",
+        knowledge_confidence=0.9,
+        needs_escalation=False,
+        rewrite_count=2,
+        policy_notes="No special policy constraints.",
+    )
+
+    assert result.approved is False
+    assert result.escalate is False
+    assert "draft_too_short" in result.issues

@@ -168,7 +168,7 @@ class QaHandoffAgentMixin:
                 ),
             )
 
-        if rewrite_count >= 2:
+        if rewrite_count >= 3:
             return QaHandoffOutput(
                 approved=False,
                 issues=["qa_retry_limit_reached"],

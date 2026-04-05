@@ -59,7 +59,7 @@ class TriageOutput(BaseModel):
         description="The drafting strategy implied by the selected primary route.",
     )
     multi_intent: bool = Field(
-        ...,
+        default=False,
         description="Whether the email contains multiple distinct support intents.",
     )
     intent_confidence: float = Field(
