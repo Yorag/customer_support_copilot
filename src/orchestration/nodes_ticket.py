@@ -616,6 +616,13 @@ class TicketExecutionNodesMixin:
             return "customer_history_lookup"
         return "draft_reply"
 
+    def route_after_policy_check(self, state: GraphState) -> str:
+        if state.get("primary_route") == "commercial_policy_request":
+            return "customer_history_lookup"
+        if state.get("needs_escalation"):
+            return "escalate_to_human"
+        return "draft_reply"
+
     def route_after_customer_history(self, state: GraphState) -> str:
         profile = state.get("customer_profile") or {}
         business_flags = profile.get("business_flags", {}) if isinstance(profile, Mapping) else {}

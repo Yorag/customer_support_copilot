@@ -63,12 +63,16 @@ When multiple routes apply, choose the primary route in this order:
 
 # **Clarification Rule for Technical Issues:**
 
-Set `needs_clarification = true` when any required diagnostic detail is missing:
+Set `needs_clarification = true` ONLY when the email is too vague to begin any troubleshooting. If the customer has described a concrete scenario (what they did, what went wrong, and in what context), set `needs_clarification = false` even if some low-level details (exact error codes, stack traces, OS version, etc.) are absent — those can be requested during troubleshooting.
 
-1. reproduction steps
-2. actual error or failure symptom
-3. expected vs actual result difference
-4. environment, account, tenant, or project context
+Set `needs_clarification = false` when:
+- The customer describes what they were doing and what went wrong (even without formal "steps to reproduce")
+- The failure symptom is clear (e.g., "stuck", "hung", "no output", "error on page") even without an exact error code
+- The customer mentions the project, product area, or feature involved
+
+Set `needs_clarification = true` only when:
+- The email is essentially "it doesn't work" with no context about what, where, or when
+- You genuinely cannot determine what the customer was attempting to do
 
 # **Escalation Triggers:**
 

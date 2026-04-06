@@ -42,7 +42,7 @@ COLLECT_CASE_CONTEXT_SOURCES: tuple[str, ...] = (
 CONDITIONAL_EDGES: tuple[tuple[str, str, dict[str, str]], ...] = (
     ("triage", "route_ticket", TRIAGE_ROUTE_MAP),
     ("knowledge_lookup", "route_after_knowledge", POST_KNOWLEDGE_ROUTE_MAP),
-    ("policy_check", "route_after_knowledge", POST_KNOWLEDGE_ROUTE_MAP),
+    ("policy_check", "route_after_policy_check", POST_KNOWLEDGE_ROUTE_MAP),
     (
         "customer_history_lookup",
         "route_after_customer_history",

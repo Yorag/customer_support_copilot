@@ -220,6 +220,9 @@ def test_workflow_compiles_with_provided_checkpointer() -> None:
         def route_after_knowledge(self, state):
             return "draft_reply"
 
+        def route_after_policy_check(self, state):
+            return "customer_history_lookup"
+
         def route_after_customer_history(self, state):
             return "draft_reply"
 
@@ -285,6 +288,9 @@ def test_checkpoint_namespace_adapter_preserves_checkpoint_ns_on_put_roundtrip()
 
         def route_after_knowledge(self, state):
             return "draft_reply"
+
+        def route_after_policy_check(self, state):
+            return "customer_history_lookup"
 
         def route_after_customer_history(self, state):
             return "draft_reply"

@@ -70,6 +70,9 @@ class _MinimalNodeSet:
     def route_after_knowledge(self, state):
         return "draft_reply"
 
+    def route_after_policy_check(self, state):
+        return "customer_history_lookup"
+
     def route_after_customer_history(self, state):
         return "draft_reply"
 

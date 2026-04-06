@@ -159,7 +159,7 @@ class QaHandoffAgentMixin:
                 ),
             )
 
-        if knowledge_confidence < 0.6 and retrieval_hit and primary_route != "unrelated":
+        if knowledge_confidence < 0.6 and retrieval_hit and primary_route not in ("unrelated", "feedback_intake"):
             return QaHandoffOutput(
                 approved=False,
                 issues=["knowledge_evidence_insufficient"],
@@ -173,7 +173,7 @@ class QaHandoffAgentMixin:
                 ),
             )
 
-        if knowledge_confidence < 0.6 and not retrieval_hit and primary_route != "unrelated":
+        if knowledge_confidence < 0.6 and not retrieval_hit and primary_route not in ("unrelated", "feedback_intake"):
             if rewrite_count >= 1:
                 return QaHandoffOutput(
                     approved=True,
