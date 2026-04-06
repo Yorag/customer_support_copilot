@@ -24,7 +24,9 @@ class TriageDecision:
     matched_rules: tuple[str, ...]
     priority_reasons: tuple[str, ...]
     escalation_reasons: tuple[str, ...]
-    clarification_reasons: tuple[str, ...]
+    hard_escalation_reasons: tuple[str, ...] = ()
+    soft_escalation_reasons: tuple[str, ...] = ()
+    clarification_reasons: tuple[str, ...]  = ()
     llm_invocation: LlmInvocationResult | None = None
 
 

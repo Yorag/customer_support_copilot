@@ -14,7 +14,7 @@ Quality score guidance:
 2. Use a 1.0 to 5.0 scale.
 
 Requirements:
-1. If `needs_escalation=true`, escalation is strongly preferred.
+1. If `triage_escalation_flag=true`, escalation is strongly preferred.
 2. If knowledge confidence is low, be conservative.
 3. If the draft is unsafe, unsupported, vague, or policy-violating, do not approve it.
 4. If the draft can be fixed automatically, prefer rewrite guidance over escalation.
@@ -22,10 +22,15 @@ Requirements:
 6. `human_handoff_summary` should only be populated for escalated cases.
 7. Keep `reason` concise and specific.
 
+IMPORTANT — output field names:
+- Use `escalate` (not `needs_escalation`) for the boolean escalation decision.
+- Use `rewrite_guidance` as a JSON array of strings (use `[]` when empty, never `""`).
+- Use `issues` as a JSON array of strings (use `[]` when empty, never `""`).
+
 Inputs:
 primary_route={primary_route}
 draft_text={draft_text}
 knowledge_confidence={knowledge_confidence}
-needs_escalation={needs_escalation}
+triage_escalation_flag={triage_escalation_flag}
 rewrite_count={rewrite_count}
 policy_notes={policy_notes}

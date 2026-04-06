@@ -218,28 +218,39 @@ class TriageRules:
         confidence: float,
         matched_routes: list[TicketRoute],
         tags: list[TicketTag],
-    ) -> tuple[str, ...]:
-        reasons: list[str] = []
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Return ``(hard_reasons, soft_reasons)``.
+
+        *Hard* reasons are non-negotiable guardrails (e.g. refund, disputed
+        charges, SLA) – these **must** escalate regardless of LLM opinion.
+
+        *Soft* reasons are heuristic signals (low confidence, insufficient
+        knowledge evidence) – the LLM is better at judging these, so the
+        merge layer may let the LLM override them.
+        """
+        hard: list[str] = []
+        soft: list[str] = []
 
         if TicketTag.REFUND_REQUEST in tags:
-            reasons.append("Refund handling requires manual policy review.")
+            hard.append("Refund handling requires manual policy review.")
         if _contains_any(text, ESCALATION_DISPUTED_CHARGE_KEYWORDS):
-            reasons.append("The case involves disputed or duplicate charges.")
+            hard.append("The case involves disputed or duplicate charges.")
         if _contains_any(text, ESCALATION_HIGH_RISK_KEYWORDS):
-            reasons.append("The request is high-risk because it involves SLA, compensation, security, data loss, legal, or contract concerns.")
+            hard.append("The request is high-risk because it involves SLA, compensation, security, data loss, legal, or contract concerns.")
+        if context.qa_failure_count >= 2:
+            hard.append("QA has already failed twice for this case.")
+        if context.requires_manual_approval:
+            hard.append("Customer history requires manual approval.")
+
         if (
             TicketRoute.KNOWLEDGE_REQUEST in matched_routes
             and not context.knowledge_evidence_sufficient
         ):
-            reasons.append("Knowledge evidence is insufficient for a conclusive answer.")
+            soft.append("Knowledge evidence is insufficient for a conclusive answer.")
         if confidence < 0.60:
-            reasons.append("Routing confidence is below 0.60.")
-        if context.qa_failure_count >= 2:
-            reasons.append("QA has already failed twice for this case.")
-        if context.requires_manual_approval:
-            reasons.append("Customer history requires manual approval.")
+            soft.append("Routing confidence is below 0.60.")
 
-        return tuple(reasons)
+        return tuple(hard), tuple(soft)
 
     def _compute_priority(
         self,

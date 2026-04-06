@@ -71,12 +71,16 @@ class TriageAgentMixin:
                 matched_rules=("fallback_rule_service", *rule_based.matched_rules),
                 priority_reasons=rule_based.priority_reasons,
                 escalation_reasons=rule_based.escalation_reasons,
+                hard_escalation_reasons=rule_based.hard_escalation_reasons,
+                soft_escalation_reasons=rule_based.soft_escalation_reasons,
                 clarification_reasons=rule_based.clarification_reasons,
             )
 
         merge_result = self._merge_triage_outputs(
             llm_output=llm_invocation.parsed_output,
             rule_output=rule_based.output,
+            hard_escalation_reasons=rule_based.hard_escalation_reasons,
+            soft_escalation_reasons=rule_based.soft_escalation_reasons,
         )
 
         escalation_reasons = list(rule_based.escalation_reasons)
@@ -97,6 +101,8 @@ class TriageAgentMixin:
             matched_rules=("llm_structured_output", *rule_based.matched_rules),
             priority_reasons=tuple(priority_reasons),
             escalation_reasons=tuple(escalation_reasons),
+            hard_escalation_reasons=rule_based.hard_escalation_reasons,
+            soft_escalation_reasons=rule_based.soft_escalation_reasons,
             clarification_reasons=tuple(clarification_reasons),
             llm_invocation=llm_invocation,
         )
@@ -131,27 +137,35 @@ class TriageAgentMixin:
         *,
         llm_output: TriageOutput,
         rule_output: TriageOutput,
+        hard_escalation_reasons: tuple[str, ...] = (),
+        soft_escalation_reasons: tuple[str, ...] = (),
     ) -> TriageMergeResult:
         primary_route = llm_output.primary_route
 
-        needs_escalation = llm_output.needs_escalation or rule_output.needs_escalation
+        # Hard escalation reasons (refund, disputed charges, SLA, etc.) are
+        # non-negotiable – they always force escalation regardless of LLM.
+        # Soft escalation reasons (low confidence, insufficient knowledge
+        # evidence) are heuristic – the LLM may override them.
+        has_hard_escalation = bool(hard_escalation_reasons)
+        if has_hard_escalation:
+            needs_escalation = True
+        else:
+            needs_escalation = llm_output.needs_escalation
         escalation_guardrail_applied = (
-            rule_output.needs_escalation and not llm_output.needs_escalation
+            has_hard_escalation and not llm_output.needs_escalation
         )
         llm_requested_escalation = (
-            llm_output.needs_escalation and not rule_output.needs_escalation
+            llm_output.needs_escalation and not has_hard_escalation
         )
 
         if primary_route is TicketRoute.TECHNICAL_ISSUE:
-            needs_clarification = (
-                llm_output.needs_clarification or rule_output.needs_clarification
-            )
-            clarification_guardrail_applied = (
-                rule_output.needs_clarification and not llm_output.needs_clarification
-            )
-            llm_requested_clarification = (
-                llm_output.needs_clarification and not rule_output.needs_clarification
-            )
+            # Clarification is a semantic judgement ("does the email already
+            # contain enough diagnostic detail?").  The LLM is far better at
+            # this than keyword matching, so we trust the LLM verdict and only
+            # use the rule output as a tie-breaker when the LLM is uncertain.
+            needs_clarification = llm_output.needs_clarification
+            clarification_guardrail_applied = False
+            llm_requested_clarification = llm_output.needs_clarification
         else:
             needs_clarification = False
             clarification_guardrail_applied = False

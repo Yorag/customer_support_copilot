@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -289,6 +289,27 @@ class QaHandoffOutput(BaseModel):
         default=None,
         description="Minimal human handoff summary for escalated cases.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_llm_field_names(cls, data: Any) -> Any:
+        """Fix common LLM output deviations before Pydantic validation.
+
+        Some models (e.g. qwen3) echo prompt input variable names into the
+        output JSON, producing ``needs_escalation`` instead of ``escalate``
+        and collapsing empty arrays to ``""``.
+        """
+        if not isinstance(data, dict):
+            return data
+        if "needs_escalation" in data and "escalate" not in data:
+            data["escalate"] = data.pop("needs_escalation")
+        elif "needs_escalation" in data and "escalate" in data:
+            data.pop("needs_escalation")
+        for list_field in ("issues", "rewrite_guidance"):
+            value = data.get(list_field)
+            if isinstance(value, str):
+                data[list_field] = [value] if value.strip() else []
+        return data
 
     @field_validator("reason", mode="after")
     @classmethod

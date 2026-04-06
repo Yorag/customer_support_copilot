@@ -42,13 +42,16 @@ class TriageDecisionService:
             multi_intent=multi_intent,
         )
 
-        escalation_reasons = self._rules._collect_escalation_reasons(
-            normalized_text,
-            context=triage_context,
-            confidence=confidence,
-            matched_routes=matched_routes,
-            tags=tags,
+        hard_escalation_reasons, soft_escalation_reasons = (
+            self._rules._collect_escalation_reasons(
+                normalized_text,
+                context=triage_context,
+                confidence=confidence,
+                matched_routes=matched_routes,
+                tags=tags,
+            )
         )
+        escalation_reasons = hard_escalation_reasons + soft_escalation_reasons
         needs_escalation = bool(escalation_reasons)
 
         priority, priority_reasons = self._rules._compute_priority(
@@ -85,5 +88,7 @@ class TriageDecisionService:
             matched_rules=tuple(match.rule_id for match in route_matches),
             priority_reasons=priority_reasons,
             escalation_reasons=escalation_reasons,
+            hard_escalation_reasons=hard_escalation_reasons,
+            soft_escalation_reasons=soft_escalation_reasons,
             clarification_reasons=clarification_reasons,
         )
