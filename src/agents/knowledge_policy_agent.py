@@ -259,9 +259,10 @@ class KnowledgePolicyAgentMixin:
                 or deterministic_output.knowledge_summary
             ),
             citations=deterministic_output.citations or llm_output.citations,
-            knowledge_confidence=min(
-                llm_output.knowledge_confidence,
-                deterministic_output.knowledge_confidence,
+            knowledge_confidence=(
+                min(llm_output.knowledge_confidence, deterministic_output.knowledge_confidence)
+                if deterministic_output.retrieval_hit
+                else deterministic_output.knowledge_confidence
             ),
             risk_level=merged_risk_level,
             allowed_actions=allowed_actions,

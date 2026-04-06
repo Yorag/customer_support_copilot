@@ -174,6 +174,20 @@ class QaHandoffAgentMixin:
             )
 
         if knowledge_confidence < 0.6 and not retrieval_hit and primary_route != "unrelated":
+            if rewrite_count >= 1:
+                return QaHandoffOutput(
+                    approved=True,
+                    issues=["knowledge_retrieval_miss_accepted"],
+                    rewrite_guidance=[],
+                    quality_scores=quality_scores,
+                    escalate=False,
+                    reason=(
+                        "RAG returned no evidence, but the draft has been "
+                        "conservatively rewritten. Approving to avoid a "
+                        "dead loop on stale knowledge_confidence."
+                    ),
+                    human_handoff_summary=None,
+                )
             return QaHandoffOutput(
                 approved=False,
                 issues=["knowledge_retrieval_miss"],

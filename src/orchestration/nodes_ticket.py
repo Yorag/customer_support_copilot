@@ -227,7 +227,7 @@ class TicketExecutionNodesMixin:
         route = state.get("primary_route")
         active_email = get_active_email(state)
         queries = list(state.get("queries") or [])
-        if route == "knowledge_request" and not queries:
+        if route in ("knowledge_request", "technical_issue") and not queries:
             queries = [active_email.subject or active_email.body[:120]]
         if queries and hasattr(self.knowledge_provider, "answer_questions"):
             knowledge_tool_started_at = utc_now()
