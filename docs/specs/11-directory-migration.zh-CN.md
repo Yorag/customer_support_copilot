@@ -335,7 +335,7 @@ src/
 必须通过：
 
 1. `tests/test_observability.py`
-2. `tests/test_offline_eval.py`
+2. `tests/test_real_eval.py`
 3. `tests/test_api_contract.py`
 4. `pytest -q`
 

@@ -152,7 +152,6 @@ class RunTriggerType(StringEnum):
     MANUAL_API = "manual_api"
     SCHEDULED_RETRY = "scheduled_retry"
     HUMAN_ACTION = "human_action"
-    OFFLINE_EVAL = "offline_eval"
 
 
 class RunStatus(StringEnum):

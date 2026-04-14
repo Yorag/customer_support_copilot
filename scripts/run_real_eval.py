@@ -487,7 +487,7 @@ def run_real_eval(
                 f"{base_url}/tickets/{ingest_payload['ticket_id']}/run",
                 json={
                     "ticket_version": ingest_payload["version"],
-                    "trigger_type": "offline_eval",
+                    "trigger_type": "manual_api",
                     "force_retry": False,
                 },
                 headers={

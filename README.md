@@ -12,7 +12,7 @@
 - 用 LangGraph 执行 `triage -> knowledge/policy -> drafting -> QA -> draft/handoff/close -> memory update`
 - 提供人工动作接口：`approve`、`edit-and-approve`、`rewrite`、`escalate`、`close`
 - 输出 trace、latency/resource metrics、response quality judge、trajectory evaluation
-- 提供离线评测与真实环境评测脚本
+- 提供真实环境评测脚本
 
 ## 系统流程
 
@@ -22,7 +22,7 @@
 flowchart TD
     A[Gmail poller or API ingest] --> B[POST /tickets/ingest-email]
     B --> C[Ticket + message log persistence]
-    C --> D[POST /tickets/{ticket_id}/run]
+    C --> D["POST /tickets/{ticket_id}/run"]
     D --> E[Queued ticket run]
     E --> F[Worker loop]
     F --> G[load_ticket_context]
@@ -36,7 +36,7 @@ flowchart TD
     I -->|needs escalation| N[escalate_to_human]
     I -->|unrelated| O[close_ticket]
 
-    J --> P[customer_history_lookup or draft_reply]
+    J --> P[customer_history_lookup]
     K --> P
     P --> L
     L --> Q[qa_review]
@@ -61,7 +61,6 @@ langgraph-email-automation/
 ├── scripts/
 │   ├── init_db.py               # 初始化 / 升级数据库
 │   ├── build_index.py           # 构建本地 Chroma 知识索引
-│   ├── run_offline_eval.py      # 本地隔离评测
 │   └── run_real_eval.py         # 真实环境 HTTP 评测
 ├── serve_api.py                 # 启动 FastAPI
 ├── run_worker.py                # 启动 worker loop
@@ -279,20 +278,6 @@ python run_poller.py
 
 ## 评测
 
-### 离线评测
-
-```powershell
-python scripts/run_offline_eval.py ^
-  --samples-path evals/samples/customer_support_eval_zh.jsonl ^
-  --report-path .artifacts/evals/offline_eval_report.json
-```
-
-特点：
-
-- 使用本地 TestClient 调 API
-- 默认隔离 Gmail、知识 provider、policy provider 与数据库依赖
-- 适合验证路由、升级、轨迹与输出结构
-
 ### 真实环境评测
 
 ```powershell
@@ -325,7 +310,7 @@ pytest -q
 pytest tests/test_api_contract.py -q
 pytest tests/test_ticket_worker.py -q
 pytest tests/test_triage_service.py tests/test_triage_outputs.py -q
-pytest tests/test_offline_eval.py tests/test_real_eval.py -q
+pytest tests/test_real_eval.py -q
 ```
 
 测试套件大量使用 fake provider 与临时 SQLite，不依赖真实 Gmail 或生产数据库。
@@ -349,6 +334,7 @@ pytest tests/test_offline_eval.py tests/test_real_eval.py -q
 
 ## 相关文档
 
+- `docs/project-development-flow-and-agent-architecture.zh-CN.md`
 - `docs/customer-support-copilot-requirements.zh-CN.md`
 - `docs/customer-support-copilot-technical-design.zh-CN.md`
 - `docs/customer-support-copilot-implementation-tracker.zh-CN.md`

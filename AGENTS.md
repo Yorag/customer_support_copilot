@@ -26,7 +26,6 @@ Use Python 3.10+ in a virtual environment.
 - `python run_worker.py` starts the worker loop.
 - `python run_worker.py --once` processes at most one queued run.
 - `python run_poller.py` runs one Gmail poller batch.
-- `python scripts/run_offline_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path .artifacts/evals/offline_eval_report.json` runs isolated evaluation.
 - `python scripts/run_real_eval.py --samples-path tests/samples/eval/customer_support_eval.jsonl --report-path .artifacts/evals/real_eval_report.json` runs real-environment HTTP evaluation.
 - `pytest -q` runs the test suite.
 

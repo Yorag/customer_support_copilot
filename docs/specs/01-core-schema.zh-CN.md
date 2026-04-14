@@ -230,7 +230,6 @@ V1 存储唯一选型固定为 `Postgres`。
 2. `manual_api`
 3. `scheduled_retry`
 4. `human_action`
-5. `offline_eval`
 
 `status`:
 
