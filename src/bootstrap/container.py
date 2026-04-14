@@ -10,6 +10,7 @@ from src.contracts.protocols import (
     GmailClientProtocol,
     PolicyProviderProtocol,
     TicketStoreProtocol,
+    TraceExporterProtocol,
 )
 
 T = TypeVar("T")
@@ -63,6 +64,12 @@ def _build_checkpointer():
     return build_default_checkpointer()
 
 
+def _build_trace_exporter() -> TraceExporterProtocol:
+    from src.telemetry.exporters import LangSmithTraceExporter
+
+    return LangSmithTraceExporter()
+
+
 @dataclass
 class ServiceContainer:
     agents_factory: Callable[[], object] = _build_agents
@@ -75,6 +82,7 @@ class ServiceContainer:
     policy_provider_factory: Callable[[], PolicyProviderProtocol] = _build_policy_provider
     ticket_store_factory: Callable[[], TicketStoreProtocol] = _build_ticket_store
     checkpointer_factory: Callable[[], object] = _build_checkpointer
+    trace_exporter_factory: Callable[[], TraceExporterProtocol] = _build_trace_exporter
     _gmail_client: GmailClientProtocol | None = field(
         default=None,
         init=False,
@@ -106,6 +114,11 @@ class ServiceContainer:
         repr=False,
     )
     _checkpointer: object | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+    _trace_exporter: TraceExporterProtocol | None = field(
         default=None,
         init=False,
         repr=False,
@@ -151,6 +164,10 @@ class ServiceContainer:
     @property
     def checkpointer(self):
         return self._get_or_create("_checkpointer", self.checkpointer_factory)
+
+    @property
+    def trace_exporter(self) -> TraceExporterProtocol:
+        return self._get_or_create("_trace_exporter", self.trace_exporter_factory)
 
 
 def create_default_service_container() -> ServiceContainer:

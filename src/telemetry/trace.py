@@ -3,12 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
-from uuid import UUID, uuid5
 
-from langsmith import Client
-from langsmith.run_trees import RunTree
-
-from src.config import get_settings
 from src.contracts.core import (
     EntityIdPrefix,
     TraceEventStatus,
@@ -16,6 +11,7 @@ from src.contracts.core import (
     generate_prefixed_id,
     utc_now,
 )
+from src.contracts.protocols import TraceExporterProtocol
 from src.db.models import Ticket, TicketRun, TraceEvent
 
 from .metrics import (
@@ -23,140 +19,21 @@ from .metrics import (
     build_latency_metrics as _build_latency_metrics,
     build_resource_metrics as _build_resource_metrics,
 )
-
-
-_LANGSMITH_NAMESPACE = UUID("12345678-1234-5678-1234-567812345678")
-
-
-def _uuid_from_prefixed_id(value: str) -> UUID:
-    return uuid5(_LANGSMITH_NAMESPACE, value)
-
-
-class LangSmithTraceClient:
-    def __init__(self) -> None:
-        settings = get_settings()
-        self._enabled = bool(settings.langsmith.tracing_enabled and settings.langsmith.api_key)
-        self._project = settings.langsmith.project
-        self._client = (
-            Client(
-                api_key=settings.langsmith.api_key,
-                api_url=settings.langsmith.endpoint,
-            )
-            if self._enabled
-            else None
-        )
-
-    def create_root_run(
-        self,
-        *,
-        run: TicketRun,
-        ticket: Ticket,
-        inputs: dict[str, Any],
-        metadata: dict[str, Any] | None = None,
-    ) -> RunTree | None:
-        if self._client is None:
-            return None
-        root = RunTree(
-            id=_uuid_from_prefixed_id(run.trace_id),
-            trace_id=_uuid_from_prefixed_id(run.trace_id),
-            name="ticket_run",
-            run_type="chain",
-            start_time=run.started_at,
-            inputs=inputs,
-            extra={
-                "metadata": {
-                    "trace_id": run.trace_id,
-                    "run_id": run.run_id,
-                    "ticket_id": ticket.ticket_id,
-                    **(metadata or {}),
-                }
-            },
-            tags=["customer-support-copilot", "ticket-run"],
-            project_name=self._project,
-            ls_client=self._client,
-        )
-        try:
-            root.post()
-        except Exception:
-            return None
-        return root
-
-    def create_child_run(
-        self,
-        *,
-        parent: RunTree | None,
-        event: TraceEvent,
-        inputs: dict[str, Any] | None = None,
-        outputs: dict[str, Any] | None = None,
-    ) -> RunTree | None:
-        if parent is None:
-            return None
-        run_type = _langsmith_run_type_for_event(event.event_type)
-        child = parent.create_child(
-            name=event.event_name,
-            run_type=run_type,
-            run_id=_uuid_from_prefixed_id(event.event_id),
-            start_time=event.start_time,
-            end_time=event.end_time,
-            inputs=inputs or {},
-            outputs=outputs,
-            extra={
-                "metadata": {
-                    "trace_id": event.trace_id,
-                    "run_id": event.run_id,
-                    "ticket_id": event.ticket_id,
-                    "event_type": event.event_type,
-                    "node_name": event.node_name,
-                    "status": event.status,
-                    **(event.event_metadata or {}),
-                }
-            },
-            tags=[f"event:{event.event_type}"],
-        )
-        try:
-            child.post()
-        except Exception:
-            return None
-        return child
-
-    def finalize_run(
-        self,
-        *,
-        root: RunTree | None,
-        ended_at: datetime,
-        outputs: dict[str, Any],
-        error: str | None = None,
-        extra_metadata: dict[str, Any] | None = None,
-    ) -> None:
-        if root is None:
-            return
-        root.end_time = ended_at
-        root.outputs = outputs
-        root.error = error
-        existing_extra = dict(root.extra or {})
-        metadata = dict(existing_extra.get("metadata") or {})
-        metadata.update(extra_metadata or {})
-        root.extra = {**existing_extra, "metadata": metadata}
-        try:
-            root.patch()
-        except Exception:
-            return
-
-
-def _langsmith_run_type_for_event(event_type: str) -> str:
-    if event_type == TraceEventType.LLM_CALL.value:
-        return "llm"
-    if event_type == TraceEventType.TOOL_CALL.value:
-        return "tool"
-    return "chain"
+from .exporters import LangSmithTraceClient
 
 
 class TraceRecorder:
-    def __init__(self, *, repositories, langsmith_client: LangSmithTraceClient | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        repositories,
+        trace_exporter: TraceExporterProtocol | None = None,
+        langsmith_client: TraceExporterProtocol | None = None,
+    ) -> None:
         self._repositories = repositories
-        self._langsmith = langsmith_client or LangSmithTraceClient()
-        self._root_run: RunTree | None = None
-        self._child_runs: dict[str, RunTree] = {}
+        self._trace_exporter = trace_exporter or langsmith_client or LangSmithTraceClient()
+        self._root_run: Any | None = None
+        self._child_runs: dict[str, Any] = {}
 
     def start_run(
         self,
@@ -166,7 +43,7 @@ class TraceRecorder:
         inputs: dict[str, Any],
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        self._root_run = self._langsmith.create_root_run(
+        self._root_run = self._trace_exporter.create_root_run(
             run=run,
             ticket=ticket,
             inputs=inputs,
@@ -180,7 +57,7 @@ class TraceRecorder:
         ticket: Ticket,
         error: str | None = None,
     ) -> None:
-        self._langsmith.finalize_run(
+        self._trace_exporter.finalize_run(
             root=self._root_run,
             ended_at=run.ended_at or utc_now(),
             outputs={
@@ -234,7 +111,7 @@ class TraceRecorder:
             event_metadata=metadata,
         )
         self._repositories.trace_events.add(event)
-        child = self._langsmith.create_child_run(
+        child = self._trace_exporter.create_child_run(
             parent=self._root_run,
             event=event,
             inputs=metadata or {},

@@ -56,12 +56,16 @@ class TicketRunner:
         repositories,
         container: ServiceContainer,
         checkpointer=None,
+        trace_exporter=None,
     ) -> None:
         self._session = session
         self._repositories = repositories
         self._container = container
         self._message_log = MessageLogService(session, repositories=repositories)
-        self._trace_recorder = TraceRecorder(repositories=repositories)
+        self._trace_recorder = TraceRecorder(
+            repositories=repositories,
+            trace_exporter=trace_exporter or container.trace_exporter,
+        )
         self._quality_judge = container.response_quality_judge
         self._checkpointer = checkpointer
 

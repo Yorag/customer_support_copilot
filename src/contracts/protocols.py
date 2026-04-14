@@ -35,3 +35,36 @@ class TicketStoreProtocol(Protocol):
 
     def repositories(self, session: Session) -> RepositoryBundle:
         ...
+
+
+class TraceExporterProtocol(Protocol):
+    def create_root_run(
+        self,
+        *,
+        run: Any,
+        ticket: Any,
+        inputs: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> Any | None:
+        ...
+
+    def create_child_run(
+        self,
+        *,
+        parent: Any | None,
+        event: Any,
+        inputs: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
+    ) -> Any | None:
+        ...
+
+    def finalize_run(
+        self,
+        *,
+        root: Any | None,
+        ended_at: Any,
+        outputs: dict[str, Any],
+        error: str | None = None,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        ...

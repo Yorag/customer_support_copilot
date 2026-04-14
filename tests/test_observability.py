@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from langchain_core.messages import AIMessage
 
+from src.bootstrap.container import ServiceContainer
 from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.db.models import Ticket, TicketRun
 from src.evaluation import RuleBasedResponseQualityBaseline, validate_judge_output
@@ -18,6 +19,7 @@ from src.llm.runtime import (
     extract_usage,
 )
 from src.telemetry.trace import TraceRecorder
+from src.workers.runner import TicketRunner
 
 
 def test_validate_judge_output_requires_fixed_schema():
@@ -161,6 +163,24 @@ class _FakeRepositories:
         self.trace_events = _FakeTraceEventsRepository()
 
 
+class _FakeTraceExporter:
+    def __init__(self) -> None:
+        self.root_calls = 0
+        self.child_calls = 0
+        self.finalize_calls = 0
+
+    def create_root_run(self, **kwargs):
+        self.root_calls += 1
+        return {"kind": "root"}
+
+    def create_child_run(self, **kwargs):
+        self.child_calls += 1
+        return {"kind": "child"}
+
+    def finalize_run(self, **kwargs) -> None:
+        self.finalize_calls += 1
+
+
 def test_build_resource_metrics_tracks_token_source_mix():
     ticket = Ticket(
         ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
@@ -242,3 +262,85 @@ def test_build_resource_metrics_tracks_token_source_mix():
     assert metrics["estimated_token_call_count"] == 1
     assert metrics["unavailable_token_call_count"] == 1
     assert metrics["token_coverage_ratio"] == 0.333
+
+
+def test_trace_recorder_accepts_legacy_langsmith_client_argument():
+    ticket = Ticket(
+        ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+        source_thread_id="thread-legacy",
+        source_message_id="msg-legacy",
+        gmail_thread_id="gmail-thread-legacy",
+        customer_email="liwei@example.com",
+        customer_email_raw='"Li Wei" <liwei@example.com>',
+        subject="Legacy trace exporter",
+        business_status="new",
+        processing_status="queued",
+        priority="high",
+        secondary_routes=[],
+        tags=[],
+        multi_intent=False,
+        needs_clarification=False,
+        needs_escalation=False,
+        risk_reasons=[],
+    )
+    started_at = datetime.now(timezone.utc)
+    run = TicketRun(
+        run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+        ticket_id=ticket.ticket_id,
+        trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+        trigger_type="manual_api",
+        status="running",
+        started_at=started_at,
+        attempt_index=1,
+    )
+    exporter = _FakeTraceExporter()
+    recorder = TraceRecorder(repositories=_FakeRepositories(), langsmith_client=exporter)
+
+    recorder.start_run(
+        ticket=ticket,
+        run=run,
+        inputs={"ticket_id": ticket.ticket_id},
+    )
+    recorder.record_decision(
+        run=run,
+        ticket=ticket,
+        event_name="triage_result",
+        node_name="triage",
+        metadata={
+            "primary_route": "knowledge_request",
+            "secondary_routes": [],
+            "response_strategy": "answer",
+            "needs_clarification": False,
+            "needs_escalation": False,
+            "final_action": "create_draft",
+        },
+    )
+    run.ended_at = started_at
+    recorder.finalize_run(run=run, ticket=ticket)
+
+    assert exporter.root_calls == 1
+    assert exporter.child_calls == 1
+    assert exporter.finalize_calls == 1
+
+
+def test_service_container_exposes_trace_exporter_singleton():
+    exporter = _FakeTraceExporter()
+    container = ServiceContainer(trace_exporter_factory=lambda: exporter)
+
+    assert container.trace_exporter is exporter
+    assert container.trace_exporter is exporter
+
+
+def test_ticket_runner_uses_trace_exporter_from_container():
+    exporter = _FakeTraceExporter()
+    container = ServiceContainer(
+        trace_exporter_factory=lambda: exporter,
+        response_quality_judge_factory=lambda: object(),
+    )
+    runner = TicketRunner(
+        session=object(),
+        repositories=_FakeRepositories(),
+        container=container,
+    )
+
+    assert runner.trace_recorder._trace_exporter is exporter
