@@ -125,6 +125,19 @@ def test_ticket_run_accepts_queued_status_before_worker_start():
     assert run.started_at is None
 
 
+def test_ticket_run_rejects_legacy_offline_eval_trigger_type():
+    with pytest.raises(ValueError):
+        TicketRun(
+            run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+            ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="offline_eval",
+            status="queued",
+            started_at=None,
+            attempt_index=1,
+        )
+
+
 def test_trace_event_requires_minimum_metadata_keys_for_decisions():
     engine = build_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
