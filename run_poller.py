@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from colorama import Fore, Style
 
 from src.api.services import TicketApiService
@@ -12,7 +10,6 @@ from src.config import (
     get_settings,
     validate_required_settings,
 )
-from src.tickets.message_log import IngestEmailPayload
 
 
 def main() -> None:
@@ -24,45 +21,27 @@ def main() -> None:
 
     validate_required_settings(RUNTIME_REQUIRED_SETTINGS)
     container = get_service_container()
-    gmail_client = container.gmail_client
     api_service = TicketApiService(container.ticket_store, container=container)
 
     print(Fore.GREEN + "Starting Gmail poller batch..." + Style.RESET_ALL)
-    emails = gmail_client.fetch_unanswered_emails()
-    if not emails:
+    result = api_service.scan_gmail(max_results=None, enqueue=True)
+    if result.ingested_tickets == 0 and result.errors == 0:
         print(Fore.YELLOW + "No new emails to ingest." + Style.RESET_ALL)
         return
 
-    for email in emails:
-        ingest_payload = IngestEmailPayload(
-            source_channel="gmail",
-            source_thread_id=email["threadId"],
-            source_message_id=email["messageId"] or email["id"],
-            sender_email_raw=email["sender"],
-            subject=email["subject"],
-            body_text=email["body"],
-            message_timestamp=datetime.now(timezone.utc),
-            references=email.get("references"),
-            attachments=[],
-        )
-        ticket, created = api_service.ingest_email(
-            payload=ingest_payload,
-            idempotency_key=None,
-        )
-        result = api_service.run_ticket(
-            ticket_id=ticket.ticket_id,
-            ticket_version=ticket.version,
-            trigger_type="poller",
-            force_retry=False,
-            actor_id="system:poller",
-            request_id=f"poller:{ticket.ticket_id}",
-            idempotency_key=None,
-        )
+    for item in result.items:
+        if item.ticket_id is None:
+            print(
+                Fore.RED
+                + f"Failed to process Gmail thread {item.source_thread_id}"
+                + Style.RESET_ALL
+            )
+            continue
         print(
             Fore.CYAN
             + (
-                f"Enqueued run {result.run.run_id} for "
-                f"{'new' if created else 'existing'} ticket {result.ticket.ticket_id}"
+                f"Enqueued run {item.queued_run_id} for "
+                f"{'new' if item.created_ticket else 'existing'} ticket {item.ticket_id}"
             )
             + Style.RESET_ALL
         )

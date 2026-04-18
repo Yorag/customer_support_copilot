@@ -16,8 +16,9 @@ from src.contracts.outputs import (
     QaHandoffOutput,
     TriageOutput,
 )
+from src.config import get_settings
 from src.db.base import Base
-from src.db.models import CustomerMemoryProfile, DraftArtifact, Ticket, TicketRun
+from src.db.models import AppMetadata, CustomerMemoryProfile, DraftArtifact, Ticket, TicketMessage, TicketRun
 from src.db.session import build_engine, create_session_factory
 from src.orchestration.checkpointing import build_test_checkpointer
 from src.tools.ticket_store import SqlAlchemyTicketStore
@@ -95,6 +96,31 @@ class FakeResponseQualityJudge:
 
 
 class FakeApiGmailClient:
+    def __init__(self, *, scan_result: dict | None = None) -> None:
+        self._scan_result = scan_result or {
+            "requested_max_results": 20,
+            "candidate_threads": 0,
+            "skipped_existing_draft_threads": 0,
+            "skipped_self_sent_threads": 0,
+            "items": [],
+        }
+
+    def scan_inbox(self, max_results=None):
+        requested_max_results = (
+            max_results if max_results is not None else self._scan_result["requested_max_results"]
+        )
+        return {
+            **self._scan_result,
+            "requested_max_results": requested_max_results,
+        }
+
+    def fetch_unanswered_emails(self, max_results=None):
+        return [
+            {key: value for key, value in item.items() if key != "skip_reason"}
+            for item in self.scan_inbox(max_results=max_results)["items"]
+            if item.get("skip_reason") is None
+        ]
+
     def create_draft_reply(self, initial_email, reply_text):
         return {"id": "gmail-draft-test"}
 
@@ -229,7 +255,7 @@ class FakeApiAgents:
         )
 
 
-def _build_app():
+def _build_app(*, gmail_client=None):
     fd, path = mkstemp(suffix=".db")
     close(fd)
     engine = build_engine(f"sqlite+pysqlite:///{path}")
@@ -242,7 +268,7 @@ def _build_app():
     app.dependency_overrides[get_container] = lambda: ServiceContainer(
         agents_factory=lambda: FakeApiAgents(),
         response_quality_judge_factory=lambda: FakeResponseQualityJudge(),
-        gmail_client_factory=lambda: FakeApiGmailClient(),
+        gmail_client_factory=lambda: gmail_client or FakeApiGmailClient(),
         knowledge_provider_factory=lambda: FakeApiKnowledgeProvider(),
         policy_provider_factory=lambda: FakeApiPolicyProvider(),
         ticket_store_factory=lambda: store,
@@ -393,6 +419,116 @@ def _seed_customer_memory_profile(store: SqlAlchemyTicketStore) -> None:
         )
 
 
+def _add_ticket_run(
+    store: SqlAlchemyTicketStore,
+    *,
+    ticket_id: str,
+    trace_id: str | None = None,
+    trigger_type: str = "manual_api",
+    status: str = "succeeded",
+    final_action: str | None = "create_draft",
+    started_at: datetime | None = None,
+    ended_at: datetime | None = None,
+    attempt_index: int = 1,
+    created_at: datetime | None = None,
+    response_quality: dict | None = None,
+    trajectory_evaluation: dict | None = None,
+) -> TicketRun:
+    run = TicketRun(
+        run_id=generate_prefixed_id(EntityIdPrefix.RUN),
+        ticket_id=ticket_id,
+        trace_id=trace_id or generate_prefixed_id(EntityIdPrefix.TRACE),
+        trigger_type=trigger_type,
+        status=status,
+        started_at=started_at,
+        ended_at=ended_at,
+        final_action=final_action,
+        attempt_index=attempt_index,
+        created_at=created_at or datetime.now(timezone.utc),
+        response_quality=response_quality,
+        trajectory_evaluation=trajectory_evaluation,
+    )
+    with store.session_scope() as session:
+        session.add(run)
+        session.flush()
+        session.expunge(run)
+    return run
+
+
+def _add_draft_artifact(
+    store: SqlAlchemyTicketStore,
+    *,
+    ticket_id: str,
+    run_id: str,
+    version_index: int = 1,
+    qa_status: str = "pending",
+    gmail_draft_id: str | None = None,
+    created_at: datetime | None = None,
+) -> DraftArtifact:
+    draft = DraftArtifact(
+        draft_id=generate_prefixed_id(EntityIdPrefix.DRAFT),
+        ticket_id=ticket_id,
+        run_id=run_id,
+        version_index=version_index,
+        draft_type="reply",
+        content_text=f"Draft version {version_index}",
+        qa_status=qa_status,
+        gmail_draft_id=gmail_draft_id,
+        created_at=created_at or datetime.now(timezone.utc),
+    )
+    with store.session_scope() as session:
+        session.add(draft)
+        session.flush()
+        session.expunge(draft)
+    return draft
+
+
+def _add_ticket_message(
+    store: SqlAlchemyTicketStore,
+    *,
+    ticket_id: str,
+    source_thread_id: str,
+    gmail_thread_id: str,
+    source_message_id: str,
+    direction: str,
+    message_type: str,
+    sender_email: str | None,
+    recipient_emails: list[str] | None = None,
+    subject: str | None = None,
+    body_text: str | None = None,
+    reply_to_source_message_id: str | None = None,
+    customer_visible: bool = True,
+    message_timestamp: datetime | None = None,
+    metadata: dict | None = None,
+    run_id: str | None = None,
+    draft_id: str | None = None,
+) -> TicketMessage:
+    message = TicketMessage(
+        ticket_message_id=generate_prefixed_id(EntityIdPrefix.TICKET_MESSAGE),
+        ticket_id=ticket_id,
+        run_id=run_id,
+        draft_id=draft_id,
+        source_thread_id=source_thread_id,
+        source_message_id=source_message_id,
+        gmail_thread_id=gmail_thread_id,
+        direction=direction,
+        message_type=message_type,
+        sender_email=sender_email,
+        recipient_emails=recipient_emails or [],
+        subject=subject,
+        body_text=body_text,
+        reply_to_source_message_id=reply_to_source_message_id,
+        customer_visible=customer_visible,
+        message_timestamp=message_timestamp or datetime.now(timezone.utc),
+        message_metadata=metadata,
+    )
+    with store.session_scope() as session:
+        session.add(message)
+        session.flush()
+        session.expunge(message)
+    return message
+
+
 def test_ingest_email_creates_ticket_and_snapshot():
     app, store = _build_app()
     client = TestClient(app)
@@ -422,6 +558,92 @@ def test_ingest_email_creates_ticket_and_snapshot():
     snapshot = client.get(f"/tickets/{payload['ticket_id']}")
     assert snapshot.status_code == 200
     assert snapshot.json()["ticket"]["version"] == 1
+    assert len(snapshot.json()["messages"]) == 1
+    assert snapshot.json()["messages"][0]["direction"] == "inbound"
+    assert snapshot.json()["messages"][0]["body_text"] == "I was charged twice this month."
+    assert snapshot.json()["messages"][0]["metadata"]["sender_email_raw"] == '"Li Wei" <liwei@example.com>'
+
+
+def test_ticket_snapshot_includes_thread_messages_and_original_email_context():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=4,
+        primary_route="commercial_policy_request",
+        subject="Need refund review",
+        latest_message_excerpt="I was charged twice and need a refund.",
+    )
+    run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        final_action="handoff_to_human",
+        started_at=datetime(2026, 4, 17, 10, 5, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 4, 17, 10, 5, 4, tzinfo=timezone.utc),
+        created_at=datetime(2026, 4, 17, 10, 5, tzinfo=timezone.utc),
+    )
+    draft = _add_draft_artifact(
+        store,
+        ticket_id=ticket.ticket_id,
+        run_id=run.run_id,
+        version_index=1,
+        qa_status="passed",
+        created_at=datetime(2026, 4, 17, 10, 5, 5, tzinfo=timezone.utc),
+    )
+    _add_ticket_message(
+        store,
+        ticket_id=ticket.ticket_id,
+        source_thread_id=ticket.source_thread_id,
+        gmail_thread_id=ticket.gmail_thread_id,
+        source_message_id=ticket.source_message_id,
+        direction="inbound",
+        message_type="customer_email",
+        sender_email="liwei@example.com",
+        subject="Need refund review",
+        body_text="I was charged twice and need a refund.",
+        message_timestamp=datetime(2026, 4, 17, 10, 0, tzinfo=timezone.utc),
+        metadata={
+            "sender_email_raw": '"Li Wei" <liwei@example.com>',
+            "attachments": [],
+        },
+    )
+    _add_ticket_message(
+        store,
+        ticket_id=ticket.ticket_id,
+        source_thread_id=ticket.source_thread_id,
+        gmail_thread_id=ticket.gmail_thread_id,
+        source_message_id="draft-msg-001",
+        direction="outbound_draft",
+        message_type="reply_draft",
+        sender_email="support@example.com",
+        recipient_emails=["liwei@example.com"],
+        subject="Re: Need refund review",
+        body_text="We are reviewing the duplicate charge.",
+        reply_to_source_message_id=ticket.source_message_id,
+        customer_visible=True,
+        message_timestamp=datetime(2026, 4, 17, 10, 5, 5, tzinfo=timezone.utc),
+        metadata={"attachments": []},
+        run_id=run.run_id,
+        draft_id=draft.draft_id,
+    )
+
+    snapshot = client.get(f"/tickets/{ticket.ticket_id}")
+
+    assert snapshot.status_code == 200
+    payload = snapshot.json()
+    assert payload["ticket"]["ticket_id"] == ticket.ticket_id
+    assert payload["latest_run"]["run_id"] == run.run_id
+    assert payload["latest_draft"]["draft_id"] == draft.draft_id
+    assert [item["direction"] for item in payload["messages"]] == ["inbound", "outbound_draft"]
+    assert payload["messages"][0]["source_message_id"] == ticket.source_message_id
+    assert payload["messages"][0]["body_text"] == "I was charged twice and need a refund."
+    assert payload["messages"][0]["metadata"]["sender_email_raw"] == '"Li Wei" <liwei@example.com>'
+    assert payload["messages"][1]["run_id"] == run.run_id
+    assert payload["messages"][1]["draft_id"] == draft.draft_id
+    assert payload["messages"][1]["reply_to_source_message_id"] == ticket.source_message_id
 
 
 def test_ingest_email_rejects_duplicate_idempotency_key():
@@ -452,6 +674,858 @@ def test_ingest_email_rejects_duplicate_idempotency_key():
     assert first.status_code == 201
     assert second.status_code == 409
     assert second.json()["error"]["code"] == "duplicate_request"
+
+
+def test_tickets_list_returns_paginated_items_with_filters():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    first_ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=4,
+        primary_route="commercial_policy_request",
+        subject="Need refund review",
+    )
+    second_ticket = _create_ticket(
+        store,
+        business_status="draft_created",
+        processing_status="completed",
+        version=3,
+        primary_route="technical_issue",
+        subject="SSO setup failed",
+    )
+    third_ticket = _create_ticket(
+        store,
+        business_status="new",
+        processing_status="queued",
+        version=1,
+        primary_route="knowledge_request",
+        subject="Feature comparison question",
+    )
+
+    base_time = datetime(2026, 4, 17, 10, 30, tzinfo=timezone.utc)
+    first_run = _add_ticket_run(
+        store,
+        ticket_id=first_ticket.ticket_id,
+        final_action="handoff_to_human",
+        started_at=base_time,
+        ended_at=base_time + timedelta(seconds=8),
+        created_at=base_time,
+        response_quality={
+            "overall_score": 4.25,
+            "subscores": {
+                "relevance": 4.0,
+                "correctness": 4.5,
+                "intent_alignment": 4.5,
+                "clarity": 4.0,
+            },
+            "reason": "Requires a human refund review.",
+        },
+        trajectory_evaluation={
+            "score": 4.5,
+            "expected_route": "commercial_policy_request",
+            "actual_route": "commercial_policy_request",
+            "violations": ["manual_review_required"],
+        },
+    )
+    _add_draft_artifact(
+        store,
+        ticket_id=first_ticket.ticket_id,
+        run_id=first_run.run_id,
+        version_index=1,
+        qa_status="pending",
+        gmail_draft_id="gmail-draft-1",
+        created_at=base_time + timedelta(seconds=7),
+    )
+    _add_ticket_run(
+        store,
+        ticket_id=second_ticket.ticket_id,
+        final_action="create_draft",
+        started_at=base_time + timedelta(minutes=5),
+        ended_at=base_time + timedelta(minutes=5, seconds=5),
+        created_at=base_time + timedelta(minutes=5),
+        trajectory_evaluation={
+            "score": 4.0,
+            "expected_route": "technical_issue",
+            "actual_route": "technical_issue",
+            "violations": [],
+        },
+    )
+
+    with store.session_scope() as session:
+        persisted_first = session.get(Ticket, first_ticket.ticket_id)
+        persisted_second = session.get(Ticket, second_ticket.ticket_id)
+        persisted_third = session.get(Ticket, third_ticket.ticket_id)
+        assert persisted_first is not None
+        assert persisted_second is not None
+        assert persisted_third is not None
+        persisted_first.updated_at = base_time + timedelta(minutes=3)
+        persisted_second.updated_at = base_time + timedelta(minutes=2)
+        persisted_third.updated_at = base_time + timedelta(minutes=1)
+
+    response = client.get("/tickets", params={"page": 1, "page_size": 2})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["page"] == 1
+    assert payload["page_size"] == 2
+    assert payload["total"] == 3
+    assert [item["ticket_id"] for item in payload["items"]] == [
+        first_ticket.ticket_id,
+        second_ticket.ticket_id,
+    ]
+    assert payload["items"][0]["customer_id"] == "cust_email_liwei_example_com"
+    assert payload["items"][0]["customer_email_raw"] == '"Li Wei" <liwei@example.com>'
+    assert payload["items"][0]["subject"] == "Need refund review"
+    assert payload["items"][0]["business_status"] == "awaiting_human_review"
+    assert payload["items"][0]["processing_status"] == "waiting_external"
+    assert payload["items"][0]["priority"] == "medium"
+    assert payload["items"][0]["primary_route"] == "commercial_policy_request"
+    assert payload["items"][0]["multi_intent"] is False
+    assert payload["items"][0]["version"] == 4
+    assert payload["items"][0]["updated_at"] == "2026-04-17T10:33:00+00:00"
+    assert payload["items"][0]["latest_run"] == {
+        "run_id": first_run.run_id,
+        "trace_id": first_run.trace_id,
+        "status": "succeeded",
+        "final_action": "handoff_to_human",
+        "evaluation_summary_ref": {
+            "status": "complete",
+            "trace_id": first_run.trace_id,
+            "has_response_quality": True,
+            "response_quality_overall_score": 4.25,
+            "has_trajectory_evaluation": True,
+            "trajectory_score": 4.5,
+            "trajectory_violation_count": 1,
+        },
+    }
+    assert payload["items"][0]["latest_draft"]["qa_status"] == "pending"
+    assert payload["items"][1]["latest_run"]["evaluation_summary_ref"] == {
+        "status": "partial",
+        "trace_id": payload["items"][1]["latest_run"]["trace_id"],
+        "has_response_quality": False,
+        "response_quality_overall_score": None,
+        "has_trajectory_evaluation": True,
+        "trajectory_score": 4.0,
+        "trajectory_violation_count": 0,
+    }
+    assert payload["items"][1]["latest_draft"] is None
+
+    filtered = client.get(
+        "/tickets",
+        params={
+            "has_draft": "true",
+            "awaiting_review": "true",
+            "query": "refund",
+            "primary_route": "commercial_policy_request",
+        },
+    )
+
+    assert filtered.status_code == 200
+    filtered_payload = filtered.json()
+    assert filtered_payload["total"] == 1
+    assert [item["ticket_id"] for item in filtered_payload["items"]] == [first_ticket.ticket_id]
+
+    no_draft = client.get("/tickets", params={"has_draft": "false"})
+    assert no_draft.status_code == 200
+    assert no_draft.json()["total"] == 2
+    assert all(item["latest_draft"] is None for item in no_draft.json()["items"])
+
+
+def test_tickets_list_rejects_invalid_filter_value():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    response = client.get("/tickets", params={"business_status": "not_a_real_status"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert response.json()["error"]["details"]["query"] == "business_status"
+
+
+def test_ticket_runs_history_returns_paginated_descending_items():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=5,
+        primary_route="commercial_policy_request",
+        subject="Refund timeline follow-up",
+    )
+    base_time = datetime(2026, 4, 17, 10, 0, tzinfo=timezone.utc)
+    first_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        trigger_type="manual_api",
+        status="succeeded",
+        final_action="create_draft",
+        started_at=base_time,
+        ended_at=base_time + timedelta(seconds=5),
+        attempt_index=1,
+        created_at=base_time,
+        response_quality={
+            "overall_score": 4.7,
+            "subscores": {
+                "relevance": 4.5,
+                "correctness": 5.0,
+                "intent_alignment": 4.5,
+                "clarity": 4.8,
+            },
+            "reason": "Strong automated reply.",
+        },
+        trajectory_evaluation={
+            "score": 4.8,
+            "expected_route": "commercial_policy_request",
+            "actual_route": "commercial_policy_request",
+            "violations": [],
+        },
+    )
+    second_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        trigger_type="scheduled_retry",
+        status="failed",
+        final_action=None,
+        started_at=base_time + timedelta(minutes=10),
+        ended_at=base_time + timedelta(minutes=10, seconds=7),
+        attempt_index=2,
+        created_at=base_time + timedelta(minutes=10),
+        trajectory_evaluation={
+            "score": 2.5,
+            "expected_route": "commercial_policy_request",
+            "actual_route": "commercial_policy_request",
+            "violations": ["draft_generation_failed"],
+        },
+    )
+    third_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        trigger_type="human_action",
+        status="succeeded",
+        final_action="handoff_to_human",
+        started_at=base_time + timedelta(minutes=20),
+        ended_at=base_time + timedelta(minutes=20, seconds=4),
+        attempt_index=3,
+        created_at=base_time + timedelta(minutes=20),
+        response_quality=None,
+        trajectory_evaluation=None,
+    )
+    with store.session_scope() as session:
+        persisted_third = session.get(TicketRun, third_run.run_id)
+        assert persisted_third is not None
+        persisted_third.triggered_by = "reviewer-77"
+
+    response = client.get(
+        f"/tickets/{ticket.ticket_id}/runs",
+        params={"page": 1, "page_size": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticket_id"] == ticket.ticket_id
+    assert payload["page"] == 1
+    assert payload["page_size"] == 2
+    assert payload["total"] == 3
+    assert [item["run_id"] for item in payload["items"]] == [
+        third_run.run_id,
+        second_run.run_id,
+    ]
+    assert payload["items"][0] == {
+        "run_id": third_run.run_id,
+        "trace_id": third_run.trace_id,
+        "trigger_type": "human_action",
+        "triggered_by": "reviewer-77",
+        "status": "succeeded",
+        "final_action": "handoff_to_human",
+        "started_at": "2026-04-17T10:20:00+00:00",
+        "ended_at": "2026-04-17T10:20:04+00:00",
+        "attempt_index": 3,
+        "is_human_action": True,
+        "evaluation_summary_ref": {
+            "status": "not_available",
+            "trace_id": third_run.trace_id,
+            "has_response_quality": False,
+            "response_quality_overall_score": None,
+            "has_trajectory_evaluation": False,
+            "trajectory_score": None,
+            "trajectory_violation_count": None,
+        },
+    }
+    assert payload["items"][1]["trigger_type"] == "scheduled_retry"
+    assert payload["items"][1]["is_human_action"] is False
+    assert payload["items"][1]["evaluation_summary_ref"] == {
+        "status": "partial",
+        "trace_id": second_run.trace_id,
+        "has_response_quality": False,
+        "response_quality_overall_score": None,
+        "has_trajectory_evaluation": True,
+        "trajectory_score": 2.5,
+        "trajectory_violation_count": 1,
+    }
+
+    second_page = client.get(
+        f"/tickets/{ticket.ticket_id}/runs",
+        params={"page": 2, "page_size": 2},
+    )
+    assert second_page.status_code == 200
+    assert [item["run_id"] for item in second_page.json()["items"]] == [first_run.run_id]
+    assert second_page.json()["items"][0]["evaluation_summary_ref"]["status"] == "complete"
+
+
+def test_ticket_drafts_history_returns_version_ordered_items():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=4,
+        primary_route="commercial_policy_request",
+        subject="Refund wording review",
+    )
+    base_time = datetime(2026, 4, 17, 9, 0, tzinfo=timezone.utc)
+    first_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        started_at=base_time,
+        ended_at=base_time + timedelta(seconds=4),
+        created_at=base_time,
+    )
+    second_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        trigger_type="human_action",
+        started_at=base_time + timedelta(minutes=15),
+        ended_at=base_time + timedelta(minutes=15, seconds=3),
+        created_at=base_time + timedelta(minutes=15),
+    )
+    _add_draft_artifact(
+        store,
+        ticket_id=ticket.ticket_id,
+        run_id=second_run.run_id,
+        version_index=2,
+        qa_status="passed",
+        gmail_draft_id="gmail-draft-2",
+        created_at=base_time + timedelta(minutes=15, seconds=2),
+    )
+    first_draft = _add_draft_artifact(
+        store,
+        ticket_id=ticket.ticket_id,
+        run_id=first_run.run_id,
+        version_index=1,
+        qa_status="pending",
+        created_at=base_time + timedelta(seconds=3),
+    )
+    with store.session_scope() as session:
+        persisted_first = session.get(DraftArtifact, first_draft.draft_id)
+        persisted_second = (
+            session.query(DraftArtifact)
+            .filter(
+                DraftArtifact.ticket_id == ticket.ticket_id,
+                DraftArtifact.version_index == 2,
+            )
+            .one()
+        )
+        persisted_first.source_evidence_summary = "Original billing policy summary."
+        persisted_second.source_evidence_summary = "Human reviewer softened wording."
+
+    response = client.get(f"/tickets/{ticket.ticket_id}/drafts")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticket_id"] == ticket.ticket_id
+    assert [item["version_index"] for item in payload["items"]] == [1, 2]
+    assert payload["items"][0] == {
+        "draft_id": first_draft.draft_id,
+        "run_id": first_run.run_id,
+        "version_index": 1,
+        "draft_type": "reply",
+        "qa_status": "pending",
+        "content_text": "Draft version 1",
+        "source_evidence_summary": "Original billing policy summary.",
+        "gmail_draft_id": None,
+        "created_at": "2026-04-17T09:00:03+00:00",
+    }
+    assert payload["items"][1]["run_id"] == second_run.run_id
+    assert payload["items"][1]["version_index"] == 2
+    assert payload["items"][1]["qa_status"] == "passed"
+    assert payload["items"][1]["gmail_draft_id"] == "gmail-draft-2"
+    assert payload["items"][1]["source_evidence_summary"] == "Human reviewer softened wording."
+
+
+def test_ticket_runs_and_drafts_history_return_not_found_for_unknown_ticket():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    runs_response = client.get("/tickets/t_missing/runs")
+    drafts_response = client.get("/tickets/t_missing/drafts")
+
+    assert runs_response.status_code == 404
+    assert runs_response.json()["error"]["code"] == "not_found"
+    assert runs_response.json()["error"]["details"] == {"ticket_id": "t_missing"}
+    assert drafts_response.status_code == 404
+    assert drafts_response.json()["error"]["code"] == "not_found"
+    assert drafts_response.json()["error"]["details"] == {"ticket_id": "t_missing"}
+
+
+def test_gmail_scan_preview_returns_candidates_and_skip_reasons():
+    gmail_client = FakeApiGmailClient(
+        scan_result={
+            "requested_max_results": 20,
+            "candidate_threads": 3,
+            "skipped_existing_draft_threads": 1,
+            "skipped_self_sent_threads": 1,
+            "items": [
+                {
+                    "id": "msg-001",
+                    "threadId": "thread-001",
+                    "messageId": "<msg-001@gmail.com>",
+                    "references": "",
+                    "sender": '"Li Wei" <liwei@example.com>',
+                    "subject": "Need refund review",
+                    "body": "Please review the duplicate charge.",
+                    "skip_reason": None,
+                },
+                {
+                    "id": "msg-002",
+                    "threadId": "thread-002",
+                    "messageId": "<msg-002@gmail.com>",
+                    "references": "",
+                    "sender": '"Ops" <support@example.com>',
+                    "subject": "Already drafted thread",
+                    "body": "Internal follow-up.",
+                    "skip_reason": "existing_draft",
+                },
+                {
+                    "id": "msg-003",
+                    "threadId": "thread-003",
+                    "messageId": "<msg-003@gmail.com>",
+                    "references": "",
+                    "sender": '"Support" <support@example.com>',
+                    "subject": "Self sent test",
+                    "body": "Ignore this thread.",
+                    "skip_reason": "self_sent",
+                },
+            ],
+        }
+    )
+    app, _ = _build_app(gmail_client=gmail_client)
+    client = TestClient(app)
+
+    response = client.post("/ops/gmail/scan-preview", json={"max_results": 5})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["gmail_enabled"] is True
+    assert payload["requested_max_results"] == 5
+    assert payload["summary"] == {
+        "candidate_threads": 3,
+        "skipped_existing_draft_threads": 1,
+        "skipped_self_sent_threads": 1,
+    }
+    assert payload["items"] == [
+        {
+            "source_thread_id": "thread-001",
+            "source_message_id": "<msg-001@gmail.com>",
+            "sender_email_raw": '"Li Wei" <liwei@example.com>',
+            "subject": "Need refund review",
+            "skip_reason": None,
+        },
+        {
+            "source_thread_id": "thread-002",
+            "source_message_id": "<msg-002@gmail.com>",
+            "sender_email_raw": '"Ops" <support@example.com>',
+            "subject": "Already drafted thread",
+            "skip_reason": "existing_draft",
+        },
+        {
+            "source_thread_id": "thread-003",
+            "source_message_id": "<msg-003@gmail.com>",
+            "sender_email_raw": '"Support" <support@example.com>',
+            "subject": "Self sent test",
+            "skip_reason": "self_sent",
+        },
+    ]
+
+
+def test_gmail_scan_ingests_and_optionally_enqueues_runs():
+    gmail_client = FakeApiGmailClient(
+        scan_result={
+            "requested_max_results": 20,
+            "candidate_threads": 2,
+            "skipped_existing_draft_threads": 0,
+            "skipped_self_sent_threads": 1,
+            "items": [
+                {
+                    "id": "msg-101",
+                    "threadId": "thread-101",
+                    "messageId": "<msg-101@gmail.com>",
+                    "references": "",
+                    "sender": '"Li Wei" <liwei@example.com>',
+                    "subject": "Billing help needed",
+                    "body": "Please help review a duplicate charge.",
+                    "skip_reason": None,
+                },
+                {
+                    "id": "msg-102",
+                    "threadId": "thread-102",
+                    "messageId": "<msg-102@gmail.com>",
+                    "references": "",
+                    "sender": '"Support" <support@example.com>',
+                    "subject": "Skip me",
+                    "body": "Ignore internal thread.",
+                    "skip_reason": "self_sent",
+                },
+            ],
+        }
+    )
+    app, store = _build_app(gmail_client=gmail_client)
+    client = TestClient(app)
+
+    response = client.post("/ops/gmail/scan", json={"max_results": 10, "enqueue": True})
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "accepted"
+    assert payload["gmail_enabled"] is True
+    assert payload["requested_max_results"] == 10
+    assert payload["enqueue"] is True
+    assert payload["scan_id"].startswith("scan_")
+    assert payload["summary"] == {
+        "fetched_threads": 2,
+        "ingested_tickets": 1,
+        "queued_runs": 1,
+        "skipped_existing_draft_threads": 0,
+        "skipped_self_sent_threads": 1,
+        "errors": 0,
+    }
+    assert len(payload["items"]) == 1
+    ingested_item = payload["items"][0]
+    assert ingested_item["source_thread_id"] == "thread-101"
+    assert ingested_item["created_ticket"] is True
+    assert ingested_item["ticket_id"] is not None
+    assert ingested_item["queued_run_id"] is not None
+
+    snapshot = client.get(f"/tickets/{ingested_item['ticket_id']}")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["ticket"]["processing_status"] == "queued"
+
+    no_enqueue_response = client.post("/ops/gmail/scan", json={"max_results": 10, "enqueue": False})
+    assert no_enqueue_response.status_code == 202
+    no_enqueue_payload = no_enqueue_response.json()
+    assert no_enqueue_payload["summary"]["ingested_tickets"] == 1
+    assert no_enqueue_payload["summary"]["queued_runs"] == 0
+    assert no_enqueue_payload["items"][0]["queued_run_id"] is None
+
+    with store.session_scope() as session:
+        tickets = session.query(Ticket).filter(Ticket.source_thread_id == "thread-101").all()
+        assert len(tickets) == 1
+
+
+def test_ops_status_returns_runtime_summary():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    queued_ticket = _create_ticket(
+        store,
+        business_status="triaged",
+        processing_status="queued",
+        version=2,
+        primary_route="technical_issue",
+        subject="Queue me",
+    )
+    waiting_ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=3,
+        primary_route="commercial_policy_request",
+        subject="Waiting on reviewer",
+    )
+    error_ticket = _create_ticket(
+        store,
+        business_status="failed",
+        processing_status="error",
+        version=4,
+        primary_route="technical_issue",
+        subject="Escalated error case",
+    )
+    _add_ticket_run(
+        store,
+        ticket_id=queued_ticket.ticket_id,
+        status="queued",
+        final_action=None,
+        started_at=None,
+        ended_at=None,
+        created_at=datetime(2026, 4, 17, 8, 0, tzinfo=timezone.utc),
+    )
+    _add_ticket_run(
+        store,
+        ticket_id=waiting_ticket.ticket_id,
+        status="running",
+        final_action=None,
+        started_at=datetime(2026, 4, 17, 8, 15, tzinfo=timezone.utc),
+        ended_at=None,
+        created_at=datetime(2026, 4, 17, 8, 15, tzinfo=timezone.utc),
+    )
+    failed_run = _add_ticket_run(
+        store,
+        ticket_id=error_ticket.ticket_id,
+        status="failed",
+        final_action=None,
+        started_at=datetime(2026, 4, 17, 8, 30, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 4, 17, 8, 30, 7, tzinfo=timezone.utc),
+        created_at=datetime(2026, 4, 17, 8, 30, tzinfo=timezone.utc),
+        trajectory_evaluation={
+            "score": 1.5,
+            "expected_route": "technical_issue",
+            "actual_route": "technical_issue",
+            "violations": ["worker_exception"],
+        },
+    )
+    with store.session_scope() as session:
+        failed_ticket = session.get(Ticket, error_ticket.ticket_id)
+        persisted_failed_run = session.get(TicketRun, failed_run.run_id)
+        assert failed_ticket is not None
+        assert persisted_failed_run is not None
+        failed_ticket.last_error_code = "run_execution_failed"
+        persisted_failed_run.error_code = "run_execution_failed"
+        session.add(
+            AppMetadata(
+                key="ops:gmail:last_scan_at",
+                value="2026-04-17T09:42:01+00:00",
+            )
+        )
+        session.add(
+            AppMetadata(
+                key="ops:gmail:last_scan_status",
+                value="succeeded",
+            )
+        )
+
+    response = client.get("/ops/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["gmail"] == {
+        "enabled": True,
+        "account_email": get_settings().gmail.my_email,
+        "last_scan_at": "2026-04-17T09:42:01+00:00",
+        "last_scan_status": "succeeded",
+    }
+    assert payload["worker"] == {
+        "healthy": None,
+        "worker_count": None,
+        "last_heartbeat_at": None,
+    }
+    assert payload["queue"] == {
+        "queued_runs": 1,
+        "running_runs": 1,
+        "waiting_external_tickets": 1,
+        "error_tickets": 1,
+    }
+    assert payload["dependencies"]["database"] == "ok"
+    assert payload["dependencies"]["gmail"] == "ok"
+    assert payload["dependencies"]["llm"] == "unknown"
+    assert payload["dependencies"]["checkpointing"] in {"ok", "error"}
+    assert payload["recent_failure"] == {
+        "ticket_id": error_ticket.ticket_id,
+        "run_id": failed_run.run_id,
+        "trace_id": failed_run.trace_id,
+        "error_code": "run_execution_failed",
+        "occurred_at": "2026-04-17T08:30:07+00:00",
+    }
+
+
+def test_ops_status_returns_null_recent_failure_when_no_failed_runs_exist():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    response = client.get("/ops/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["recent_failure"] is None
+    assert payload["queue"] == {
+        "queued_runs": 0,
+        "running_runs": 0,
+        "waiting_external_tickets": 0,
+        "error_tickets": 0,
+    }
+
+
+def test_dev_test_email_creates_ticket_and_optional_run():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    enqueue_response = client.post(
+        "/dev/test-email",
+        json={
+            "sender_email_raw": '"Test User" <test.user@example.com>',
+            "subject": "I was charged twice this month",
+            "body_text": "Please help me review a possible duplicate charge.",
+            "references": None,
+            "auto_enqueue": True,
+            "scenario_label": "billing_refund",
+        },
+    )
+
+    assert enqueue_response.status_code == 200
+    payload = enqueue_response.json()
+    assert payload["ticket"]["created"] is True
+    assert payload["ticket"]["processing_status"] == "queued"
+    assert payload["ticket"]["business_status"] == "triaged"
+    assert payload["run"] is not None
+    assert payload["run"]["run_id"] is not None
+    assert payload["run"]["trace_id"] is not None
+    assert payload["run"]["processing_status"] == "queued"
+    assert payload["test_metadata"] == {
+        "scenario_label": "billing_refund",
+        "auto_enqueue": True,
+        "source_channel": "gmail_test",
+    }
+
+    snapshot = client.get(f"/tickets/{payload['ticket']['ticket_id']}")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["ticket"]["processing_status"] == "queued"
+
+    no_enqueue_response = client.post(
+        "/dev/test-email",
+        json={
+            "sender_email_raw": '"Test User" <test.user@example.com>',
+            "subject": "Need product comparison",
+            "body_text": "What is the difference between your plans?",
+            "references": "<test-prev@local.test>",
+            "auto_enqueue": False,
+            "scenario_label": "knowledge_request",
+        },
+    )
+
+    assert no_enqueue_response.status_code == 200
+    no_enqueue_payload = no_enqueue_response.json()
+    assert no_enqueue_payload["ticket"]["created"] is True
+    assert no_enqueue_payload["ticket"]["processing_status"] == "queued"
+    assert no_enqueue_payload["run"] is None
+    assert no_enqueue_payload["test_metadata"] == {
+        "scenario_label": "knowledge_request",
+        "auto_enqueue": False,
+        "source_channel": "gmail_test",
+    }
+
+    with store.session_scope() as session:
+        stored_ticket = session.get(Ticket, no_enqueue_payload["ticket"]["ticket_id"])
+        assert stored_ticket is not None
+        assert stored_ticket.subject == "Need product comparison"
+
+
+def test_dev_test_email_rejects_blank_required_fields():
+    app, _ = _build_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/dev/test-email",
+        json={
+            "sender_email_raw": "   ",
+            "subject": "Valid subject",
+            "body_text": "Valid body",
+            "auto_enqueue": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_retry_ticket_requeues_failed_ticket():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="failed",
+        processing_status="error",
+        version=5,
+        primary_route="technical_issue",
+        subject="Worker failure case",
+    )
+    previous_run = _add_ticket_run(
+        store,
+        ticket_id=ticket.ticket_id,
+        trigger_type="manual_api",
+        status="failed",
+        final_action=None,
+        started_at=datetime(2026, 4, 17, 7, 0, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 4, 17, 7, 0, 5, tzinfo=timezone.utc),
+        created_at=datetime(2026, 4, 17, 7, 0, tzinfo=timezone.utc),
+        trajectory_evaluation={
+            "score": 1.0,
+            "expected_route": "technical_issue",
+            "actual_route": "technical_issue",
+            "violations": ["worker_exception"],
+        },
+    )
+    with store.session_scope() as session:
+        persisted_ticket = session.get(Ticket, ticket.ticket_id)
+        assert persisted_ticket is not None
+        persisted_ticket.current_run_id = previous_run.run_id
+        persisted_ticket.last_error_code = "run_execution_failed"
+        persisted_ticket.last_error_message = "workflow crashed"
+
+    response = client.post(
+        f"/tickets/{ticket.ticket_id}/retry",
+        json={"ticket_version": 5},
+        headers={"X-Request-Id": "retry-001"},
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["ticket_id"] == ticket.ticket_id
+    assert payload["processing_status"] == "queued"
+
+    snapshot = client.get(f"/tickets/{ticket.ticket_id}")
+    assert snapshot.status_code == 200
+    snapshot_payload = snapshot.json()
+    assert snapshot_payload["ticket"]["business_status"] == "triaged"
+    assert snapshot_payload["ticket"]["processing_status"] == "queued"
+
+    with store.session_scope() as session:
+        new_run = session.get(TicketRun, payload["run_id"])
+        persisted_ticket = session.get(Ticket, ticket.ticket_id)
+        assert new_run is not None
+        assert new_run.trigger_type == "scheduled_retry"
+        assert new_run.status == "queued"
+        assert persisted_ticket is not None
+        assert persisted_ticket.current_run_id == new_run.run_id
+        assert persisted_ticket.last_error_code is None
+        assert persisted_ticket.last_error_message is None
+
+
+def test_retry_ticket_rejects_non_failed_ticket():
+    app, store = _build_app()
+    client = TestClient(app)
+
+    ticket = _create_ticket(
+        store,
+        business_status="triaged",
+        processing_status="queued",
+        version=2,
+        primary_route="technical_issue",
+        subject="Still active",
+    )
+
+    response = client.post(
+        f"/tickets/{ticket.ticket_id}/retry",
+        json={"ticket_version": 2},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "invalid_state_transition"
 
 
 def test_run_ticket_enqueues_run_without_sync_execution():

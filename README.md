@@ -1,20 +1,15 @@
 # 智能邮件工单引擎
 
-一个面向真实邮件客服场景的 Agent 工单后端。
+一个面向真实邮件客服场景的“前端控制台 + 控制面 API + Worker 编排”系统。
 
-这个项目不是“自动回一封邮件”的脚本，而是一套以 `Ticket` 为中心、由 `Worker` 异步驱动、用 `LangGraph` 编排的客服处理系统。它接收 Gmail 邮件或业务 API 请求，将客户问题转入统一工单流转，完成意图识别、任务路由、上下文补强、回复起草、质量审查、人工升级、长期记忆沉淀，以及基于 trace 的评估观测。
+这个项目不是“自动回一封邮件”的脚本，而是一套以 `Ticket` 为中心、由 `API 入队 + Worker 异步执行` 驱动的客服处理系统。它接收 Gmail 邮件或业务 API 请求，把客户问题沉淀成工单，并围绕意图路由、知识补强、回复起草、QA 审查、人工动作、trace 观测和长期记忆形成完整闭环。
 
-## 项目简介
+## 当前状态
 
-面向真实邮件客服场景，客户请求往往会混合产品咨询、故障排查、退款计费和反馈等多类问题。这个项目围绕“消息如何被稳定地处理成一张工单”展开，独立实现了一套以 `Ticket` 为中心、由 `Worker` 异步执行的 Agent 客服后端。
-
-项目重点不在单次生成效果，而在完整闭环：
-
-- 输入先工单化，而不是直接进入模型调用
-- 执行由 `API 入队 + Worker 消费` 完成，而不是同步阻塞请求
-- 工作流中同时存在知识检索、规则约束、草稿生成、QA 重写和人工升级
-- 结果不只是一段回复，还包括澄清请求、人工接管、关闭工单和记忆更新
-- 每次运行都会沉淀 trace、metrics、质量评估和轨迹评估
+- 控制面最小闭环 M1 已完成：`GET /tickets`、`GET /tickets/{ticket_id}/runs`、`GET /tickets/{ticket_id}/drafts`、`POST /ops/gmail/scan-preview`、`POST /ops/gmail/scan`、`GET /ops/status`、`POST /dev/test-email`、`POST /tickets/{ticket_id}/retry` 已落地。
+- 控制台最小可演示版本 M2 已完成：Dashboard、Tickets、Ticket Detail、Trace & Eval、Gmail Ops、Test Lab、System Status 已接入真实控制面数据。
+- 前端工程位于 `frontend/`，支持独立开发、测试、构建和静态部署。
+- 当前仓库已经具备“可部署”条件，但更适合内网或受控环境。若要直接公网生产使用，仍应补齐认证、访问控制、TLS、反向代理、进程托管和密钥管理。
 
 ## 核心流程
 
@@ -44,78 +39,53 @@ flowchart LR
 
 ## 技术栈
 
-`Python` · `LangChain` · `LangGraph` · `RAG` · `FastAPI` · `Postgres` · `Chroma` · `LangSmith`
+`Python` · `FastAPI` · `LangChain` · `LangGraph` · `Postgres` · `Chroma` · `LangSmith` · `React` · `TypeScript` · `Vite` · `React Query` · `Zustand`
 
-## 设计模块
+## 核心能力
 
-### 1. 意图识别与任务路由
+### 1. 工单化接入与异步执行
 
-项目设计了一套邮件 `triage` 体系，将请求归入多类主路由，并结合规则与结构化 LLM 输出共同判断优先级、是否需要澄清、是否需要升级。
+- 输入先进入 `Ticket` 体系，而不是直接阻塞在单次模型调用上。
+- API 负责创建工单和入队，Worker 负责 claim run、续租 lease、执行 workflow。
+- 失败后支持围绕 checkpoint 恢复，而不是简单整条重跑。
 
-这一层解决的不是“怎么回答”，而是“这类问题应该进入哪条处理链路”：
+### 2. 路由、知识与生成分层
 
-- 区分产品知识咨询、技术问题、商业政策请求、反馈类请求和无关请求
-- 在主路由之外补充优先级、风险标签和升级信号
-- 把“信息不足”和“高风险场景”提前从回复链路中分流出去
+- `Triage` 负责主路由、风险信号和升级判断。
+- `Knowledge / Policy / Customer History` 负责上下文补强。
+- `Drafting / QA & Handoff` 负责草稿生成、质量审查、重写和人工升级决策。
 
-### 2. 多 Agent 与节点编排
+### 3. 控制台与控制面
 
-系统基于 `LangGraph` 拆分出 `Triage / Knowledge / Drafting / QA & Handoff` 等能力节点，不把所有判断压进一个 Prompt。
+- `frontend/` 提供独立的操作台界面。
+- `src/api/` 提供 Ticket 列表、详情、run history、draft history、trace、metrics、ops status、Gmail Ops、Test Lab 等控制面接口。
+- 人工动作已集成到 Ticket Detail 页面，通过控制面接口触发审批、编辑审批、重写、升级和关闭。
 
-整个流程不是单链路调用，而是显式工作流：
+### 4. 观测与评估
 
-- `Triage` 负责理解问题并决定第一跳
-- `Knowledge / Policy / Customer History` 负责补强上下文
-- `Drafting` 负责生成回复草稿
-- `QA & Handoff` 负责质量审查、重写与人工升级决策
+- 每次 run 都会沉淀 trace、延迟、资源消耗、响应质量和轨迹评估。
+- 前端 `Trace & Eval` 页面可直接查看时间线、事件台账、指标对比和 raw drawer。
 
-这让系统既保留了 LLM 的生成能力，也保留了流程上的可控性。
+### 5. Gmail 与测试注入
 
-### 3. 长期记忆提取与融合
+- 支持 Gmail 扫描预览、实际扫描摄入和可选入队。
+- 支持 `POST /dev/test-email` 进行测试邮件注入，便于演示、联调和回归验证。
 
-在工单收尾阶段，系统会从本次处理过程中提取并融合风险标签、业务标记、历史案例等信息，更新客户长期记忆，用于后续请求中的画像补充与风险判断。
+## 控制台页面
 
-这里的重点不是做一个聊天记忆 Demo，而是把记忆作为客服系统中的业务资产来使用：
-
-- 为后续请求补充客户背景
-- 记录历史处理特征和业务风险
-- 在规则判断和人工升级时提供额外上下文
-
-### 4. Trace 追踪与评估观测
-
-项目构建了按单次工单记录的可观测体系，围绕每次 run 输出 trace、延迟、资源消耗、轨迹评估，并结合 `LLM-as-a-Judge` 对最终草稿进行质量判断。
-
-这部分能力让项目不只是“能跑”，而是“能回看、能分析、能迭代”：
-
-- 可以查看一次工单为何走到某条路径
-- 可以观察执行耗时、资源消耗和节点行为
-- 可以评估回复质量与执行轨迹是否符合预期
-
-### 5. 可恢复执行机制
-
-整个系统采用 `API 入队 + Worker 异步执行` 的运行模型，引入租约、续租、checkpoint 恢复和 Gmail 草稿幂等等机制，以提升长流程运行可靠性。
-
-这里体现的是工程化执行能力，而不是单次推理能力：
-
-- API 只负责接收请求和入队
-- Worker 负责 claim run、续租 lease、执行 workflow
-- 失败后可以围绕 checkpoint 恢复，而不是整条流程重来
-
-## 项目结果
-
-项目完成了邮件客服 AI 应用的完整闭环，覆盖了从请求接入、工单流转、回复生成到人工协同、观测评估和记忆更新的一整套后端能力。
-
-在自建测试样本中：
-
-- 主路由准确率 `98.4%`
-- 升级判断准确率 `95.2%`
-- 平均回复质量 `4.51 / 5`
-- 平均轨迹评分 `4.71 / 5`
+- `Dashboard`: 读取 `ops/status`、`metrics/summary` 和 `tickets` 的综合态势页。
+- `Tickets`: Ticket 列表、筛选、分页和详情跳转。
+- `Ticket Detail`: snapshot、runs、drafts 与人工动作工作台。
+- `Trace & Eval`: run 时间线、事件台账、指标对比与 raw payload。
+- `Gmail Ops`: scan-preview、scan 与 mailbox posture。
+- `Test Lab`: 测试邮件注入与 ticket/trace 跳转。
+- `System Status`: worker、依赖、队列和失败交接摘要。
 
 ## 系统结构
 
-| 模块 | 作用 |
+| 路径 | 作用 |
 | --- | --- |
+| `frontend/` | React 控制台前端，包含路由、页面、typed API client、查询层与页面测试 |
 | `src/api/` | FastAPI 应用、路由、schema、服务层 |
 | `src/orchestration/` | LangGraph workflow、route map、checkpointing |
 | `src/workers/` | worker loop、run claim、lease、执行入口 |
@@ -126,14 +96,18 @@ flowchart LR
 
 ## 快速启动
 
-环境要求：
+### 环境要求
 
 - Python `3.10+`
+- Node.js `18+`
 - `Postgres`
 - `MY_EMAIL`
 - `LLM_API_KEY`
+- 构建知识库索引时还需要 `EMBEDDING_API_URL` 与 `EMBEDDING_MODEL`
 
-初始化：
+如果当前不需要 live Gmail，可在 `.env` 中设置 `GMAIL_ENABLED=false`。
+
+### 后端初始化
 
 ```powershell
 python -m venv .venv
@@ -144,38 +118,80 @@ python scripts/init_db.py
 python scripts/build_index.py
 ```
 
-启动核心服务：
+### 启动后端服务
 
 ```powershell
 python serve_api.py
 python run_worker.py
 ```
 
-如需 Gmail 自动摄入：
+如需 Gmail 自动摄入，再额外启动：
 
 ```powershell
 python run_poller.py
 ```
 
-## 演示路径
+### 启动前端控制台
+
+```powershell
+cd frontend
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+前端默认读取 `http://127.0.0.1:8000`，如需改后端地址，请修改 `frontend/.env`：
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+### 本地演示路径
 
 1. 启动 `API` 和 `Worker`
-2. 调用 `POST /tickets/ingest-email`
-3. 调用 `POST /tickets/{ticket_id}/run`
-4. 查看 `GET /tickets/{ticket_id}`
-5. 查看 `GET /tickets/{ticket_id}/trace`
+2. 打开前端控制台
+3. 在 `Test Lab` 注入一封测试邮件
+4. 在 `Tickets` 或 `Ticket Detail` 查看工单与草稿状态
+5. 在 `Trace & Eval` 查看 run 时间线和评估结果
+
+## 部署与使用边界
+
+当前仓库适合“前后端分离 + Worker 独立进程”的受控部署模式。最小可用部署通常至少包含：
+
+- 一份静态前端构建产物
+- 一个 FastAPI API 进程
+- 一个 Worker 进程
+- 一个 Postgres 实例
+- 一份已构建的知识库索引 `.artifacts/knowledge_db`
+- 可选 Gmail poller 进程
+
+部署前请注意：
+
+- 前端部署到独立域名时，需要设置 `VITE_API_BASE_URL` 指向 API 域名。
+- 后端需要设置 `CORS_ALLOW_ORIGINS`，不要在生产环境继续使用默认的 `*`。
+- `X-Actor-Id` 只用于标记人工动作发起人，不等于真正的认证系统。
+- 没有内建登录、会话或权限边界时，不建议把 API 和控制台直接裸露到公网。
+
+前后端分离的生产部署清单见 [docs/frontend-backend-production-deployment-checklist.zh-CN.md](docs/frontend-backend-production-deployment-checklist.zh-CN.md)。
 
 ## API 概览
 
 | 类型 | 接口 |
 | --- | --- |
-| `接入 / 执行` | `POST /tickets/ingest-email`, `POST /tickets/{ticket_id}/run` |
+| `接入 / 执行` | `POST /tickets/ingest-email`, `POST /tickets/{ticket_id}/run`, `POST /tickets/{ticket_id}/retry` |
+| `列表 / 详情` | `GET /tickets`, `GET /tickets/{ticket_id}`, `GET /tickets/{ticket_id}/runs`, `GET /tickets/{ticket_id}/drafts` |
 | `人工动作` | `POST /tickets/{ticket_id}/approve`, `POST /tickets/{ticket_id}/edit-and-approve`, `POST /tickets/{ticket_id}/rewrite`, `POST /tickets/{ticket_id}/escalate`, `POST /tickets/{ticket_id}/close` |
-| `查询` | `GET /tickets/{ticket_id}`, `GET /tickets/{ticket_id}/trace`, `GET /customers/{customer_id}/memory`, `GET /metrics/summary` |
+| `观测` | `GET /tickets/{ticket_id}/trace`, `GET /metrics/summary`, `GET /ops/status` |
+| `Gmail Ops` | `POST /ops/gmail/scan-preview`, `POST /ops/gmail/scan` |
+| `开发 / 测试` | `POST /dev/test-email`, `GET /customers/{customer_id}/memory` |
 
 ## 文档
 
-- `docs/customer-support-copilot-technical-design.zh-CN.md`
-- `docs/customer-support-copilot-requirements.zh-CN.md`
+- [docs/customer-support-copilot-technical-design.zh-CN.md](docs/customer-support-copilot-technical-design.zh-CN.md)
+- [docs/customer-support-copilot-requirements.zh-CN.md](docs/customer-support-copilot-requirements.zh-CN.md)
+- [docs/frontend-control-plane-design.zh-CN.md](docs/frontend-control-plane-design.zh-CN.md)
+- [docs/frontend-information-architecture.zh-CN.md](docs/frontend-information-architecture.zh-CN.md)
+- [docs/frontend-control-plane-implementation-plan.zh-CN.md](docs/frontend-control-plane-implementation-plan.zh-CN.md)
+- [docs/frontend-backend-production-deployment-checklist.zh-CN.md](docs/frontend-backend-production-deployment-checklist.zh-CN.md)
 - `docs/specs/`
-- `evals/README.zh-CN.md`
+- [evals/README.zh-CN.md](evals/README.zh-CN.md)

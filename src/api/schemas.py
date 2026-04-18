@@ -71,6 +71,10 @@ class RunTicketRequest(ApiModel):
     force_retry: bool = False
 
 
+class RetryTicketRequest(ApiModel):
+    ticket_version: int = Field(ge=1)
+
+
 class RunTicketResponse(ApiModel):
     ticket_id: str
     run_id: str
@@ -189,10 +193,90 @@ class TicketDraftSummary(ApiModel):
     qa_status: str
 
 
+class PaginatedResponse(ApiModel):
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total: int = Field(ge=0)
+
+
+class TicketListItem(ApiModel):
+    ticket_id: str
+    customer_id: Optional[str] = None
+    customer_email_raw: str
+    subject: str
+    business_status: str
+    processing_status: str
+    priority: str
+    primary_route: Optional[str] = None
+    multi_intent: bool
+    version: int
+    updated_at: str
+    latest_run: Optional[TicketRunSummary] = None
+    latest_draft: Optional[TicketDraftSummary] = None
+
+
+class TicketListResponse(PaginatedResponse):
+    items: List[TicketListItem]
+
+
+class TicketRunHistoryItem(ApiModel):
+    run_id: str
+    trace_id: str
+    trigger_type: str
+    triggered_by: Optional[str] = None
+    status: str
+    final_action: Optional[str] = None
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    attempt_index: int
+    is_human_action: bool
+    evaluation_summary_ref: EvaluationSummaryRef
+
+
+class TicketRunsResponse(PaginatedResponse):
+    ticket_id: str
+    items: List[TicketRunHistoryItem]
+
+
+class TicketDraftDetail(ApiModel):
+    draft_id: str
+    run_id: str
+    version_index: int
+    draft_type: str
+    qa_status: str
+    content_text: str
+    source_evidence_summary: Optional[str] = None
+    gmail_draft_id: Optional[str] = None
+    created_at: str
+
+
+class TicketDraftsResponse(ApiModel):
+    ticket_id: str
+    items: List[TicketDraftDetail]
+
+
+class TicketMessage(ApiModel):
+    ticket_message_id: str
+    run_id: Optional[str] = None
+    draft_id: Optional[str] = None
+    source_message_id: str
+    direction: str
+    message_type: str
+    sender_email: Optional[str] = None
+    recipient_emails: List[str] = Field(default_factory=list)
+    subject: Optional[str] = None
+    body_text: Optional[str] = None
+    reply_to_source_message_id: Optional[str] = None
+    customer_visible: bool
+    message_timestamp: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
 class TicketSnapshotResponse(ApiModel):
     ticket: TicketSummary
     latest_run: Optional[TicketRunSummary] = None
     latest_draft: Optional[TicketDraftSummary] = None
+    messages: List[TicketMessage] = Field(default_factory=list)
 
 
 class TraceEventResponse(ApiModel):
@@ -254,3 +338,142 @@ class MetricsSummaryResponse(ApiModel):
     resources: Dict[str, Any]
     response_quality: Dict[str, Any]
     trajectory_evaluation: Dict[str, Any]
+
+
+class GmailScanPreviewRequest(ApiModel):
+    max_results: Optional[int] = Field(default=None, ge=1, le=100)
+
+
+class GmailScanRequest(ApiModel):
+    max_results: Optional[int] = Field(default=None, ge=1, le=100)
+    enqueue: bool = True
+
+
+class GmailScanPreviewItem(ApiModel):
+    source_thread_id: str
+    source_message_id: Optional[str] = None
+    sender_email_raw: str
+    subject: str
+    skip_reason: Optional[str] = None
+
+
+class GmailScanPreviewSummary(ApiModel):
+    candidate_threads: int = Field(ge=0)
+    skipped_existing_draft_threads: int = Field(ge=0)
+    skipped_self_sent_threads: int = Field(ge=0)
+
+
+class GmailScanPreviewResponse(ApiModel):
+    gmail_enabled: bool
+    requested_max_results: int = Field(ge=1)
+    summary: GmailScanPreviewSummary
+    items: List[GmailScanPreviewItem]
+
+
+class GmailScanItem(ApiModel):
+    source_thread_id: str
+    ticket_id: Optional[str] = None
+    created_ticket: bool
+    queued_run_id: Optional[str] = None
+
+
+class GmailScanSummary(ApiModel):
+    fetched_threads: int = Field(ge=0)
+    ingested_tickets: int = Field(ge=0)
+    queued_runs: int = Field(ge=0)
+    skipped_existing_draft_threads: int = Field(ge=0)
+    skipped_self_sent_threads: int = Field(ge=0)
+    errors: int = Field(ge=0)
+
+
+class GmailScanResponse(ApiModel):
+    scan_id: str
+    status: Literal["accepted"]
+    gmail_enabled: bool
+    requested_max_results: int = Field(ge=1)
+    enqueue: bool
+    summary: GmailScanSummary
+    items: List[GmailScanItem]
+
+
+class OpsStatusGmail(ApiModel):
+    enabled: bool
+    account_email: Optional[str] = None
+    last_scan_at: Optional[str] = None
+    last_scan_status: Optional[str] = None
+
+
+class OpsStatusWorker(ApiModel):
+    healthy: Optional[bool] = None
+    worker_count: Optional[int] = Field(default=None, ge=0)
+    last_heartbeat_at: Optional[str] = None
+
+
+class OpsStatusQueue(ApiModel):
+    queued_runs: int = Field(ge=0)
+    running_runs: int = Field(ge=0)
+    waiting_external_tickets: int = Field(ge=0)
+    error_tickets: int = Field(ge=0)
+
+
+class OpsStatusDependencies(ApiModel):
+    database: str
+    gmail: str
+    llm: str
+    checkpointing: str
+
+
+class OpsStatusRecentFailure(ApiModel):
+    ticket_id: str
+    run_id: str
+    trace_id: str
+    error_code: Optional[str] = None
+    occurred_at: Optional[str] = None
+
+
+class OpsStatusResponse(ApiModel):
+    gmail: OpsStatusGmail
+    worker: OpsStatusWorker
+    queue: OpsStatusQueue
+    dependencies: OpsStatusDependencies
+    recent_failure: Optional[OpsStatusRecentFailure] = None
+
+
+class TestEmailRequest(ApiModel):
+    sender_email_raw: str
+    subject: str
+    body_text: str
+    references: Optional[str] = None
+    auto_enqueue: bool = True
+    scenario_label: Optional[str] = None
+
+    @field_validator("sender_email_raw", "subject", "body_text")
+    @classmethod
+    def validate_required_text(cls, value: str, info) -> str:
+        return _require_non_blank(value, field_name=info.field_name)
+
+
+class TestEmailTicketResult(ApiModel):
+    ticket_id: str
+    created: bool
+    business_status: str
+    processing_status: str
+    version: int
+
+
+class TestEmailRunResult(ApiModel):
+    run_id: str
+    trace_id: str
+    processing_status: str
+
+
+class TestEmailMetadata(ApiModel):
+    scenario_label: Optional[str] = None
+    auto_enqueue: bool
+    source_channel: str
+
+
+class TestEmailResponse(ApiModel):
+    ticket: TestEmailTicketResult
+    run: Optional[TestEmailRunResult] = None
+    test_metadata: TestEmailMetadata

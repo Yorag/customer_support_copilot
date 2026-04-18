@@ -20,6 +20,9 @@ htmlcov/
 # Build artifacts
 build/
 dist/
+node_modules/
+.vite/
+coverage/
 *.egg-info/
 .eggs/
 

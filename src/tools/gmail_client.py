@@ -23,35 +23,86 @@ class GmailApiClient(GmailClientProtocol):
         self.settings = get_settings()
         self.service = self._get_gmail_service()
 
-    def fetch_unanswered_emails(
+    def scan_inbox(
         self,
         max_results: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
+        requested_limit = (
+            max_results
+            if max_results is not None
+            else self.settings.gmail.default_fetch_limit
+        )
         try:
-            recent_emails = self.fetch_recent_emails(max_results)
+            recent_emails = self.fetch_recent_emails(requested_limit)
             if not recent_emails:
-                return []
+                return {
+                    "requested_max_results": requested_limit,
+                    "candidate_threads": 0,
+                    "skipped_existing_draft_threads": 0,
+                    "skipped_self_sent_threads": 0,
+                    "items": [],
+                }
 
             drafts = self.fetch_draft_replies()
             threads_with_drafts = {draft["threadId"] for draft in drafts}
 
             seen_threads = set()
-            unanswered_emails = []
+            items = []
+            skipped_existing_draft_threads = 0
+            skipped_self_sent_threads = 0
             for email in recent_emails:
                 thread_id = email["threadId"]
-                if thread_id in seen_threads or thread_id in threads_with_drafts:
+                if thread_id in seen_threads:
                     continue
 
                 seen_threads.add(thread_id)
                 email_info = self._get_email_info(email["id"])
-                if self._should_skip_email(email_info):
-                    continue
-                unanswered_emails.append(email_info)
+                skip_reason = None
+                if thread_id in threads_with_drafts:
+                    skip_reason = "existing_draft"
+                    skipped_existing_draft_threads += 1
+                elif self._should_skip_email(email_info):
+                    skip_reason = "self_sent"
+                    skipped_self_sent_threads += 1
 
-            return unanswered_emails
+                items.append(
+                    {
+                        **email_info,
+                        "skip_reason": skip_reason,
+                    }
+                )
+
+            return {
+                "requested_max_results": requested_limit,
+                "candidate_threads": len(items),
+                "skipped_existing_draft_threads": skipped_existing_draft_threads,
+                "skipped_self_sent_threads": skipped_self_sent_threads,
+                "items": items,
+            }
         except Exception as error:
             print(f"An error occurred: {error}")
-            return []
+            return {
+                "requested_max_results": requested_limit,
+                "candidate_threads": 0,
+                "skipped_existing_draft_threads": 0,
+                "skipped_self_sent_threads": 0,
+                "items": [],
+            }
+
+    def fetch_unanswered_emails(
+        self,
+        max_results: int | None = None,
+    ) -> list[dict[str, Any]]:
+        scan_result = self.scan_inbox(max_results=max_results)
+        return [
+            {
+                key: value
+                for key, value in item.items()
+                if key != "skip_reason"
+            }
+            for item in scan_result["items"]
+            if item.get("skip_reason") is None
+        ]
 
     def fetch_recent_emails(
         self,

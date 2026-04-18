@@ -8,6 +8,12 @@ from src.db.repositories import RepositoryBundle
 
 
 class GmailClientProtocol(Protocol):
+    def scan_inbox(
+        self,
+        max_results: int | None = None,
+    ) -> dict[str, Any]:
+        ...
+
     def fetch_unanswered_emails(
         self,
         max_results: int | None = None,

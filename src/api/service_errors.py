@@ -31,3 +31,8 @@ class RunExecutionFailedError(Exception):
         super().__init__(f"Run `{run_id}` failed for ticket `{ticket_id}`.")
         self.ticket_id = ticket_id
         self.run_id = run_id
+
+
+class GmailDisabledError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Gmail operations are disabled in the current environment.")

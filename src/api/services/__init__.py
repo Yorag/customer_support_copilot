@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.api.service_errors import (
     CustomerNotFoundError,
     DuplicateRequestError,
+    GmailDisabledError,
     RunExecutionFailedError,
     RunNotFoundError,
     TicketNotFoundError,
@@ -10,6 +11,8 @@ from src.api.service_errors import (
 
 from .base import TicketApiServiceBase
 from .commands import TicketCommandServiceMixin
+from .dev_tools import DevToolsServiceMixin
+from .gmail_ops import GmailOpsServiceMixin
 from .common import (
     EvaluationSummaryRefPayload,
     IdempotencyService,
@@ -19,9 +22,13 @@ from .common import (
 )
 from .manual_actions import TicketManualActionServiceMixin
 from .queries import TicketQueryServiceMixin
+from .runtime_status import RuntimeStatusServiceMixin
 
 
 class TicketApiService(
+    DevToolsServiceMixin,
+    RuntimeStatusServiceMixin,
+    GmailOpsServiceMixin,
     TicketManualActionServiceMixin,
     TicketQueryServiceMixin,
     TicketCommandServiceMixin,
@@ -34,6 +41,7 @@ __all__ = [
     "CustomerNotFoundError",
     "DuplicateRequestError",
     "EvaluationSummaryRefPayload",
+    "GmailDisabledError",
     "IdempotencyService",
     "RunExecutionFailedError",
     "RunNotFoundError",

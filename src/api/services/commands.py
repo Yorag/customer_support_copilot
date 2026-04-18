@@ -86,3 +86,22 @@ class TicketCommandServiceMixin:
                 },
             )
             return result
+
+    def retry_ticket(
+        self,
+        *,
+        ticket_id: str,
+        ticket_version: int,
+        actor_id: str | None,
+        request_id: str | None,
+        idempotency_key: str | None,
+    ) -> RunEnqueueResult:
+        return self.run_ticket(
+            ticket_id=ticket_id,
+            ticket_version=ticket_version,
+            trigger_type="scheduled_retry",
+            force_retry=True,
+            actor_id=actor_id,
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+        )

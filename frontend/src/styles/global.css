@@ -1,0 +1,2589 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI Variable", "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  --bg: #efeae2;
+  --bg-grid: #d7cdbf;
+  --surface: rgba(250, 247, 241, 0.94);
+  --surface-strong: rgba(255, 252, 247, 0.98);
+  --surface-muted: rgba(242, 236, 228, 0.94);
+  --surface-accent: rgba(236, 226, 214, 0.96);
+  --surface-success: rgba(229, 239, 233, 0.96);
+  --surface-danger: rgba(242, 228, 223, 0.96);
+  --ink: #171411;
+  --ink-soft: #2d2822;
+  --muted: #635b50;
+  --line: rgba(65, 53, 41, 0.14);
+  --line-strong: rgba(65, 53, 41, 0.26);
+  --accent: #9f5a2a;
+  --accent-ink: #7b411a;
+  --success: #2d6a50;
+  --danger: #8c4234;
+  --shadow-soft: 0 18px 36px rgba(32, 26, 20, 0.08);
+  --shadow-strong: 0 28px 60px rgba(32, 26, 20, 0.12);
+  --radius-s: 12px;
+  --radius-m: 18px;
+  --radius-l: 24px;
+  --radius-xl: 32px;
+  --content-max: 1680px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23d7cdbf' stroke-width='1'%3E%3Cpath d='M0 35h140M0 70h140M0 105h140M35 0v140M70 0v140M105 0v140' opacity='.16'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(159, 90, 42, 0.4);
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dt,
+dd,
+pre {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding-left: 1rem;
+}
+
+pre {
+  white-space: pre-wrap;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 1.25rem;
+}
+
+.shell-chassis {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1rem;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.shell-sidebar,
+.shell-topbar,
+.route-frame,
+.context-card,
+.placeholder-card,
+.dashboard-hero,
+.dashboard-card,
+.tickets-hero,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-hero,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-band,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.shell-sidebar,
+.route-frame,
+.dashboard-hero,
+.tickets-hero,
+.gmail-ops-hero,
+.test-lab-hero,
+.system-status-hero,
+.trace-hero,
+.ticket-detail-band {
+  border-radius: var(--radius-xl);
+}
+
+.shell-topbar,
+.context-card,
+.placeholder-card,
+.dashboard-card,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  border-radius: var(--radius-l);
+}
+
+.shell-sidebar {
+  position: sticky;
+  top: 1.25rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1.25rem;
+  min-height: calc(100vh - 2.5rem);
+  padding: 1.3rem;
+  background: var(--surface-strong);
+}
+
+.shell-kicker,
+.route-label,
+.placeholder-eyebrow,
+.context-card-label,
+.route-phase,
+.shell-panel-label,
+.dashboard-card-label,
+.ticket-detail-board-label,
+.trace-stage-label {
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-brand h1 {
+  margin-top: 0.3rem;
+  font-size: clamp(2rem, 3vw, 2.9rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.shell-brand-note,
+.route-summary,
+.context-card p,
+.placeholder-copy p,
+.metric-card-note,
+.dashboard-card-footnote,
+.dashboard-empty-copy,
+.tickets-ledger-footnote,
+.tickets-pagination-copy,
+.gmail-ops-runtime-cell p,
+.gmail-ops-summary-card p,
+.gmail-ops-item-row p,
+.gmail-ops-empty-state p:last-child,
+.gmail-ops-inline-card p,
+.gmail-ops-alert p:last-child,
+.test-lab-hero-copy-note,
+.test-lab-alert p:last-child,
+.test-lab-preset-card p,
+.test-lab-receipt-card p,
+.test-lab-empty-state p:last-child,
+.test-lab-inline-card p,
+.system-status-copy,
+.system-status-runtime-card p,
+.system-status-dependency-card p,
+.system-status-failure-card p,
+.system-status-queue-card p,
+.system-status-empty-state p:last-child,
+.trace-hero-card-copy,
+.trace-panel-copy,
+.trace-metric-card p,
+.trace-empty-state p:last-child,
+.trace-summary-card p,
+.ticket-detail-draft-meta,
+.ticket-detail-empty-copy,
+.ticket-detail-eval-card span,
+.ticket-detail-draft-row p,
+.ticket-detail-request-alert p:last-child,
+.ticket-detail-empty-state p:last-child {
+  color: var(--muted);
+}
+
+.shell-nav {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.shell-nav-link {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.shell-nav-link:hover {
+  transform: translateX(3px);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.shell-nav-link.is-active {
+  border-color: rgba(159, 90, 42, 0.32);
+  background: var(--surface-accent);
+}
+
+.shell-nav-label,
+.dashboard-feed-title,
+.tickets-row-subject,
+.tickets-row-customer,
+.tickets-row-link,
+.test-lab-preset-card strong {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.shell-sidebar-panel,
+.dashboard-feed-item,
+.dashboard-strip-item,
+.tickets-strip-item,
+.tickets-row,
+.gmail-ops-item-row,
+.gmail-ops-inline-card,
+.test-lab-preset-card,
+.test-lab-receipt-card,
+.test-lab-inline-card,
+.system-status-failure-card,
+.system-status-queue-card,
+.trace-stage-card,
+.trace-event-row,
+.ticket-detail-board,
+.ticket-detail-draft-row,
+.ticket-detail-eval-card,
+.ticket-detail-action-notice,
+.ticket-detail-history-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.shell-sidebar-panel,
+.context-card,
+.placeholder-card,
+.dashboard-card,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  padding: 1rem 1.05rem;
+}
+
+.shell-sidebar-panel h3,
+.context-card h3,
+.dashboard-card-header h3,
+.tickets-card-header h3,
+.gmail-ops-panel-header h3,
+.gmail-ops-runtime-card h3,
+.gmail-ops-alert h3,
+.gmail-ops-empty-state h3,
+.test-lab-panel-header h3,
+.test-lab-hero-card h3,
+.test-lab-alert h3,
+.test-lab-empty-state h3,
+.system-status-panel-header h3,
+.system-status-hero-card h3,
+.system-status-alert h3,
+.system-status-empty-state h3,
+.trace-panel-header h3,
+.trace-hero-card h3,
+.trace-summary-card h3,
+.trace-empty-state h3,
+.ticket-detail-panel-header h3,
+.ticket-detail-history-panel h3,
+.ticket-detail-request-alert h3,
+.ticket-detail-empty-state h3,
+.ticket-detail-board h4 {
+  margin-top: 0.34rem;
+  font-size: 1.18rem;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.shell-main {
+  min-width: 0;
+}
+
+.shell-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1rem;
+}
+
+.shell-topbar h2,
+.placeholder-copy h2,
+.dashboard-hero-copy h2,
+.tickets-hero-copy h2,
+.gmail-ops-hero-copy h2,
+.test-lab-hero-copy h2,
+.system-status-hero-copy h2,
+.trace-hero-copy h2,
+.ticket-detail-band-copy h2 {
+  margin-top: 0.3rem;
+  font-size: clamp(1.9rem, 3vw, 3.1rem);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+  max-width: 16ch;
+}
+
+.shell-topbar-status,
+.dashboard-hero-strip,
+.tickets-hero-strip,
+.gmail-ops-chip-row,
+.test-lab-chip-row,
+.system-status-chip-row,
+.trace-chip-row,
+.ticket-detail-zone-chip-row,
+.tickets-chip-row,
+.gmail-ops-button-row,
+.test-lab-button-row,
+.tickets-status-stack,
+.tickets-row-actions,
+.tickets-pagination-buttons,
+.tickets-pagination-controls,
+.trace-explorer-actions,
+.ticket-detail-action-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.shell-status-pill,
+.dashboard-card-chip,
+.tickets-ledger-chip,
+.tickets-brief-chip,
+.tickets-inline-chip,
+.tickets-status-badge,
+.gmail-ops-chip,
+.test-lab-chip,
+.system-status-chip,
+.trace-panel-chip,
+.ticket-detail-panel-chip,
+.ticket-detail-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  min-height: 2rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-status-pill {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 132px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0.7rem 0.82rem;
+}
+
+.shell-status-pill strong {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-status-pill-accent,
+.dashboard-card-chip,
+.gmail-ops-chip,
+.test-lab-chip,
+.system-status-chip,
+.trace-panel-chip,
+.ticket-detail-panel-chip,
+.ticket-detail-summary-card-accent,
+.metric-card,
+.test-lab-hero-card,
+.gmail-ops-runtime-card,
+.system-status-hero-card,
+.trace-summary-card-accent,
+.gmail-ops-panel-accent,
+.test-lab-panel-accent,
+.system-status-panel-accent,
+.trace-panel-accent,
+.ticket-detail-board-accent,
+.tickets-strip-item-alert,
+.tickets-action-chip-primary,
+.gmail-ops-button-primary,
+.test-lab-button-primary,
+.test-lab-result-link-accent,
+.trace-explorer-button-primary,
+.ticket-detail-action-button-primary {
+  background: var(--surface-accent);
+}
+
+.shell-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.route-frame {
+  min-width: 0;
+  padding: 1.35rem;
+  background: var(--surface-strong);
+}
+
+.route-frame-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.95rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.route-note span {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.context-rail,
+.placeholder-page,
+.dashboard-page,
+.tickets-page,
+.gmail-ops-page,
+.test-lab-page,
+.system-status-page,
+.trace-page,
+.ticket-detail-page,
+.dashboard-grid,
+.gmail-ops-runtime-grid,
+.gmail-ops-summary-grid,
+.test-lab-results-grid,
+.system-status-runtime-grid,
+.system-status-dependency-grid,
+.system-status-queue-grid,
+.trace-summary-grid,
+.trace-metric-grid,
+.ticket-detail-summary-grid,
+.ticket-detail-eval-grid,
+.dashboard-feed-list,
+.tickets-ledger-list,
+.gmail-ops-item-list,
+.trace-stage-list,
+.trace-events-list,
+.ticket-detail-board-stack,
+.ticket-detail-draft-list,
+.ticket-detail-history-list,
+.placeholder-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.context-list,
+.placeholder-list,
+.dashboard-list,
+.gmail-ops-list,
+.test-lab-list,
+.system-status-watch-list,
+.trace-list,
+.ticket-detail-list {
+  margin-top: 0.8rem;
+  color: var(--muted);
+}
+
+.context-list li + li,
+.placeholder-list li + li,
+.dashboard-list li + li,
+.gmail-ops-list li + li,
+.test-lab-list li + li,
+.system-status-watch-list li + li,
+.trace-list li + li,
+.ticket-detail-list li + li {
+  margin-top: 0.45rem;
+}
+
+.context-list-mono,
+.dashboard-strip-item strong,
+.tickets-strip-item strong,
+.tickets-row-ticket,
+.trace-raw-drawer,
+.ticket-detail-ident-card strong,
+.ticket-detail-history-cell strong {
+  font-family: "IBM Plex Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.dashboard-hero,
+.tickets-hero,
+.gmail-ops-hero,
+.test-lab-hero,
+.system-status-hero,
+.trace-hero,
+.ticket-detail-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.95fr);
+  gap: 1rem;
+  padding: 1.2rem;
+}
+
+.dashboard-grid-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-grid-trends,
+.dashboard-grid-handoff,
+.dashboard-grid-incidents,
+.gmail-ops-deck-grid,
+.system-status-main-grid,
+.system-status-bottom-grid,
+.test-lab-results-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tickets-workbench,
+.gmail-ops-control-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.8fr);
+  gap: 1rem;
+}
+
+.dashboard-card-header,
+.tickets-card-header,
+.gmail-ops-panel-header,
+.test-lab-panel-header,
+.system-status-panel-header,
+.trace-panel-header,
+.ticket-detail-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dashboard-strip-item,
+.tickets-strip-item,
+.dashboard-feed-item,
+.gmail-ops-item-row,
+.gmail-ops-inline-card,
+.test-lab-receipt-card,
+.test-lab-inline-card,
+.system-status-failure-card,
+.system-status-queue-card,
+.trace-stage-card,
+.trace-event-row,
+.ticket-detail-board,
+.ticket-detail-draft-row,
+.ticket-detail-eval-card,
+.ticket-detail-action-notice,
+.ticket-detail-history-row {
+  padding: 0.92rem 0.98rem;
+}
+
+.dashboard-strip-item span,
+.tickets-strip-item span,
+.gmail-ops-runtime-meta dt,
+.gmail-ops-runtime-cell span,
+.gmail-ops-field span,
+.gmail-ops-summary-card span,
+.gmail-ops-inline-card span,
+.gmail-ops-item-row span,
+.test-lab-field span,
+.test-lab-receipt-card span,
+.test-lab-inline-card span,
+.system-status-hero-meta dt,
+.system-status-runtime-card span,
+.system-status-dependency-card span,
+.system-status-failure-card span,
+.system-status-queue-card span,
+.trace-metric-card span,
+.trace-hero-meta dt,
+.ticket-detail-summary-card span,
+.ticket-detail-field span,
+.ticket-detail-ident-card span,
+.ticket-detail-ident-meta span {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dashboard-strip-item strong,
+.tickets-strip-item strong,
+.metric-card-value {
+  display: block;
+  margin-top: 0.38rem;
+  font-size: clamp(1.6rem, 3.2vw, 2.8rem);
+  line-height: 0.92;
+  letter-spacing: -0.06em;
+}
+
+.dashboard-strip-item p,
+.tickets-strip-item p {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.trend-chart,
+.incident-placeholder {
+  display: grid;
+  align-items: end;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  min-height: 180px;
+  padding: 1rem 0.35rem 0.25rem;
+  border: 1px dashed rgba(65, 53, 41, 0.18);
+  border-radius: var(--radius-m);
+  background: rgba(242, 237, 229, 0.8);
+}
+
+.trend-chart {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.incident-placeholder {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 92px;
+}
+
+.trend-chart span,
+.incident-placeholder span {
+  display: block;
+  border-radius: 14px 14px 5px 5px;
+  background: rgba(159, 90, 42, 0.74);
+}
+
+.dashboard-feed-meta,
+.dashboard-feed-emphasis,
+.trend-summary,
+.incident-summary {
+  margin-top: 0.48rem;
+}
+
+.tickets-filter-grid,
+.gmail-ops-form-grid,
+.test-lab-form-grid,
+.ticket-detail-form-grid {
+  display: grid;
+  gap: 0.9rem 0.85rem;
+  margin-top: 1rem;
+}
+
+.tickets-filter-grid,
+.test-lab-form-grid,
+.ticket-detail-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tickets-field,
+.gmail-ops-field,
+.test-lab-field,
+.trace-explorer-field,
+.ticket-detail-field {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.ticket-detail-field-wide,
+.test-lab-field-wide {
+  grid-column: 1 / -1;
+}
+
+.tickets-field input,
+.tickets-field select,
+.gmail-ops-field input,
+.test-lab-field input,
+.test-lab-field textarea,
+.trace-explorer-field input,
+.trace-explorer-field select,
+.ticket-detail-field input,
+.ticket-detail-field textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.78rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.tickets-field input:hover,
+.tickets-field select:hover,
+.gmail-ops-field input:hover,
+.test-lab-field input:hover,
+.test-lab-field textarea:hover,
+.trace-explorer-field input:hover,
+.trace-explorer-field select:hover,
+.ticket-detail-field input:hover,
+.ticket-detail-field textarea:hover {
+  border-color: var(--line-strong);
+}
+
+.tickets-field input:focus,
+.tickets-field select:focus,
+.gmail-ops-field input:focus,
+.test-lab-field input:focus,
+.test-lab-field textarea:focus,
+.trace-explorer-field input:focus,
+.trace-explorer-field select:focus,
+.ticket-detail-field input:focus,
+.ticket-detail-field textarea:focus {
+  border-color: rgba(159, 90, 42, 0.36);
+  box-shadow: 0 0 0 4px rgba(159, 90, 42, 0.1);
+  outline: none;
+}
+
+.tickets-field-compact {
+  min-width: 150px;
+}
+
+.tickets-reset-button,
+.tickets-page-button,
+.tickets-action-chip,
+.gmail-ops-button,
+.test-lab-button,
+.test-lab-result-link,
+.trace-explorer-button,
+.trace-drawer-button,
+.ticket-detail-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.74rem 0.95rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.tickets-reset-button:hover,
+.tickets-page-button:hover:not(:disabled),
+.tickets-action-chip:hover:not(:disabled),
+.gmail-ops-button:hover:not(:disabled),
+.test-lab-button:hover:not(:disabled),
+.test-lab-result-link:hover,
+.trace-explorer-button:hover:not(:disabled),
+.trace-drawer-button:hover:not(:disabled),
+.ticket-detail-action-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(159, 90, 42, 0.3);
+  box-shadow: var(--shadow-soft);
+}
+
+.tickets-reset-button:disabled,
+.tickets-page-button:disabled,
+.tickets-action-chip:disabled,
+.gmail-ops-button:disabled,
+.test-lab-button:disabled,
+.trace-explorer-button:disabled,
+.trace-drawer-button:disabled,
+.ticket-detail-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+  transform: none;
+}
+
+.tickets-ledger-head,
+.tickets-row,
+.gmail-ops-item-row,
+.trace-events-head,
+.trace-event-row,
+.ticket-detail-history-head,
+.ticket-detail-history-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tickets-ledger-head,
+.tickets-row {
+  grid-template-columns: 1.35fr 1fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr;
+}
+
+.tickets-ledger-head,
+.trace-events-head,
+.ticket-detail-history-head {
+  padding: 0 0.3rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tickets-row-cell,
+.trace-event-cell,
+.ticket-detail-history-cell {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.tickets-row-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.tickets-row-link:hover {
+  color: var(--accent-ink);
+}
+
+.gmail-ops-runtime-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gmail-ops-summary-grid,
+.test-lab-receipt-grid,
+.system-status-runtime-grid,
+.system-status-dependency-grid,
+.system-status-queue-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gmail-ops-item-row {
+  grid-template-columns: 1.3fr 0.95fr 1fr;
+}
+
+.gmail-ops-toggle,
+.test-lab-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.gmail-ops-toggle input,
+.test-lab-toggle input {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: #fff;
+}
+
+.gmail-ops-toggle input:checked,
+.test-lab-toggle input:checked {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+.test-lab-preset-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.test-lab-preset-card {
+  display: grid;
+  gap: 0.28rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.test-lab-preset-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.test-lab-preset-card-active {
+  border-color: rgba(159, 90, 42, 0.32);
+  background: var(--surface-accent);
+}
+
+.test-lab-link-row {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.system-status-watch-list {
+  padding-left: 1rem;
+}
+
+.system-status-dependency-card-ok,
+.trace-stage-card-accent,
+.trace-event-row-accent,
+.ticket-detail-history-row-accent,
+.gmail-ops-alert-success,
+.test-lab-alert-success,
+.ticket-detail-action-notice-success {
+  background: var(--surface-success);
+}
+
+.system-status-dependency-card-alert,
+.trace-stage-card-alert,
+.trace-event-row-alert,
+.ticket-detail-history-row-alert,
+.gmail-ops-alert-error,
+.test-lab-alert-error,
+.system-status-alert-error,
+.trace-request-alert,
+.ticket-detail-request-alert,
+.ticket-detail-action-notice-error,
+.tickets-empty-state-alert,
+.ticket-detail-action-button-danger {
+  background: var(--surface-danger);
+}
+
+.system-status-dependency-card-warn {
+  background: rgba(243, 236, 225, 0.92);
+}
+
+.trace-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.trace-side-rail {
+  display: grid;
+  gap: 1rem;
+}
+
+.trace-explorer-form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.trace-hero-meta,
+.system-status-hero-meta,
+.test-lab-hero-meta,
+.gmail-ops-runtime-meta,
+.ticket-detail-ident-meta {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.trace-hero-meta div,
+.system-status-hero-meta div,
+.test-lab-hero-meta div,
+.gmail-ops-runtime-meta div,
+.ticket-detail-ident-meta div {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+
+.trace-stage-card {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 0.8rem;
+}
+
+.trace-stage-line {
+  width: 10px;
+  border-radius: 999px;
+  background: rgba(159, 90, 42, 0.22);
+}
+
+.trace-stage-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.trace-drawer-placeholder {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.trace-drawer-placeholder span {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(65, 53, 41, 0.1);
+}
+
+.trace-raw-drawer {
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: rgba(24, 21, 18, 0.96);
+  color: #f4efe7;
+  font-size: 0.9rem;
+  overflow: auto;
+}
+
+.trace-events-head,
+.trace-event-row {
+  grid-template-columns: 1fr 0.95fr 0.75fr 0.9fr 1.25fr;
+}
+
+.ticket-detail-ident-card strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+}
+
+.ticket-detail-ident-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ticket-detail-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 320px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.ticket-detail-draft-preview {
+  margin-top: 0.9rem;
+  padding: 0.88rem 0.92rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.ticket-detail-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.ticket-detail-draft-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ticket-detail-history-head,
+.ticket-detail-history-row {
+  grid-template-columns: 0.72fr 0.92fr 1.08fr 1fr 1.15fr;
+}
+
+.tickets-pagination-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.tickets-pagination-controls {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.dashboard-message-card,
+.tickets-empty-state,
+.gmail-ops-empty-state,
+.test-lab-empty-state,
+.system-status-empty-state,
+.trace-empty-state,
+.ticket-detail-empty-state {
+  padding: 1.05rem;
+  border: 1px dashed rgba(65, 53, 41, 0.2);
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .route-frame > *:not(.route-frame-header),
+  .context-card,
+  .dashboard-page > *,
+  .tickets-page > *,
+  .gmail-ops-page > *,
+  .test-lab-page > *,
+  .system-status-page > *,
+  .trace-page > *,
+  .ticket-detail-page > * {
+    animation: surface-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-page > *:nth-child(2),
+  .tickets-page > *:nth-child(2),
+  .gmail-ops-page > *:nth-child(2),
+  .test-lab-page > *:nth-child(2),
+  .system-status-page > *:nth-child(2),
+  .trace-page > *:nth-child(2),
+  .ticket-detail-page > *:nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .dashboard-page > *:nth-child(3),
+  .tickets-page > *:nth-child(3),
+  .gmail-ops-page > *:nth-child(3),
+  .test-lab-page > *:nth-child(3),
+  .system-status-page > *:nth-child(3),
+  .trace-page > *:nth-child(3),
+  .ticket-detail-page > *:nth-child(3) {
+    animation-delay: 80ms;
+  }
+}
+
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1320px) {
+  .shell-content-grid,
+  .trace-main-grid,
+  .ticket-detail-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .context-rail {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboard-grid-metrics,
+  .gmail-ops-runtime-grid,
+  .gmail-ops-summary-grid,
+  .system-status-runtime-grid,
+  .system-status-dependency-grid,
+  .system-status-queue-grid,
+  .trace-summary-grid,
+  .ticket-detail-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-grid-trends,
+  .dashboard-grid-handoff,
+  .dashboard-grid-incidents,
+  .gmail-ops-deck-grid,
+  .system-status-main-grid,
+  .system-status-bottom-grid,
+  .test-lab-results-grid,
+  .tickets-workbench,
+  .gmail-ops-control-grid,
+  .dashboard-hero,
+  .tickets-hero,
+  .gmail-ops-hero,
+  .test-lab-hero,
+  .system-status-hero,
+  .trace-hero,
+  .ticket-detail-band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    padding: 1rem;
+  }
+
+  .shell-chassis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-sidebar {
+    position: static;
+    min-height: auto;
+  }
+
+  .shell-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .shell-topbar-status {
+    justify-content: flex-start;
+  }
+
+  .tickets-ledger-head,
+  .tickets-row,
+  .trace-events-head,
+  .trace-event-row,
+  .ticket-detail-history-head,
+  .ticket-detail-history-row,
+  .gmail-ops-item-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .test-lab-preset-grid,
+  .test-lab-receipt-grid,
+  .ticket-detail-draft-row,
+  .ticket-detail-action-grid,
+  .tickets-filter-grid,
+  .test-lab-form-grid,
+  .ticket-detail-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell-sidebar,
+  .shell-topbar,
+  .route-frame,
+  .context-card,
+  .dashboard-hero,
+  .dashboard-card,
+  .tickets-hero,
+  .tickets-filter-card,
+  .tickets-brief-card,
+  .tickets-ledger-card,
+  .tickets-pagination-card,
+  .gmail-ops-hero,
+  .gmail-ops-runtime-card,
+  .gmail-ops-panel,
+  .gmail-ops-alert,
+  .gmail-ops-runtime-cell,
+  .test-lab-hero,
+  .test-lab-hero-card,
+  .test-lab-panel,
+  .test-lab-alert,
+  .system-status-hero,
+  .system-status-hero-card,
+  .system-status-alert,
+  .system-status-runtime-card,
+  .system-status-panel,
+  .trace-hero,
+  .trace-hero-card,
+  .trace-request-alert,
+  .trace-summary-card,
+  .trace-panel,
+  .trace-events-panel,
+  .ticket-detail-band,
+  .ticket-detail-ident-card,
+  .ticket-detail-summary-card,
+  .ticket-detail-panel,
+  .ticket-detail-history-panel,
+  .ticket-detail-request-alert,
+  .ticket-detail-empty-state {
+    border-radius: 20px;
+  }
+
+  .shell-sidebar,
+  .shell-topbar,
+  .route-frame,
+  .dashboard-hero,
+  .tickets-hero,
+  .gmail-ops-hero,
+  .test-lab-hero,
+  .system-status-hero,
+  .trace-hero,
+  .ticket-detail-band {
+    padding: 1rem;
+  }
+
+  .dashboard-grid-metrics,
+  .dashboard-grid-trends,
+  .dashboard-grid-handoff,
+  .dashboard-grid-incidents,
+  .gmail-ops-runtime-grid,
+  .gmail-ops-summary-grid,
+  .test-lab-results-grid,
+  .system-status-runtime-grid,
+  .system-status-dependency-grid,
+  .system-status-queue-grid,
+  .trace-summary-grid,
+  .ticket-detail-summary-grid,
+  .ticket-detail-eval-grid,
+  .context-rail,
+  .placeholder-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-card-header,
+  .tickets-card-header,
+  .gmail-ops-panel-header,
+  .test-lab-panel-header,
+  .system-status-panel-header,
+  .trace-panel-header,
+  .ticket-detail-panel-header,
+  .tickets-pagination-card,
+  .tickets-pagination-controls,
+  .trace-stage-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tickets-reset-button,
+  .tickets-page-button,
+  .tickets-action-chip,
+  .gmail-ops-button,
+  .test-lab-button,
+  .test-lab-result-link,
+  .trace-explorer-button,
+  .trace-drawer-button,
+  .ticket-detail-action-button {
+    width: 100%;
+  }
+
+  .shell-status-pill {
+    min-width: calc(50% - 0.35rem);
+  }
+
+  .ticket-detail-ident-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .shell-status-pill {
+    min-width: 100%;
+  }
+
+  .tickets-ledger-head,
+  .tickets-row,
+  .trace-events-head,
+  .trace-event-row,
+  .ticket-detail-history-head,
+  .ticket-detail-history-row,
+  .gmail-ops-item-row,
+  .test-lab-link-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Minimal control-plane refresh */
+
+:root {
+  --bg: #f4f3ef;
+  --bg-grid: #d8d6cf;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --surface-muted: rgba(247, 246, 242, 0.96);
+  --surface-accent: rgba(239, 238, 232, 0.96);
+  --surface-success: rgba(236, 243, 238, 0.98);
+  --surface-danger: rgba(245, 236, 233, 0.98);
+  --ink: #111111;
+  --ink-soft: #232323;
+  --muted: #66645f;
+  --line: rgba(17, 17, 17, 0.1);
+  --line-strong: rgba(17, 17, 17, 0.2);
+  --accent: #1f4fd1;
+  --accent-ink: #173da3;
+  --success: #2f6a4f;
+  --danger: #9a3d32;
+  --shadow-soft: none;
+  --shadow-strong: none;
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --radius-l: 12px;
+  --radius-xl: 16px;
+  --content-max: 1720px;
+}
+
+body {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(17, 17, 17, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(31, 79, 209, 0.35);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  padding: 0.9rem;
+}
+
+.shell-chassis {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.shell-sidebar,
+.shell-topbar,
+.route-frame,
+.context-card,
+.placeholder-card,
+.dashboard-hero,
+.dashboard-card,
+.tickets-hero,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-hero,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-band,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.shell-sidebar,
+.route-frame,
+.dashboard-hero,
+.tickets-hero,
+.gmail-ops-hero,
+.test-lab-hero,
+.system-status-hero,
+.trace-hero,
+.ticket-detail-band,
+.shell-topbar,
+.context-card,
+.placeholder-card,
+.dashboard-card,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  border-radius: var(--radius-l);
+}
+
+.shell-sidebar {
+  top: 0.9rem;
+  gap: 1rem;
+  min-height: calc(100vh - 1.8rem);
+  padding: 1rem 0.85rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.shell-kicker,
+.route-label,
+.placeholder-eyebrow,
+.context-card-label,
+.route-phase,
+.shell-panel-label,
+.dashboard-card-label,
+.ticket-detail-board-label,
+.trace-stage-label,
+.dashboard-strip-item span,
+.tickets-strip-item span,
+.gmail-ops-runtime-meta dt,
+.gmail-ops-runtime-cell span,
+.gmail-ops-field span,
+.gmail-ops-summary-card span,
+.gmail-ops-inline-card span,
+.gmail-ops-item-row span,
+.test-lab-field span,
+.test-lab-receipt-card span,
+.test-lab-inline-card span,
+.system-status-hero-meta dt,
+.system-status-runtime-card span,
+.system-status-dependency-card span,
+.system-status-failure-card span,
+.system-status-queue-card span,
+.trace-metric-card span,
+.trace-hero-meta dt,
+.ticket-detail-summary-card span,
+.ticket-detail-field span,
+.ticket-detail-ident-card span,
+.ticket-detail-ident-meta span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-brand h1 {
+  margin-top: 0.18rem;
+  font-size: clamp(1.55rem, 2.4vw, 2.15rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.shell-brand-note,
+.route-summary,
+.context-card p,
+.placeholder-copy p,
+.metric-card-note,
+.dashboard-card-footnote,
+.dashboard-empty-copy,
+.tickets-ledger-footnote,
+.tickets-pagination-copy,
+.gmail-ops-runtime-cell p,
+.gmail-ops-summary-card p,
+.gmail-ops-item-row p,
+.gmail-ops-empty-state p:last-child,
+.gmail-ops-inline-card p,
+.gmail-ops-alert p:last-child,
+.test-lab-hero-copy-note,
+.test-lab-alert p:last-child,
+.test-lab-preset-card p,
+.test-lab-receipt-card p,
+.test-lab-empty-state p:last-child,
+.test-lab-inline-card p,
+.system-status-copy,
+.system-status-runtime-card p,
+.system-status-dependency-card p,
+.system-status-failure-card p,
+.system-status-queue-card p,
+.system-status-empty-state p:last-child,
+.trace-hero-card-copy,
+.trace-panel-copy,
+.trace-metric-card p,
+.trace-empty-state p:last-child,
+.trace-summary-card p,
+.ticket-detail-draft-meta,
+.ticket-detail-empty-copy,
+.ticket-detail-eval-card span,
+.ticket-detail-draft-row p,
+.ticket-detail-request-alert p:last-child,
+.ticket-detail-empty-state p:last-child,
+.tickets-row-meta,
+.tickets-row-updated {
+  color: var(--muted);
+}
+
+.shell-nav {
+  gap: 0.2rem;
+}
+
+.shell-nav-link {
+  gap: 0.15rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.shell-nav-link:hover {
+  transform: none;
+  border-color: var(--line);
+  background: rgba(17, 17, 17, 0.025);
+}
+
+.shell-nav-link.is-active {
+  border-color: rgba(31, 79, 209, 0.2);
+  background: rgba(31, 79, 209, 0.08);
+}
+
+.shell-nav-label,
+.dashboard-feed-title,
+.tickets-row-subject,
+.tickets-row-customer,
+.tickets-row-link,
+.test-lab-preset-card strong {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.shell-nav-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.shell-sidebar-panel,
+.dashboard-feed-item,
+.dashboard-strip-item,
+.tickets-strip-item,
+.tickets-row,
+.gmail-ops-item-row,
+.gmail-ops-inline-card,
+.test-lab-preset-card,
+.test-lab-receipt-card,
+.test-lab-inline-card,
+.system-status-failure-card,
+.system-status-queue-card,
+.system-status-dependency-card,
+.trace-stage-card,
+.trace-event-row,
+.ticket-detail-board,
+.ticket-detail-draft-row,
+.ticket-detail-eval-card,
+.ticket-detail-action-notice,
+.ticket-detail-history-row,
+.gmail-ops-summary-card,
+.trace-metric-card,
+.metric-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.shell-sidebar-panel,
+.context-card,
+.placeholder-card,
+.dashboard-card,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.gmail-ops-alert,
+.gmail-ops-runtime-cell,
+.test-lab-hero-card,
+.test-lab-panel,
+.test-lab-alert,
+.system-status-hero-card,
+.system-status-alert,
+.system-status-runtime-card,
+.system-status-panel,
+.trace-hero-card,
+.trace-request-alert,
+.trace-summary-card,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-ident-card,
+.ticket-detail-summary-card,
+.ticket-detail-panel,
+.ticket-detail-history-panel,
+.ticket-detail-request-alert,
+.ticket-detail-empty-state {
+  padding: 0.85rem 0.9rem;
+}
+
+.shell-sidebar-panel h3,
+.context-card h3,
+.dashboard-card-header h3,
+.tickets-card-header h3,
+.gmail-ops-panel-header h3,
+.gmail-ops-runtime-card h3,
+.gmail-ops-alert h3,
+.gmail-ops-empty-state h3,
+.test-lab-panel-header h3,
+.test-lab-hero-card h3,
+.test-lab-alert h3,
+.test-lab-empty-state h3,
+.system-status-panel-header h3,
+.system-status-hero-card h3,
+.system-status-alert h3,
+.system-status-empty-state h3,
+.trace-panel-header h3,
+.trace-hero-card h3,
+.trace-summary-card h3,
+.trace-empty-state h3,
+.ticket-detail-panel-header h3,
+.ticket-detail-history-panel h3,
+.ticket-detail-request-alert h3,
+.ticket-detail-empty-state h3,
+.ticket-detail-board h4 {
+  margin-top: 0.22rem;
+  font-size: 1rem;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.shell-topbar {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.95rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.shell-topbar h2,
+.placeholder-copy h2,
+.dashboard-hero-copy h2,
+.tickets-hero-copy h2,
+.gmail-ops-hero-copy h2,
+.test-lab-hero-copy h2,
+.system-status-hero-copy h2,
+.trace-hero-copy h2,
+.ticket-detail-band-copy h2 {
+  margin-top: 0.18rem;
+  font-size: clamp(1.55rem, 2.5vw, 2.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  max-width: 18ch;
+}
+
+.route-summary,
+.dashboard-hero-copy p,
+.tickets-hero-copy p,
+.gmail-ops-hero-copy p,
+.test-lab-hero-copy p,
+.system-status-hero-copy p,
+.trace-hero-copy p,
+.ticket-detail-band-copy p {
+  max-width: 58ch;
+  font-size: 0.95rem;
+}
+
+.shell-topbar-status,
+.dashboard-hero-strip,
+.tickets-hero-strip,
+.gmail-ops-chip-row,
+.test-lab-chip-row,
+.system-status-chip-row,
+.trace-chip-row,
+.ticket-detail-zone-chip-row,
+.tickets-chip-row,
+.gmail-ops-button-row,
+.test-lab-button-row,
+.tickets-status-stack,
+.tickets-row-actions,
+.tickets-pagination-buttons,
+.tickets-pagination-controls,
+.trace-explorer-actions,
+.ticket-detail-action-chip-row {
+  gap: 0.45rem;
+}
+
+.shell-status-pill,
+.dashboard-card-chip,
+.tickets-ledger-chip,
+.tickets-brief-chip,
+.tickets-inline-chip,
+.tickets-status-badge,
+.gmail-ops-chip,
+.test-lab-chip,
+.system-status-chip,
+.trace-panel-chip,
+.ticket-detail-panel-chip,
+.ticket-detail-action-chip,
+.ticket-detail-zone-chip {
+  min-height: 1.75rem;
+  padding: 0.26rem 0.48rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.035);
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-status-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: unset;
+  padding: 0.34rem 0.55rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.shell-status-pill strong {
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.shell-status-pill-accent,
+.dashboard-card-chip,
+.gmail-ops-chip,
+.test-lab-chip,
+.system-status-chip,
+.trace-panel-chip,
+.ticket-detail-panel-chip,
+.ticket-detail-summary-card-accent,
+.metric-card,
+.test-lab-hero-card,
+.gmail-ops-runtime-card,
+.system-status-hero-card,
+.trace-summary-card-accent,
+.gmail-ops-panel-accent,
+.test-lab-panel-accent,
+.system-status-panel-accent,
+.trace-panel-accent,
+.ticket-detail-board-accent,
+.tickets-strip-item-alert,
+.tickets-action-chip-primary,
+.gmail-ops-button-primary,
+.test-lab-button-primary,
+.test-lab-result-link-accent,
+.trace-explorer-button-primary,
+.ticket-detail-action-button-primary {
+  background: rgba(31, 79, 209, 0.07);
+}
+
+.shell-content-grid {
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 0.75rem;
+}
+
+.route-frame {
+  min-width: 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.route-frame-header {
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.route-phase {
+  margin-right: 0.2rem;
+}
+
+.route-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.route-note span {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.context-rail,
+.placeholder-page,
+.dashboard-page,
+.tickets-page,
+.gmail-ops-page,
+.test-lab-page,
+.system-status-page,
+.trace-page,
+.ticket-detail-page,
+.dashboard-grid,
+.gmail-ops-runtime-grid,
+.gmail-ops-summary-grid,
+.test-lab-results-grid,
+.system-status-runtime-grid,
+.system-status-dependency-grid,
+.system-status-queue-grid,
+.trace-summary-grid,
+.trace-metric-grid,
+.ticket-detail-summary-grid,
+.ticket-detail-eval-grid,
+.dashboard-feed-list,
+.tickets-ledger-list,
+.gmail-ops-item-list,
+.trace-stage-list,
+.trace-events-list,
+.ticket-detail-board-stack,
+.ticket-detail-draft-list,
+.ticket-detail-history-list,
+.placeholder-grid {
+  gap: 0.75rem;
+}
+
+.context-card,
+.dashboard-card,
+.tickets-filter-card,
+.tickets-brief-card,
+.tickets-ledger-card,
+.tickets-pagination-card,
+.gmail-ops-runtime-card,
+.gmail-ops-panel,
+.test-lab-panel,
+.system-status-panel,
+.trace-panel,
+.trace-events-panel,
+.ticket-detail-panel,
+.ticket-detail-history-panel {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-hero,
+.tickets-hero,
+.gmail-ops-hero,
+.test-lab-hero,
+.system-status-hero,
+.trace-hero,
+.ticket-detail-band {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+  padding: 0 0 0.1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.dashboard-grid-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-grid-trends,
+.dashboard-grid-handoff,
+.dashboard-grid-incidents,
+.gmail-ops-deck-grid,
+.system-status-main-grid,
+.system-status-bottom-grid,
+.test-lab-results-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tickets-workbench,
+.gmail-ops-control-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(240px, 0.75fr);
+  gap: 0.75rem;
+}
+
+.dashboard-card-header,
+.tickets-card-header,
+.gmail-ops-panel-header,
+.test-lab-panel-header,
+.system-status-panel-header,
+.trace-panel-header,
+.ticket-detail-panel-header {
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.dashboard-strip-item,
+.tickets-strip-item,
+.dashboard-feed-item,
+.gmail-ops-item-row,
+.gmail-ops-inline-card,
+.test-lab-receipt-card,
+.test-lab-inline-card,
+.system-status-failure-card,
+.system-status-queue-card,
+.trace-stage-card,
+.trace-event-row,
+.ticket-detail-board,
+.ticket-detail-draft-row,
+.ticket-detail-eval-card,
+.ticket-detail-action-notice,
+.ticket-detail-history-row,
+.gmail-ops-summary-card,
+.trace-metric-card,
+.metric-card {
+  padding: 0.72rem 0.78rem;
+}
+
+.dashboard-strip-item strong,
+.tickets-strip-item strong,
+.metric-card-value {
+  margin-top: 0.22rem;
+  font-size: clamp(1.18rem, 2vw, 1.65rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.dashboard-strip-item p,
+.tickets-strip-item p {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.trend-chart,
+.incident-placeholder {
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  min-height: 120px;
+  padding: 0.75rem 0.2rem 0.1rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(17, 17, 17, 0.025);
+}
+
+.incident-placeholder {
+  min-height: 72px;
+}
+
+.trend-chart span,
+.incident-placeholder span {
+  border-radius: 3px 3px 0 0;
+  background: rgba(31, 79, 209, 0.6);
+}
+
+.tickets-filter-grid,
+.gmail-ops-form-grid,
+.test-lab-form-grid,
+.ticket-detail-form-grid {
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.tickets-field,
+.gmail-ops-field,
+.test-lab-field,
+.trace-explorer-field,
+.ticket-detail-field {
+  gap: 0.28rem;
+}
+
+.tickets-field input,
+.tickets-field select,
+.gmail-ops-field input,
+.test-lab-field input,
+.test-lab-field textarea,
+.trace-explorer-field input,
+.trace-explorer-field select,
+.ticket-detail-field input,
+.ticket-detail-field textarea {
+  min-height: 40px;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.tickets-field input:hover,
+.tickets-field select:hover,
+.gmail-ops-field input:hover,
+.test-lab-field input:hover,
+.test-lab-field textarea:hover,
+.trace-explorer-field input:hover,
+.trace-explorer-field select:hover,
+.ticket-detail-field input:hover,
+.ticket-detail-field textarea:hover {
+  border-color: var(--line-strong);
+}
+
+.tickets-field input:focus,
+.tickets-field select:focus,
+.gmail-ops-field input:focus,
+.test-lab-field input:focus,
+.test-lab-field textarea:focus,
+.trace-explorer-field input:focus,
+.trace-explorer-field select:focus,
+.ticket-detail-field input:focus,
+.ticket-detail-field textarea:focus {
+  border-color: rgba(31, 79, 209, 0.3);
+  box-shadow: 0 0 0 3px rgba(31, 79, 209, 0.08);
+  outline: none;
+}
+
+.tickets-reset-button,
+.tickets-page-button,
+.tickets-action-chip,
+.gmail-ops-button,
+.test-lab-button,
+.test-lab-result-link,
+.trace-explorer-button,
+.trace-drawer-button,
+.ticket-detail-action-button {
+  min-height: 38px;
+  padding: 0.56rem 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.tickets-reset-button:hover,
+.tickets-page-button:hover:not(:disabled),
+.tickets-action-chip:hover:not(:disabled),
+.gmail-ops-button:hover:not(:disabled),
+.test-lab-button:hover:not(:disabled),
+.test-lab-result-link:hover,
+.trace-explorer-button:hover:not(:disabled),
+.trace-drawer-button:hover:not(:disabled),
+.ticket-detail-action-button:hover:not(:disabled) {
+  transform: none;
+  border-color: rgba(31, 79, 209, 0.26);
+  box-shadow: none;
+}
+
+.tickets-ledger-head,
+.tickets-row,
+.gmail-ops-item-row,
+.trace-events-head,
+.trace-event-row,
+.ticket-detail-history-head,
+.ticket-detail-history-row {
+  gap: 0.6rem;
+}
+
+.tickets-ledger-head,
+.tickets-row {
+  grid-template-columns: 1.45fr 1fr 0.85fr 0.9fr 0.9fr 0.85fr 0.9fr;
+}
+
+.tickets-ledger-head,
+.trace-events-head,
+.ticket-detail-history-head {
+  padding: 0 0.1rem 0.45rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.gmail-ops-runtime-grid,
+.gmail-ops-summary-grid,
+.test-lab-receipt-grid,
+.system-status-runtime-grid,
+.system-status-dependency-grid,
+.system-status-queue-grid,
+.trace-metric-grid,
+.ticket-detail-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.test-lab-preset-grid {
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.gmail-ops-toggle,
+.test-lab-toggle {
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  padding: 0.72rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(17, 17, 17, 0.025);
+}
+
+.gmail-ops-toggle input,
+.test-lab-toggle input {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.gmail-ops-toggle input:checked,
+.test-lab-toggle input:checked {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+.trace-main-grid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+  gap: 0.75rem;
+}
+
+.trace-stage-card {
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+.trace-stage-line {
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(31, 79, 209, 0.32);
+}
+
+.trace-raw-drawer {
+  margin-top: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: #141414;
+  color: #f1f1ed;
+  font-size: 0.86rem;
+}
+
+.ticket-detail-main-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) 300px;
+  gap: 0.75rem;
+}
+
+.ticket-detail-draft-preview {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.ticket-detail-action-grid {
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.tickets-pagination-card {
+  align-items: center;
+}
+
+.dashboard-message-card,
+.tickets-empty-state,
+.gmail-ops-empty-state,
+.test-lab-empty-state,
+.system-status-empty-state,
+.trace-empty-state,
+.ticket-detail-empty-state {
+  padding: 0.9rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(17, 17, 17, 0.025);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .route-frame > *:not(.route-frame-header),
+  .context-card,
+  .dashboard-page > *,
+  .tickets-page > *,
+  .gmail-ops-page > *,
+  .test-lab-page > *,
+  .system-status-page > *,
+  .trace-page > *,
+  .ticket-detail-page > * {
+    animation: surface-rise 220ms ease-out both;
+  }
+
+  .dashboard-page > *:nth-child(2),
+  .tickets-page > *:nth-child(2),
+  .gmail-ops-page > *:nth-child(2),
+  .test-lab-page > *:nth-child(2),
+  .system-status-page > *:nth-child(2),
+  .trace-page > *:nth-child(2),
+  .ticket-detail-page > *:nth-child(2) {
+    animation-delay: 20ms;
+  }
+
+  .dashboard-page > *:nth-child(3),
+  .tickets-page > *:nth-child(3),
+  .gmail-ops-page > *:nth-child(3),
+  .test-lab-page > *:nth-child(3),
+  .system-status-page > *:nth-child(3),
+  .trace-page > *:nth-child(3),
+  .ticket-detail-page > *:nth-child(3) {
+    animation-delay: 40ms;
+  }
+}
+
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1320px) {
+  .shell-content-grid,
+  .trace-main-grid,
+  .ticket-detail-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .context-rail {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboard-grid-metrics,
+  .gmail-ops-runtime-grid,
+  .gmail-ops-summary-grid,
+  .system-status-runtime-grid,
+  .system-status-dependency-grid,
+  .system-status-queue-grid,
+  .trace-summary-grid,
+  .trace-metric-grid,
+  .ticket-detail-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-grid-trends,
+  .dashboard-grid-handoff,
+  .dashboard-grid-incidents,
+  .gmail-ops-deck-grid,
+  .system-status-main-grid,
+  .system-status-bottom-grid,
+  .test-lab-results-grid,
+  .tickets-workbench,
+  .gmail-ops-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    padding: 0.75rem;
+  }
+
+  .shell-chassis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-sidebar {
+    position: static;
+    min-height: auto;
+  }
+
+  .tickets-ledger-head,
+  .tickets-row,
+  .trace-events-head,
+  .trace-event-row,
+  .ticket-detail-history-head,
+  .ticket-detail-history-row,
+  .gmail-ops-item-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .test-lab-preset-grid,
+  .test-lab-receipt-grid,
+  .ticket-detail-draft-row,
+  .ticket-detail-action-grid,
+  .tickets-filter-grid,
+  .test-lab-form-grid,
+  .ticket-detail-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell-sidebar,
+  .shell-topbar,
+  .route-frame,
+  .context-card,
+  .dashboard-card,
+  .tickets-filter-card,
+  .tickets-brief-card,
+  .tickets-ledger-card,
+  .tickets-pagination-card,
+  .gmail-ops-runtime-card,
+  .gmail-ops-panel,
+  .gmail-ops-alert,
+  .gmail-ops-runtime-cell,
+  .test-lab-hero-card,
+  .test-lab-panel,
+  .test-lab-alert,
+  .system-status-hero-card,
+  .system-status-alert,
+  .system-status-runtime-card,
+  .system-status-panel,
+  .trace-hero-card,
+  .trace-request-alert,
+  .trace-summary-card,
+  .trace-panel,
+  .trace-events-panel,
+  .ticket-detail-ident-card,
+  .ticket-detail-summary-card,
+  .ticket-detail-panel,
+  .ticket-detail-history-panel,
+  .ticket-detail-request-alert,
+  .ticket-detail-empty-state {
+    border-radius: 10px;
+  }
+
+  .shell-sidebar,
+  .shell-topbar,
+  .route-frame {
+    padding: 0.8rem;
+  }
+
+  .dashboard-grid-metrics,
+  .dashboard-grid-trends,
+  .dashboard-grid-handoff,
+  .dashboard-grid-incidents,
+  .gmail-ops-runtime-grid,
+  .gmail-ops-summary-grid,
+  .test-lab-results-grid,
+  .system-status-runtime-grid,
+  .system-status-dependency-grid,
+  .system-status-queue-grid,
+  .trace-summary-grid,
+  .trace-metric-grid,
+  .ticket-detail-summary-grid,
+  .ticket-detail-eval-grid,
+  .context-rail,
+  .placeholder-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-card-header,
+  .tickets-card-header,
+  .gmail-ops-panel-header,
+  .test-lab-panel-header,
+  .system-status-panel-header,
+  .trace-panel-header,
+  .ticket-detail-panel-header,
+  .tickets-pagination-card,
+  .tickets-pagination-controls,
+  .trace-stage-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tickets-reset-button,
+  .tickets-page-button,
+  .tickets-action-chip,
+  .gmail-ops-button,
+  .test-lab-button,
+  .test-lab-result-link,
+  .trace-explorer-button,
+  .trace-drawer-button,
+  .ticket-detail-action-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .tickets-ledger-head,
+  .tickets-row,
+  .trace-events-head,
+  .trace-event-row,
+  .ticket-detail-history-head,
+  .ticket-detail-history-row,
+  .gmail-ops-item-row,
+  .test-lab-link-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -6,6 +6,18 @@ from typing import Any
 class NullGmailClient:
     """Local placeholder for environments that disable Gmail integration."""
 
+    def scan_inbox(
+        self,
+        max_results: int | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "requested_max_results": max_results,
+            "candidate_threads": 0,
+            "skipped_existing_draft_threads": 0,
+            "skipped_self_sent_threads": 0,
+            "items": [],
+        }
+
     def fetch_unanswered_emails(
         self,
         max_results: int | None = None,
