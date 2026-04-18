@@ -100,11 +100,9 @@ describe("TestLabPageV2", () => {
 
     renderTestLabPage();
 
-    expect(
-      screen.getByRole("heading", {
-        name: "用受控邮件场景验证整条流程",
-      }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "用受控邮件场景验证整条流程" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "先确认输入，再提交" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("测试实验台区域")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: /账单退款|关于年度套餐重复扣费的退款跟进/i }),
@@ -121,7 +119,7 @@ describe("TestLabPageV2", () => {
     expect(await screen.findByText("注入已接受")).toBeInTheDocument();
     const receiptSummary = screen.getByLabelText("注入回执摘要");
     expect(within(receiptSummary).getByText("ticket_lab_2001")).toBeInTheDocument();
-    expect(within(receiptSummary).getByText("run_lab_2001")).toBeInTheDocument();
+    expect(within(receiptSummary).getByText("运行: run_lab_2001")).toBeInTheDocument();
 
     const linkRow = screen.getByLabelText("注入结果链接");
     expect(within(linkRow).getByRole("link", { name: "打开工单" })).toHaveAttribute(

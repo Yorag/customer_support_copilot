@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { GmailOpsPage } from "@/pages/GmailOpsPage";
+import { GmailOpsPageV2 } from "@/pages-v2/GmailOpsPageV2";
 
 function jsonResponse(payload: unknown, status = 200) {
   return Promise.resolve(
@@ -24,17 +24,17 @@ function renderGmailOpsPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <GmailOpsPage />
+      <GmailOpsPageV2 />
     </QueryClientProvider>,
   );
 }
 
-describe("GmailOpsPage", () => {
+describe("GmailOpsPageV2", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders runtime status, preview candidates, and scan receipt", async () => {
+  it("renders the compact action row, candidate waterfall, and batch notice", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
 
@@ -63,13 +63,7 @@ describe("GmailOpsPage", () => {
             llm: "unknown",
             checkpointing: "ok",
           },
-          recent_failure: {
-            ticket_id: "ticket_err_1",
-            run_id: "run_err_1",
-            trace_id: "trace_err_1",
-            error_code: "run_execution_failed",
-            occurred_at: "2026-04-17T09:40:00Z",
-          },
+          recent_failure: null,
         });
       }
 
@@ -150,31 +144,33 @@ describe("GmailOpsPage", () => {
     renderGmailOpsPage();
 
     expect(
-      screen.getByRole("heading", {
-        name: "先预览候选，再执行摄入。",
+      await screen.findByRole("heading", {
+        name: "摄入与入队",
       }),
     ).toBeInTheDocument();
-
     expect(
-      await screen.findByText("当前邮箱已启用，允许操作员扫描。"),
+      await screen.findByText(/邮箱可扫描 .* 本次摄入后自动入队/),
     ).toBeInTheDocument();
-    expect(screen.getByText("已连接")).toBeInTheDocument();
-    expect(screen.getByText("support@example.com")).toBeInTheDocument();
+    expect(screen.getByLabelText("Gmail 运维区域")).toHaveTextContent("入队方式");
+    expect(screen.getByLabelText("Gmail 运维区域")).toHaveTextContent("扫描上限");
+    expect(screen.getByRole("button", { name: "全部摄入当前批次" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "预览候选" })).toBeInTheDocument();
+    expect(screen.getByText("当前还没有待处理新邮件")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "预览扫描" }));
+    fireEvent.click(screen.getByRole("button", { name: "预览候选" }));
 
     expect(await screen.findByText("预览已加载")).toBeInTheDocument();
+    expect(screen.getByText("3 个待摄入候选 · 1 个已有草稿 · 1 个自发邮件")).toBeInTheDocument();
     const previewList = screen.getByLabelText("预览候选列表");
     expect(within(previewList).getByText("Refund follow-up")).toBeInTheDocument();
     expect(within(previewList).getByText("已有草稿")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "立即扫描" }));
+    fireEvent.click(screen.getByRole("button", { name: "全部摄入当前批次" }));
 
-    expect(await screen.findByText("扫描已接受")).toBeInTheDocument();
-    expect(screen.getByText("scan_20260417123001")).toBeInTheDocument();
-    const receiptList = screen.getByLabelText("扫描回执列表");
-    expect(within(receiptList).getByText("ticket_101")).toBeInTheDocument();
-    expect(within(receiptList).getByText("run_103")).toBeInTheDocument();
+    expect(await screen.findByText("批次已提交")).toBeInTheDocument();
+    expect(
+      screen.getByText("已摄入 2 个工单，并入队 2 次运行。"),
+    ).toBeInTheDocument();
   });
 
   it("surfaces API failures for preview requests", async () => {
@@ -230,10 +226,11 @@ describe("GmailOpsPage", () => {
 
     renderGmailOpsPage();
 
-    await screen.findByText("当前邮箱摄入已禁用。");
-    fireEvent.click(screen.getByRole("button", { name: "预览扫描" }));
+    await screen.findByText(/邮箱未启用 .* 本次摄入后自动入队/);
+    fireEvent.click(screen.getByRole("button", { name: "预览候选" }));
 
     expect(await screen.findByText("预览失败")).toBeInTheDocument();
     expect(screen.getByText("Gmail integration is disabled.")).toBeInTheDocument();
+    expect(screen.getByText(/邮箱未启用 .* 尚无扫描记录/)).toBeInTheDocument();
   });
 });

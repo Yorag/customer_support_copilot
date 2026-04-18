@@ -656,6 +656,159 @@ ol {
   align-content: start;
 }
 
+.v2-dashboard-page {
+  align-content: start;
+}
+
+.v2-dashboard-hero {
+  background:
+    linear-gradient(135deg, rgba(47, 111, 237, 0.08), rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 247, 244, 0.94));
+}
+
+.v2-dashboard-band {
+  align-items: start;
+}
+
+.v2-dashboard-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.v2-dashboard-dependencies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.v2-dashboard-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.v2-dashboard-detail-card,
+.v2-dashboard-page .v2-divider-row,
+.v2-dashboard-page .v2-metric-card,
+.v2-dashboard-page .v2-status-tag {
+  min-width: 0;
+}
+
+.v2-dashboard-detail-card strong,
+.v2-dashboard-page .v2-divider-row strong,
+.v2-dashboard-page .v2-metric-value,
+.v2-dashboard-page .v2-status-tag {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.v2-dashboard-page .v2-panel-header {
+  align-items: center;
+}
+
+.v2-dashboard-page .v2-panel-title {
+  font-size: 0.94rem;
+}
+
+.v2-dashboard-page .v2-metric-card {
+  min-height: 88px;
+}
+
+.v2-dashboard-page .v2-metric-note,
+.v2-dashboard-page .v2-panel-description {
+  font-size: 0.78rem;
+}
+
+.v2-dashboard-page .v2-divider-row {
+  gap: 0.18rem;
+}
+
+.v2-dashboard-page .v2-divider-row p {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.v2-gmail-ops-page {
+  align-content: start;
+}
+
+.v2-gmail-ops-toolbar-row,
+.v2-gmail-ops-toolbar-fields {
+  display: flex;
+  gap: 0.72rem;
+  align-items: end;
+}
+
+.v2-gmail-ops-toolbar-row {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.v2-gmail-ops-toolbar-fields {
+  flex: 1 1 360px;
+  flex-wrap: wrap;
+}
+
+.v2-gmail-ops-toolbar-fields .v2-field {
+  min-width: 180px;
+  flex: 1 1 180px;
+}
+
+.v2-gmail-ops-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.v2-gmail-ops-waterfall {
+  column-width: 260px;
+  column-gap: 0.72rem;
+}
+
+.v2-gmail-ops-waterfall-card {
+  display: inline-grid;
+  width: 100%;
+  gap: 0.4rem;
+  margin: 0 0 0.72rem;
+  padding: 0.78rem 0.82rem;
+  break-inside: avoid;
+  border: 1px solid var(--v2-line);
+  border-radius: var(--v2-radius-sm);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--v2-shadow-line);
+}
+
+.v2-gmail-ops-waterfall-card.is-accent {
+  background: linear-gradient(180deg, rgba(47, 111, 237, 0.05), rgba(255, 255, 255, 0.76));
+}
+
+.v2-gmail-ops-waterfall-card.is-danger {
+  background: linear-gradient(180deg, rgba(181, 74, 58, 0.06), rgba(255, 255, 255, 0.76));
+}
+
+.v2-gmail-ops-waterfall-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.v2-gmail-ops-waterfall-card strong {
+  font-size: 0.96rem;
+  line-height: 1.34;
+}
+
+.v2-gmail-ops-waterfall-card p {
+  color: var(--v2-muted);
+  line-height: 1.42;
+}
+
+.v2-gmail-ops-waterfall-note {
+  font-size: 0.84rem;
+}
+
+.v2-gmail-ops-waterfall-meta {
+  font-size: 0.76rem;
+}
+
 .v2-ticket-filter-toolbar {
   padding: 0;
   border: 0;
@@ -1753,6 +1906,7 @@ ol {
   .v2-ticket-detail-layout,
   .v2-section-grid-3,
   .v2-split-grid,
+  .v2-dashboard-detail-grid,
   .v2-test-lab-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1762,6 +1916,7 @@ ol {
   .v2-metric-grid,
   .v2-summary-grid,
   .v2-kv-grid,
+  .v2-dashboard-summary-grid,
   .v2-test-lab-presets,
   .v2-trace-control-grid,
   .v2-trace-metric-grid,
@@ -1779,6 +1934,15 @@ ol {
 
   .v2-ticket-search-field {
     grid-column: span 2;
+  }
+
+  .v2-gmail-ops-runtime-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v2-gmail-ops-toolbar-row,
+  .v2-gmail-ops-toolbar-fields {
+    align-items: stretch;
   }
 
   .v2-ticket-action-fields,
@@ -1851,8 +2015,10 @@ ol {
 
   .v2-metric-grid,
   .v2-summary-grid,
+  .v2-dashboard-summary-grid,
   .v2-kv-grid,
   .v2-tiles-grid,
+  .v2-dashboard-detail-grid,
   .v2-test-lab-presets,
   .v2-test-lab-receipt-actions,
   .v2-trace-control-grid,
@@ -1882,14 +2048,25 @@ ol {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .v2-gmail-ops-runtime-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .v2-panel-header,
   .v2-ticket-section-head,
-  .v2-ticket-email-subject-row {
+  .v2-ticket-email-subject-row,
+  .v2-gmail-ops-toolbar-row,
+  .v2-gmail-ops-toolbar-fields,
+  .v2-gmail-ops-waterfall-head {
     flex-direction: column;
     align-items: stretch;
   }
 
   .v2-button {
     width: 100%;
+  }
+
+  .v2-gmail-ops-toolbar-fields .v2-field {
+    min-width: 0;
   }
 }

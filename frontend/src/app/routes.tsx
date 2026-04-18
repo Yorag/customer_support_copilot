@@ -4,7 +4,6 @@ import { AppShellV2 } from "@/app/layouts/AppShellV2";
 import type { ConsoleRouteHandle } from "@/app/consoleShell";
 import { DashboardPageV2 } from "@/pages-v2/DashboardPageV2";
 import { GmailOpsPageV2 } from "@/pages-v2/GmailOpsPageV2";
-import { SystemStatusPageV2 } from "@/pages-v2/SystemStatusPageV2";
 import { TestLabPageV2 } from "@/pages-v2/TestLabPageV2";
 import { TicketDetailPageV2 } from "@/pages-v2/TicketDetailPageV2";
 import { TicketsPageV2 } from "@/pages-v2/TicketsPageV2";
@@ -14,14 +13,14 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 const dashboardHandle: ConsoleRouteHandle = {
   title: "总览仪表盘",
   eyebrow: "全局态势",
-  summary: "把运行态、积压压力和最近变化收进同一张值班看板。",
+  summary: "把运行态、积压压力、质量和可靠性摘要收进同一张值班看板。",
   phase: "OPS-01",
   contextTitle: "全局读数",
-  contextDescription: "面向值班视角的总览页，强调当前健康度、吞吐和需要优先处理的事项。",
+  contextDescription: "面向值班视角的总览页，强调当前健康度、吞吐、待处理事项和可靠性信号。",
   contextItems: [
     "快速读取系统健康度与队列压力。",
     "查看最近工单和待审核事项。",
-    "识别失败、延迟和质量偏移。",
+    "识别失败、延迟、质量偏移和依赖降级。",
   ],
   relatedEndpoints: ["GET /ops/status", "GET /metrics/summary", "GET /tickets"],
 };
@@ -115,21 +114,6 @@ const testLabHandle: ConsoleRouteHandle = {
   relatedEndpoints: ["POST /dev/test-email"],
 };
 
-const systemStatusHandle: ConsoleRouteHandle = {
-  title: "系统状态",
-  eyebrow: "可靠性看板",
-  summary: "围绕 Worker、依赖和失败信号查看系统健康度。",
-  phase: "OPS-07",
-  contextTitle: "可靠性信号",
-  contextDescription: "系统状态页用于持续观察健康度，而不是只在问题出现后临时排障。",
-  contextItems: [
-    "跟踪 Worker 心跳与队列压力。",
-    "查看依赖是否正常或降级。",
-    "确认最近失败与待关注事项。",
-  ],
-  relatedEndpoints: ["GET /ops/status"],
-};
-
 const notFoundHandle: ConsoleRouteHandle = {
   title: "未找到",
   eyebrow: "路由缺失",
@@ -178,8 +162,8 @@ export const routes: RouteObject[] = [
       },
       {
         path: "system-status",
-        element: <SystemStatusPageV2 />,
-        handle: systemStatusHandle,
+        element: <DashboardPageV2 />,
+        handle: dashboardHandle,
       },
       {
         path: "*",

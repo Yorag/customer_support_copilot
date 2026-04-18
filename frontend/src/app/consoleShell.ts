@@ -20,7 +20,7 @@ export const primaryNavItems: ConsoleNavItem[] = [
   {
     to: "/",
     label: "总览仪表盘",
-    note: "查看运行态、积压和关键异常。",
+    note: "查看运行态、积压、质量和可靠性摘要。",
     end: true,
   },
   {
@@ -42,10 +42,5 @@ export const primaryNavItems: ConsoleNavItem[] = [
     to: "/test-lab",
     label: "测试实验台",
     note: "注入受控场景，验证流程。",
-  },
-  {
-    to: "/system-status",
-    label: "系统状态",
-    note: "监控依赖、Worker 和故障信号。",
   },
 ];

@@ -106,7 +106,7 @@ export function StatusTag({ children, tone = "default", className }: StatusTagPr
 }
 
 type EmptyStateProps = {
-  label: string;
+  label?: string;
   title: string;
   description?: string;
 };
@@ -114,7 +114,7 @@ type EmptyStateProps = {
 export function EmptyState({ label, title, description }: EmptyStateProps) {
   return (
     <section className="v2-empty-state" role="status">
-      <p className="v2-panel-label">{label}</p>
+      {label ? <p className="v2-panel-label">{label}</p> : null}
       <h3 className="v2-empty-title">{title}</h3>
       {description ? <p className="v2-empty-description">{description}</p> : null}
     </section>

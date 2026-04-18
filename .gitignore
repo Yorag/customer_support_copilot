@@ -23,6 +23,7 @@ dist/
 node_modules/
 .vite/
 coverage/
+*.tsbuildinfo
 *.egg-info/
 .eggs/
 
@@ -39,6 +40,9 @@ db_backup_*/
 tests/samples/eval/*.tmp.json
 docs/qa/
 evals/*.json
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/vitest-*.json
 
 # Editor and OS files
 .idea/

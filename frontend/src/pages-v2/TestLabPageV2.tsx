@@ -8,9 +8,7 @@ import type { TestEmailResponse } from "@/lib/api/types";
 import { useCreateTestEmail } from "@/lib/query/testLab";
 import { useConsoleUiStore } from "@/state/console-ui-store";
 import {
-  EmptyState,
   Field,
-  InfoTip,
   InlineNotice,
   Panel,
   StatusTag,
@@ -167,19 +165,6 @@ export function TestLabPageV2() {
 
   return (
     <section className="v2-stack">
-      <Panel
-        label="测试实验台"
-        title="用受控邮件场景验证整条流程"
-        description="按预设生成邮件输入，再把结果直接交接给工单或 Trace。"
-      >
-        <div className="v2-action-row" aria-label="测试实验台区域">
-          <StatusTag>场景预设</StatusTag>
-          <StatusTag>可编辑信封</StatusTag>
-          <StatusTag>注入回执</StatusTag>
-          <StatusTag>工单 / Trace 交接</StatusTag>
-        </div>
-      </Panel>
-
       {notice ? (
         <InlineNotice
           tone={notice.tone === "success" ? "success" : "error"}
@@ -190,7 +175,6 @@ export function TestLabPageV2() {
 
       <section className="v2-test-lab-layout">
         <Panel
-          label="注入信封"
           title="先确认输入，再提交"
           description="主要填写邮件信封、场景标签和运行策略。"
         >
@@ -285,7 +269,6 @@ export function TestLabPageV2() {
 
         <div className="v2-test-lab-side">
           <Panel
-            label="场景墙"
             title={activePreset ? `${activePreset.label} 已装载` : "选择常见场景"}
             description={activePreset ? `${activePreset.lane} 预设已进入编辑区。` : "这里提供常见工单风格的快速起点。"}
           >
@@ -306,31 +289,27 @@ export function TestLabPageV2() {
             </section>
           </Panel>
 
-          <Panel
-            label="注入回执"
-            title={submission ? submission.ticket.ticket_id : "等待回执"}
-            description="成功后会显示工单、状态和 Trace 交接。"
-            actions={
-              submission ? (
+          {submission ? (
+            <Panel
+              title={submission.ticket.ticket_id}
+              description="工单与 Trace 交接结果。"
+              actions={
                 <StatusTag tone="accent">
                   {submission.run ? "已创建运行" : "仅创建工单"}
                 </StatusTag>
-              ) : undefined
-            }
-          >
-            {submission ? (
+              }
+            >
               <div className="v2-stack">
                 <div className="v2-summary-grid" aria-label="注入回执摘要">
-                  <Panel label="工单" title={submission.ticket.ticket_id}>
+                  <Panel title={submission.ticket.ticket_id}>
                     <p>{submission.ticket.created ? "已创建新工单。" : "复用了已有工单。"}</p>
                   </Panel>
                   <Panel
-                    label="状态"
-                    title={`${labelForCode(submission.ticket.business_status)} / ${labelForCode(submission.ticket.processing_status)}`}
+                    title={`状态: ${labelForCode(submission.ticket.business_status)} / ${labelForCode(submission.ticket.processing_status)}`}
                   >
                     <p>工单版本 {submission.ticket.version}。</p>
                   </Panel>
-                  <Panel label="运行交接" title={submission.run?.run_id ?? "未入队运行"}>
+                  <Panel title={submission.run ? `运行: ${submission.run.run_id}` : "运行: 未入队"}>
                     <p>
                       {submission.run
                         ? `Trace ${submission.run.trace_id} 已可进入审查。`
@@ -353,33 +332,8 @@ export function TestLabPageV2() {
                   ) : null}
                 </div>
               </div>
-            ) : (
-              <EmptyState
-                label="等待回执"
-                title="当前会话里还没有注入结果"
-                description="选择场景并提交后，这里会出现工单与 Trace 交接。"
-              />
-            )}
-          </Panel>
-
-          <Panel
-            label="接口边界"
-            title="单一注入接口"
-            actions={
-              <InfoTip label="接口边界" title="实验台边界">
-                <p>页面只调用 `POST /dev/test-email`。</p>
-                <p>关闭自动入队时，运行信息可能为空。</p>
-                <p>来源渠道默认为 `dev_test_email`。</p>
-              </InfoTip>
-            }
-          >
-            <section className="v2-divider-list">
-              <article className="v2-divider-row">
-                <strong>POST /dev/test-email</strong>
-                <p>{submission?.test_metadata.source_channel ?? "dev_test_email"}</p>
-              </article>
-            </section>
-          </Panel>
+            </Panel>
+          ) : null}
         </div>
       </section>
     </section>
