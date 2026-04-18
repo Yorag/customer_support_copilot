@@ -35,6 +35,7 @@ class LLMSettings:
     api_key: str | None
     base_url: str | None
     chat_model: str
+    judge_enabled: bool
     judge_model: str
     judge_timeout_seconds: int
 
@@ -205,6 +206,7 @@ def get_settings() -> Settings:
             api_key=_clean_env_value("LLM_API_KEY"),
             base_url=_clean_env_value("LLM_BASE_URL"),
             chat_model=_clean_env_value("LLM_CHAT_MODEL") or "gpt-4o-mini",
+            judge_enabled=_get_bool_env("LLM_JUDGE_ENABLED", True),
             judge_model=(
                 _clean_env_value("LLM_JUDGE_MODEL")
                 or _clean_env_value("LLM_CHAT_MODEL")

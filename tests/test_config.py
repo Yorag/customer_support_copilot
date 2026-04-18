@@ -63,6 +63,7 @@ def test_llm_settings_support_openai_compatible_configuration():
         api_key="test-key",
         base_url="https://openrouter.ai/api/v1",
         chat_model="openai/gpt-4o-mini",
+        judge_enabled=True,
         judge_model="openai/gpt-4o-mini",
         judge_timeout_seconds=20,
     )
@@ -70,6 +71,7 @@ def test_llm_settings_support_openai_compatible_configuration():
     assert settings.api_key == "test-key"
     assert settings.base_url == "https://openrouter.ai/api/v1"
     assert settings.chat_model == "openai/gpt-4o-mini"
+    assert settings.judge_enabled is True
     assert settings.judge_model == "openai/gpt-4o-mini"
     assert settings.judge_timeout_seconds == 20
 
@@ -137,14 +139,27 @@ def test_gmail_can_be_explicitly_disabled(monkeypatch):
 
 def test_judge_settings_default_to_chat_model(monkeypatch):
     monkeypatch.setenv("LLM_CHAT_MODEL", "test-chat-model")
+    monkeypatch.setenv("LLM_JUDGE_ENABLED", "")
     monkeypatch.setenv("LLM_JUDGE_MODEL", "")
     monkeypatch.setenv("LLM_JUDGE_TIMEOUT_SECONDS", "45")
     get_settings.cache_clear()
 
     try:
         settings = get_settings()
+        assert settings.llm.judge_enabled is True
         assert settings.llm.judge_model == "test-chat-model"
         assert settings.llm.judge_timeout_seconds == 45
+    finally:
+        get_settings.cache_clear()
+
+
+def test_judge_can_be_explicitly_disabled(monkeypatch):
+    monkeypatch.setenv("LLM_JUDGE_ENABLED", "false")
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+        assert settings.llm.judge_enabled is False
     finally:
         get_settings.cache_clear()
 

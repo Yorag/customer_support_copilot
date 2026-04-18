@@ -54,3 +54,14 @@ def test_service_container_uses_null_gmail_client_when_disabled(monkeypatch):
         }
     finally:
         get_settings.cache_clear()
+
+
+def test_service_container_disables_response_quality_judge_via_env(monkeypatch):
+    monkeypatch.setenv("LLM_JUDGE_ENABLED", "false")
+    get_settings.cache_clear()
+
+    try:
+        container = create_default_service_container()
+        assert container.response_quality_judge is None
+    finally:
+        get_settings.cache_clear()

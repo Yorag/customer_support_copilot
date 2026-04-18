@@ -97,8 +97,7 @@ function buildTraceMetricCards(
   const resourceMetrics = (trace?.resource_metrics ?? {}) as Record<string, unknown>;
   const responseQuality = (trace?.response_quality ?? {}) as Record<string, unknown>;
   const trajectory = (trace?.trajectory_evaluation ?? {}) as Record<string, unknown>;
-
-  return [
+  const cards = [
     {
       label: "延迟镜头",
       value:
@@ -120,16 +119,6 @@ function buildTraceMetricCards(
         : "只有在选中具体运行后，这里才会显示 tokens 和调用计数。",
     },
     {
-      label: "质量轨",
-      value:
-        responseQuality.overall_score !== undefined && responseQuality.overall_score !== null
-          ? formatScore(Number(responseQuality.overall_score))
-          : "未评分",
-      note: trace
-        ? String(responseQuality.reason ?? "本次运行没有发布回复质量说明。")
-        : "选择带评分的运行后，这里才会出现运行级回复质量。",
-    },
-    {
       label: "轨迹轨",
       value:
         trajectory.score !== undefined && trajectory.score !== null
@@ -140,6 +129,18 @@ function buildTraceMetricCards(
         : "只有拿到 Trace 后，才会出现预期路径与实际路径的对比。",
     },
   ];
+
+  if (responseQuality.overall_score !== undefined && responseQuality.overall_score !== null) {
+    cards.splice(2, 0, {
+      label: "质量轨",
+      value: formatScore(Number(responseQuality.overall_score)),
+      note: trace
+        ? String(responseQuality.reason ?? "本次运行没有发布回复质量说明。")
+        : "选择带评分的运行后，这里才会出现运行级回复质量。",
+    });
+  }
+
+  return cards;
 }
 
 function getTraceStageTone(event: TraceEventResponse) {
@@ -558,8 +559,10 @@ export function TraceEvalPage() {
                   {
                     latency_metrics: traceQuery.data.latency_metrics,
                     resource_metrics: traceQuery.data.resource_metrics,
-                    response_quality: traceQuery.data.response_quality,
                     trajectory_evaluation: traceQuery.data.trajectory_evaluation,
+                    ...(traceQuery.data.response_quality
+                      ? { response_quality: traceQuery.data.response_quality }
+                      : {}),
                   },
                   null,
                   2,

@@ -357,4 +357,111 @@ describe("TraceEvalPage", () => {
       await screen.findByRole("alert"),
     ).toHaveTextContent("Trace not found for the selected ticket.");
   });
+
+  it("hides response-quality metrics when the selected run has no response quality", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_trace/runs?page=1&page_size=12")) {
+        return jsonResponse({
+          ticket_id: "ticket_trace",
+          items: [
+            {
+              run_id: "run_trace_no_quality",
+              trace_id: "trace_no_quality",
+              trigger_type: "manual_api",
+              triggered_by: "operator-1",
+              status: "succeeded",
+              final_action: "handoff_to_human",
+              started_at: "2026-04-17T09:58:10Z",
+              ended_at: "2026-04-17T09:58:12Z",
+              attempt_index: 2,
+              is_human_action: false,
+              evaluation_summary_ref: {
+                status: "partial",
+                trace_id: "trace_no_quality",
+                has_response_quality: false,
+                response_quality_overall_score: null,
+                has_trajectory_evaluation: true,
+                trajectory_score: 4.8,
+                trajectory_violation_count: 0,
+              },
+            },
+          ],
+          page: 1,
+          page_size: 12,
+          total: 1,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_trace/trace")) {
+        return jsonResponse({
+          ticket_id: "ticket_trace",
+          run_id: "run_trace_no_quality",
+          trace_id: "trace_no_quality",
+          latency_metrics: {
+            end_to_end_ms: 2400,
+            slowest_node: "escalate_to_human",
+          },
+          resource_metrics: {
+            total_tokens: 0,
+            llm_call_count: 0,
+            tool_call_count: 0,
+            token_coverage_ratio: 0,
+          },
+          response_quality: null,
+          trajectory_evaluation: {
+            score: 4.8,
+            expected_route: "commercial_policy_request_high_risk",
+            actual_route: "commercial_policy_request_high_risk",
+            violations: [],
+          },
+          events: [],
+        });
+      }
+
+      if (url.includes("/metrics/summary?")) {
+        return jsonResponse({
+          window: {
+            from: "2026-04-16T10:00:00Z",
+            to: "2026-04-17T10:00:00Z",
+          },
+          latency: {
+            p50_ms: 1000,
+            p95_ms: 2400,
+          },
+          resources: {
+            avg_total_tokens: 120,
+            avg_llm_call_count: 1.5,
+            avg_actual_token_call_count: 1,
+            avg_estimated_token_call_count: 0.5,
+            avg_unavailable_token_call_count: 0,
+            avg_token_coverage_ratio: 0.75,
+          },
+          response_quality: {
+            avg_overall_score: null,
+          },
+          trajectory_evaluation: {
+            avg_score: 4.7,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    useConsoleUiStore.setState({ selectedTicketId: "ticket_trace" });
+
+    renderTraceEvalPage("/trace?ticketId=ticket_trace");
+
+    expect(await screen.findByText("2,400 ms")).toBeInTheDocument();
+    expect(screen.getByText("轨迹轨")).toBeInTheDocument();
+    expect(screen.queryByText("质量轨")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开原始记录" }));
+    expect(await screen.findByLabelText("Trace 原始记录抽屉")).not.toHaveTextContent(
+      "response_quality",
+    );
+  });
 });

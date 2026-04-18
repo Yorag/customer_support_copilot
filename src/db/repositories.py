@@ -56,6 +56,9 @@ class DraftArtifactRepositoryProtocol(Protocol):
     def get(self, draft_id: str) -> DraftArtifact | None:
         ...
 
+    def list_by_run(self, run_id: str) -> list[DraftArtifact]:
+        ...
+
     def list_by_ticket(self, ticket_id: str) -> list[DraftArtifact]:
         ...
 
@@ -203,6 +206,10 @@ class SqlAlchemyDraftArtifactRepository(DraftArtifactRepositoryProtocol):
 
     def get(self, draft_id: str) -> DraftArtifact | None:
         return self._session.get(DraftArtifact, draft_id)
+
+    def list_by_run(self, run_id: str) -> list[DraftArtifact]:
+        statement = select(DraftArtifact).where(DraftArtifact.run_id == run_id)
+        return list(self._session.scalars(statement))
 
     def list_by_ticket(self, ticket_id: str) -> list[DraftArtifact]:
         statement = select(DraftArtifact).where(DraftArtifact.ticket_id == ticket_id)

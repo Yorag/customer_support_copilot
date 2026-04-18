@@ -8,7 +8,7 @@ from src.bootstrap.container import ServiceContainer
 from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.contracts.core import TicketProcessingStatus
 from src.db.base import Base
-from src.db.models import Ticket, TicketRun, TraceEvent
+from src.db.models import DraftArtifact, Ticket, TicketRun, TraceEvent
 from src.db.session import build_engine, create_session_factory, session_scope
 from src.orchestration.checkpointing import ManagedCheckpointer, build_test_checkpointer
 from src.tickets.state_machine import TicketStateService
@@ -492,3 +492,105 @@ def test_execute_claimed_run_allows_terminal_processing_state_without_active_lea
 
         assert result.run.status == "succeeded"
         assert result.ticket.processing_status == "waiting_external"
+
+
+def test_build_response_quality_skips_when_judge_disabled():
+    store = _build_store()
+    container = ServiceContainer(
+        ticket_store_factory=lambda: store,
+        response_quality_judge_factory=lambda: None,
+        checkpointer_factory=build_test_checkpointer,
+    )
+
+    with store.session_scope() as session:
+        ticket = _create_ticket(priority="medium")
+        run = TicketRun(
+            run_id="run-no-judge",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=datetime.now(timezone.utc),
+            attempt_index=1,
+        )
+        session.add(ticket)
+        session.add(run)
+        session.flush()
+        repositories = store.repositories(session)
+        runner = TicketRunner(
+            session=session,
+            repositories=repositories,
+            container=container,
+            checkpointer=build_test_checkpointer(),
+        )
+
+        result = runner._build_response_quality(run=run, ticket=ticket)
+
+        assert result is None
+        assert run.app_metadata["response_quality_status"] == "disabled"
+
+
+def test_build_response_quality_skips_when_current_run_has_no_draft():
+    store = _build_store()
+
+    class FakeJudge:
+        def evaluate(self, **kwargs):
+            raise AssertionError("judge should not be called without a current-run draft")
+
+    container = ServiceContainer(
+        ticket_store_factory=lambda: store,
+        response_quality_judge_factory=lambda: FakeJudge(),
+        checkpointer_factory=build_test_checkpointer,
+    )
+
+    with store.session_scope() as session:
+        ticket = _create_ticket(priority="medium")
+        prior_run = TicketRun(
+            run_id="run-old-draft",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            attempt_index=1,
+        )
+        current_run = TicketRun(
+            run_id="run-no-draft",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="succeeded",
+            started_at=datetime.now(timezone.utc),
+            attempt_index=2,
+        )
+        session.add(ticket)
+        session.add(prior_run)
+        session.add(current_run)
+        session.flush()
+        session.add(
+            DraftArtifact(
+                draft_id=generate_prefixed_id(EntityIdPrefix.DRAFT),
+                ticket_id=ticket.ticket_id,
+                run_id=prior_run.run_id,
+                version_index=1,
+                draft_type="reply",
+                content_text="old draft",
+                qa_status="passed",
+                gmail_draft_id=None,
+                idempotency_key="draft:old",
+                source_evidence_summary="old evidence",
+            )
+        )
+        session.flush()
+        repositories = store.repositories(session)
+        runner = TicketRunner(
+            session=session,
+            repositories=repositories,
+            container=container,
+            checkpointer=build_test_checkpointer(),
+        )
+
+        result = runner._build_response_quality(run=current_run, ticket=ticket)
+
+        assert result is None
+        assert current_run.app_metadata["response_quality_status"] == "skipped_no_draft"

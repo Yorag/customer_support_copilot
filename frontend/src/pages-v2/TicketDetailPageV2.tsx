@@ -176,6 +176,14 @@ function describeEvalStatus(summary: EvaluationSummaryRef) {
   return "评估结果暂不可用";
 }
 
+function hasResponseQuality(summary: EvaluationSummaryRef | undefined | null) {
+  return Boolean(summary?.has_response_quality);
+}
+
+function hasTrajectoryEvaluation(summary: EvaluationSummaryRef | undefined | null) {
+  return Boolean(summary?.has_trajectory_evaluation);
+}
+
 function buildHeroDescription(
   snapshot: TicketSnapshotResponse | undefined,
   latestInboundMessage: TicketMessage | undefined,
@@ -1059,6 +1067,9 @@ export function TicketDetailPageV2() {
                 <p className="v2-panel-label">评估摘要</p>
                 <strong>{latestRun ? describeEvalStatus(latestRun.evaluation_summary_ref) : "评估结果暂不可用"}</strong>
                 {!latestRun ? <p>暂无评估摘要。</p> : null}
+                {latestRun && !hasResponseQuality(latestRun.evaluation_summary_ref) ? (
+                  <p>当前运行没有回复质量评分，只展示常规运行与轨迹信息。</p>
+                ) : null}
               </div>
             </section>
 

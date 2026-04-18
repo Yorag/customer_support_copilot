@@ -334,10 +334,6 @@ function getRunTone(status?: string | null) {
   return getStatusTone(status);
 }
 
-function labelForTraceGroup(key: TraceEventGroupKey) {
-  return TRACE_EVENT_GROUPS.find((group) => group.key === key)?.label ?? key;
-}
-
 function isFailedStatus(status?: string | null) {
   const normalizedStatus = (status ?? "").toLowerCase();
   return normalizedStatus === "failed" || normalizedStatus === "error";
@@ -585,8 +581,10 @@ function buildNodeRawRecord(
         ? {
             trace_id: trace.trace_id,
             run_id: trace.run_id,
-            response_quality: trace.response_quality,
             trajectory_evaluation: trace.trajectory_evaluation,
+            ...(trace.response_quality
+              ? { response_quality: trace.response_quality }
+              : {}),
           }
         : null,
     },
@@ -653,8 +651,7 @@ function buildTraceMetricCards(
   const resourceMetrics = (trace?.resource_metrics ?? {}) as Record<string, unknown>;
   const responseQuality = (trace?.response_quality ?? {}) as Record<string, unknown>;
   const trajectory = (trace?.trajectory_evaluation ?? {}) as Record<string, unknown>;
-
-  return [
+  const cards: TraceMetricCard[] = [
     {
       label: "端到端延迟",
       value:
@@ -676,18 +673,6 @@ function buildTraceMetricCards(
         : "等待运行",
     },
     {
-      label: "回复质量评分",
-      value:
-        responseQuality.overall_score !== undefined && responseQuality.overall_score !== null
-          ? formatScore(Number(responseQuality.overall_score))
-          : "未评分",
-      note: trace
-        ? String(responseQuality.reason ?? "无说明")
-        : "等待评分",
-      tooltipTitle: buildResponseQualityTooltip(trace).title,
-      tooltipLines: buildResponseQualityTooltip(trace).lines,
-    },
-    {
       label: "轨迹符合度评分",
       value:
         trajectory.score !== undefined && trajectory.score !== null
@@ -700,6 +685,18 @@ function buildTraceMetricCards(
       tooltipLines: buildTrajectoryTooltip(trace).lines,
     },
   ];
+
+  if (responseQuality.overall_score !== undefined && responseQuality.overall_score !== null) {
+    cards.splice(2, 0, {
+      label: "回复质量评分",
+      value: formatScore(Number(responseQuality.overall_score)),
+      note: trace ? String(responseQuality.reason ?? "无说明") : "等待评分",
+      tooltipTitle: buildResponseQualityTooltip(trace).title,
+      tooltipLines: buildResponseQualityTooltip(trace).lines,
+    });
+  }
+
+  return cards;
 }
 
 function buildRunMetaCards(
@@ -865,18 +862,6 @@ export function TraceEvalPageV2() {
 
   return (
     <section className="v2-stack">
-      <Panel
-        label="Trace"
-        title="围绕单次运行查看轨迹、事件、评分和原始记录"
-      >
-        <div className="v2-action-row" aria-label="Trace 页面区域">
-          <StatusTag>运行浏览器</StatusTag>
-          <StatusTag>执行轨迹</StatusTag>
-          <StatusTag>节点观察台</StatusTag>
-          <StatusTag>运行评估</StatusTag>
-        </div>
-      </Panel>
-
       {requestError ? (
         <InlineNotice
           tone="error"
@@ -921,7 +906,7 @@ export function TraceEvalPageV2() {
                       <div className="v2-trace-stage-body">
                         <div className="v2-ticket-section-head">
                           <div>
-                            <p className="v2-panel-label">{labelForTraceGroup(node.groupKey)}</p>
+                            <p className="v2-panel-label">节点</p>
                             <h3 className="v2-ticket-section-title">{node.key}</h3>
                           </div>
                           <div className="v2-action-row">
@@ -934,12 +919,16 @@ export function TraceEvalPageV2() {
 
                         <p className="v2-trace-stage-note">{node.summary}</p>
 
-                        <div className="v2-action-row">
-                          <StatusTag tone="muted">{`${node.eventCount} 个事件`}</StatusTag>
-                          {node.issueCount > 0 ? (
-                            <StatusTag tone="danger">{`${node.issueCount} 个异常`}</StatusTag>
-                          ) : null}
-                        </div>
+                        {node.activityEvents.length > 0 || node.issueCount > 0 ? (
+                          <div className="v2-action-row">
+                            {node.activityEvents.length > 0 ? (
+                              <StatusTag tone="muted">{`${node.activityEvents.length} 条关联记录`}</StatusTag>
+                            ) : null}
+                            {node.issueCount > 0 ? (
+                              <StatusTag tone="danger">{`${node.issueCount} 个异常`}</StatusTag>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </button>
 
@@ -952,7 +941,9 @@ export function TraceEvalPageV2() {
                           </div>
                           <div className="v2-action-row">
                             <StatusTag tone={getStatusTone(node.status)}>{labelForCode(node.status)}</StatusTag>
-                            <StatusTag tone="muted">{labelForTraceGroup(node.groupKey)}</StatusTag>
+                            {node.activityEvents.length > 0 ? (
+                              <StatusTag tone="muted">{`${node.activityEvents.length} 条关联记录`}</StatusTag>
+                            ) : null}
                           </div>
                         </div>
 
@@ -970,17 +961,21 @@ export function TraceEvalPageV2() {
                             <strong>{labelForCode(node.status)}</strong>
                           </div>
                           <div className="v2-trace-focus-card">
-                            <p className="v2-panel-label">关联事件</p>
-                            <strong>{`${node.eventCount} 个`}</strong>
-                          </div>
-                          <div className="v2-trace-focus-card">
                             <p className="v2-panel-label">节点耗时</p>
                             <strong>{node.latencyMs !== null ? `${formatNumber(node.latencyMs)} ms` : "--"}</strong>
                           </div>
-                          <div className="v2-trace-focus-card">
-                            <p className="v2-panel-label">事件组成</p>
-                            <strong>{buildNodeEventMix(node.events) || "--"}</strong>
-                          </div>
+                          {node.activityEvents.length > 0 ? (
+                            <div className="v2-trace-focus-card">
+                              <p className="v2-panel-label">关联记录</p>
+                              <strong>{`${node.activityEvents.length} 条`}</strong>
+                            </div>
+                          ) : null}
+                          {node.activityEvents.length > 0 ? (
+                            <div className="v2-trace-focus-card">
+                              <p className="v2-panel-label">关联类型</p>
+                              <strong>{buildNodeEventMix(node.activityEvents) || "--"}</strong>
+                            </div>
+                          ) : null}
                         </div>
 
                         {selectedNodeFields.length > 0 ? (

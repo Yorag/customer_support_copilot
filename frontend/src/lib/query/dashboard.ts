@@ -38,7 +38,12 @@ export type DashboardViewModel = {
   metrics: Array<{
     label: string;
     value: string;
-    note: string;
+    note?: string;
+  }>;
+  qualityCards: Array<{
+    label: string;
+    value: string;
+    note?: string;
   }>;
   trendCards: Array<{
     label: string;
@@ -61,6 +66,30 @@ export type DashboardViewModel = {
       meta: string;
       emphasis: string;
     }>;
+  };
+  reliability: {
+    summaryCards: Array<{
+      label: string;
+      value: string;
+      note?: string;
+      tone?: "default" | "accent" | "danger" | "success" | "muted";
+    }>;
+    dependencies: Array<{
+      label: string;
+      value: string;
+      tone: "success" | "muted" | "danger";
+    }>;
+    watchItems: string[];
+    failure: {
+      title: string;
+      detail: string;
+      tone?: "default" | "accent" | "danger" | "success" | "muted";
+    };
+    scan: {
+      title: string;
+      detail: string;
+      tone?: "default" | "accent" | "danger" | "success" | "muted";
+    };
   };
   incidents: Array<{
     title: string;
@@ -160,6 +189,54 @@ function describeScanStatus(opsStatus: OpsStatusResponse): string {
   return "尚无扫描记录";
 }
 
+function getDependencyTone(value: string): "success" | "muted" | "danger" {
+  const normalized = value.toLowerCase();
+
+  if (normalized === "ok") {
+    return "success";
+  }
+
+  if (normalized === "unknown") {
+    return "muted";
+  }
+
+  return "danger";
+}
+
+function buildWatchList(opsStatus: OpsStatusResponse) {
+  const items: string[] = [];
+
+  if (opsStatus.worker.healthy !== true) {
+    items.push("当前 Worker 健康状态未被报告为健康。");
+  }
+  if (opsStatus.queue.error_tickets > 0) {
+    items.push(`当前有 ${opsStatus.queue.error_tickets} 个工单处于错误状态。`);
+  }
+  if (opsStatus.queue.waiting_external_tickets > 0) {
+    items.push(`当前有 ${opsStatus.queue.waiting_external_tickets} 个工单正在等待外部跟进。`);
+  }
+  if (opsStatus.recent_failure) {
+    items.push(`最近失败运行 ${opsStatus.recent_failure.run_id} 需要继续复盘。`);
+  }
+  if (opsStatus.dependencies.gmail !== "ok") {
+    items.push(`Gmail 依赖状态为 ${labelForCode(opsStatus.dependencies.gmail)}。`);
+  }
+  if (opsStatus.dependencies.llm !== "ok") {
+    items.push(`LLM 依赖状态为 ${labelForCode(opsStatus.dependencies.llm)}。`);
+  }
+  if (opsStatus.dependencies.database !== "ok") {
+    items.push(`数据库依赖状态为 ${labelForCode(opsStatus.dependencies.database)}。`);
+  }
+  if (opsStatus.dependencies.checkpointing !== "ok") {
+    items.push(`Checkpointing 依赖状态为 ${labelForCode(opsStatus.dependencies.checkpointing)}。`);
+  }
+  if (items.length === 0) {
+    items.push("当前控制面没有报告任何降级信号。");
+  }
+
+  return items;
+}
+
 function buildTicketFeedItems(
   items: TicketListItem[],
   variant: "recent" | "review",
@@ -173,18 +250,24 @@ function buildTicketFeedItems(
     const route = ticket.primary_route ?? "route_pending";
     const runStatus = ticket.latest_run?.status ?? "no_run";
     const draftStatus = ticket.latest_draft?.qa_status ?? "no_draft";
+    const processingLabel = labelForCode(ticket.processing_status);
+    const runLabel = labelForCode(runStatus, processingLabel);
+    const businessLabel = labelForCode(ticket.business_status);
+    const draftLabel = labelForCode(draftStatus, "暂无草稿");
 
     return {
       id: ticket.ticket_id,
       title: ticket.subject,
       meta:
         variant === "review"
-          ? `${ticket.ticket_id} · ${ticket.customer_email_raw} · ${formatTimestamp(ticket.updated_at)}`
+          ? `${ticket.ticket_id} · ${formatTimestamp(ticket.updated_at)}`
           : `${ticket.ticket_id} · ${labelForCode(route, "待定路由")} · ${formatTimestamp(ticket.updated_at)}`,
       emphasis:
         variant === "review"
-          ? `审核：${labelForCode(ticket.business_status)} · 草稿：${labelForCode(draftStatus, "暂无草稿")}`
-          : `运行：${labelForCode(runStatus, "暂无运行")} · ${labelForCode(ticket.processing_status)}`,
+          ? `${businessLabel} · ${draftLabel}`
+          : runLabel === processingLabel
+            ? processingLabel
+            : `${runLabel} · ${processingLabel}`,
     };
   });
 }
@@ -193,6 +276,15 @@ export function buildDashboardViewModel(data: DashboardData): DashboardViewModel
   const { opsStatus, metricsSummary, recentTickets, reviewQueue } = data;
   const responseQualityScore = metricsSummary.response_quality.avg_overall_score;
   const trajectoryScore = metricsSummary.trajectory_evaluation.avg_score;
+  const hasResponseQuality = responseQualityScore !== null && responseQualityScore !== undefined;
+  const dependencies = [
+    ["Database", opsStatus.dependencies.database],
+    ["Gmail", opsStatus.dependencies.gmail],
+    ["LLM", opsStatus.dependencies.llm],
+    ["Checkpointing", opsStatus.dependencies.checkpointing],
+  ] as const;
+  const degradedDependencies = dependencies.filter(([, value]) => value !== "ok");
+  const watchItems = buildWatchList(opsStatus);
 
   return {
     hero: {
@@ -225,6 +317,32 @@ export function buildDashboardViewModel(data: DashboardData): DashboardViewModel
           : "当前没有失败任务。",
       },
     ],
+    qualityCards: [
+      ...(hasResponseQuality
+        ? [
+            {
+              label: "回复质量",
+              value: formatScore(responseQualityScore),
+              note: "24 小时平均得分",
+            },
+          ]
+        : []),
+      {
+        label: "轨迹评分",
+        value: formatScore(trajectoryScore),
+        note: "工作流正确性",
+      },
+      {
+        label: "P50 延迟",
+        value: `${formatNumber(metricsSummary.latency.p50_ms)} ms`,
+        note: "当前指标窗口",
+      },
+      {
+        label: "Token 覆盖",
+        value: formatPercent(metricsSummary.resources.avg_token_coverage_ratio),
+        note: "资源信号完整度",
+      },
+    ],
     trendCards: [
       {
         label: "队列趋势",
@@ -255,13 +373,71 @@ export function buildDashboardViewModel(data: DashboardData): DashboardViewModel
           formatMetricBar(metricsSummary.latency.p95_ms, 40, 56),
           formatMetricBar(metricsSummary.resources.avg_token_coverage_ratio, 0.012, 30),
         ],
-        summary: `质量 ${formatScore(responseQualityScore)}，轨迹 ${formatScore(trajectoryScore)}，P50 延迟 ${formatNumber(metricsSummary.latency.p50_ms)} ms。`,
+        summary: hasResponseQuality
+          ? `质量 ${formatScore(responseQualityScore)}，轨迹 ${formatScore(trajectoryScore)}，P50 延迟 ${formatNumber(metricsSummary.latency.p50_ms)} ms。`
+          : `轨迹 ${formatScore(trajectoryScore)}，P50 延迟 ${formatNumber(metricsSummary.latency.p50_ms)} ms，质量评分当前未启用。`,
         detail: `当前指标窗口内 token 覆盖率为 ${formatPercent(metricsSummary.resources.avg_token_coverage_ratio)}。`,
       },
     ],
     feeds: {
       recentTickets: buildTicketFeedItems(recentTickets.items, "recent"),
       reviewQueue: buildTicketFeedItems(reviewQueue.items, "review"),
+    },
+    reliability: {
+      summaryCards: [
+        {
+          label: "Worker",
+          value: describeWorkerHealth(opsStatus),
+          tone:
+            opsStatus.worker.healthy === true
+              ? "success"
+              : opsStatus.worker.healthy === false
+                ? "danger"
+                : "muted",
+        },
+        {
+          label: "依赖",
+          value:
+            degradedDependencies.length === 0
+              ? `${dependencies.length} 项正常`
+              : `${degradedDependencies.length} 项需关注`,
+          tone: degradedDependencies.length === 0 ? "success" : "danger",
+        },
+        {
+          label: "最近失败",
+          value: opsStatus.recent_failure ? labelForCode(opsStatus.recent_failure.error_code, "unknown_error") : "无失败交接",
+          tone: opsStatus.recent_failure ? "danger" : "muted",
+        },
+        {
+          label: "最近扫描",
+          value: labelForCode(opsStatus.gmail.last_scan_status ?? "no_signal"),
+          tone: opsStatus.gmail.enabled ? "accent" : "muted",
+        },
+      ],
+      dependencies: dependencies.map(([label, value]) => ({
+        label,
+        value: labelForCode(value),
+        tone: getDependencyTone(value),
+      })),
+      watchItems,
+      failure: {
+        title: opsStatus.recent_failure
+          ? `${opsStatus.recent_failure.run_id} · ${labelForCode(opsStatus.recent_failure.error_code, "unknown_error")}`
+          : "当前没有失败交接项",
+        detail: opsStatus.recent_failure
+          ? `工单 ${opsStatus.recent_failure.ticket_id} · trace ${opsStatus.recent_failure.trace_id} · ${formatTimestamp(opsStatus.recent_failure.occurred_at)}`
+          : "一旦状态 payload 含有失败记录，这里会显示最近失败运行。",
+        tone: opsStatus.recent_failure ? "danger" : "muted",
+      },
+      scan: {
+        title: opsStatus.gmail.enabled
+          ? `${labelForCode(opsStatus.gmail.last_scan_status, "未知")} · ${formatTimestamp(opsStatus.gmail.last_scan_at)}`
+          : "当前运行时已禁用邮箱摄入",
+        detail: opsStatus.gmail.account_email
+          ? `${opsStatus.gmail.account_email} · 依赖状态 ${labelForCode(opsStatus.dependencies.gmail)}`
+          : `依赖状态 ${labelForCode(opsStatus.dependencies.gmail)}`,
+        tone: opsStatus.gmail.enabled ? "accent" : "muted",
+      },
     },
     incidents: [
       {

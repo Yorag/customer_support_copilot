@@ -269,7 +269,8 @@ describe("TraceEvalPageV2", () => {
     const observer = screen.getByLabelText("Trace 节点观察");
     expect(observer).toHaveTextContent("triage");
     expect(within(observer).getByText("发生序号")).toBeInTheDocument();
-    expect(within(observer).getByText("事件组成")).toBeInTheDocument();
+    expect(within(observer).getByText("关联记录")).toBeInTheDocument();
+    expect(within(observer).getByText("关联类型")).toBeInTheDocument();
     expect(within(observer).getByText("selected_rule")).toBeInTheDocument();
     expect(within(observer).getByText("deterministic_v1")).toBeInTheDocument();
     expect(within(observer).getByText("triage_decision")).toBeInTheDocument();
@@ -295,6 +296,8 @@ describe("TraceEvalPageV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "轨迹节点 qa_handoff" }));
     const qaObserver = await screen.findByLabelText("Trace 节点观察");
     expect(within(qaObserver).getByText("response_quality_judge")).toBeInTheDocument();
+    expect(within(qaObserver).getByText("关联记录")).toBeInTheDocument();
+    expect(within(qaObserver).getByText("关联类型")).toBeInTheDocument();
     expect(within(qaObserver).getByText("response_quality_judge_v1")).toBeInTheDocument();
     expect(within(qaObserver).getByText("req_trace_1")).toBeInTheDocument();
     expect(within(qaObserver).getByText("gpt-test")).toBeInTheDocument();
@@ -318,5 +321,107 @@ describe("TraceEvalPageV2", () => {
     const workerObserver = await screen.findByLabelText("Trace 节点观察");
     expect((await within(workerObserver).findAllByText("worker-7")).length).toBeGreaterThanOrEqual(2);
     expect(within(workerObserver).getByText("ticket_trace")).toBeInTheDocument();
+  });
+
+  it("omits response-quality score cards when trace has no response quality", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_trace/runs?page=1&page_size=12")) {
+        return jsonResponse({
+          ticket_id: "ticket_trace",
+          items: [
+            {
+              run_id: "run_trace_latest",
+              trace_id: "trace_latest",
+              trigger_type: "manual_api",
+              triggered_by: "operator-1",
+              status: "succeeded",
+              final_action: "handoff_to_human",
+              started_at: "2026-04-17T09:58:10Z",
+              ended_at: "2026-04-17T09:58:12Z",
+              attempt_index: 2,
+              is_human_action: false,
+              evaluation_summary_ref: {
+                status: "partial",
+                trace_id: "trace_latest",
+                has_response_quality: false,
+                response_quality_overall_score: null,
+                has_trajectory_evaluation: true,
+                trajectory_score: 4.8,
+                trajectory_violation_count: 0,
+              },
+            },
+          ],
+          page: 1,
+          page_size: 12,
+          total: 1,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_trace/trace")) {
+        return jsonResponse({
+          ticket_id: "ticket_trace",
+          run_id: "run_trace_latest",
+          trace_id: "trace_latest",
+          latency_metrics: {
+            end_to_end_ms: 2400,
+            slowest_node: "escalate_to_human",
+          },
+          resource_metrics: {
+            total_tokens: 0,
+            llm_call_count: 0,
+            tool_call_count: 0,
+            token_coverage_ratio: 0,
+          },
+          response_quality: null,
+          trajectory_evaluation: {
+            score: 4.8,
+            expected_route: ["triage", "escalate_to_human"],
+            actual_route: ["triage", "escalate_to_human"],
+            violations: [],
+          },
+          events: [],
+        });
+      }
+
+      if (url.includes("/metrics/summary?")) {
+        return jsonResponse({
+          window: {
+            from: "2026-04-16T10:00:00Z",
+            to: "2026-04-17T10:00:00Z",
+          },
+          latency: {
+            p50_ms: 1000,
+            p95_ms: 2400,
+          },
+          resources: {
+            avg_total_tokens: 120,
+            avg_llm_call_count: 1.5,
+            avg_actual_token_call_count: 1,
+            avg_estimated_token_call_count: 0.5,
+            avg_unavailable_token_call_count: 0,
+            avg_token_coverage_ratio: 0.75,
+          },
+          response_quality: {
+            avg_overall_score: null,
+          },
+          trajectory_evaluation: {
+            avg_score: 4.7,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    useConsoleUiStore.setState({ selectedTicketId: "ticket_trace" });
+
+    renderTraceEvalPage();
+
+    expect(await screen.findByText("端到端延迟")).toBeInTheDocument();
+    expect(screen.getAllByText("轨迹符合度评分").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("回复质量评分")).not.toBeInTheDocument();
   });
 });

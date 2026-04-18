@@ -23,6 +23,10 @@ def _build_agents():
 
 
 def _build_response_quality_judge():
+    settings = get_settings()
+    if not settings.llm.judge_enabled:
+        return None
+
     from src.evaluation import ResponseQualityJudge
 
     return ResponseQualityJudge()

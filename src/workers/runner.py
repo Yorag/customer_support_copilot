@@ -67,6 +67,7 @@ class TicketRunner:
             trace_exporter=trace_exporter or container.trace_exporter,
         )
         self._quality_judge = container.response_quality_judge
+        self._response_quality_enabled = self._quality_judge is not None
         self._checkpointer = checkpointer
 
     @property
@@ -530,9 +531,21 @@ class TicketRunner:
         return RunFinalAction.CREATE_DRAFT.value
 
     def _build_response_quality(self, *, run: TicketRun, ticket: Ticket) -> dict[str, Any] | None:
+        if not self._response_quality_enabled:
+            app_metadata = dict(run.app_metadata or {})
+            app_metadata["response_quality_status"] = "disabled"
+            run.app_metadata = app_metadata
+            return None
+
         latest_draft = select_latest_draft(
-            self._repositories.draft_artifacts.list_by_ticket(ticket.ticket_id)
+            self._repositories.draft_artifacts.list_by_run(run.run_id)
         )
+        if latest_draft is None:
+            app_metadata = dict(run.app_metadata or {})
+            app_metadata["response_quality_status"] = "skipped_no_draft"
+            run.app_metadata = app_metadata
+            return None
+
         policy_summary = ""
         if ticket.primary_route and hasattr(self._container.policy_provider, "get_policy"):
             policy_summary = self._container.policy_provider.get_policy(ticket.primary_route)

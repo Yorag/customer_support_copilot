@@ -82,6 +82,14 @@ function describeEvalStatus(summary: EvaluationSummaryRef) {
   return "评估结果暂不可用";
 }
 
+function hasResponseQuality(summary: EvaluationSummaryRef | undefined | null) {
+  return Boolean(summary?.has_response_quality);
+}
+
+function hasTrajectoryEvaluation(summary: EvaluationSummaryRef | undefined | null) {
+  return Boolean(summary?.has_trajectory_evaluation);
+}
+
 function buildSummarySlots(
   snapshot: TicketSnapshotResponse | undefined,
   runsCount: number,
@@ -801,26 +809,28 @@ export function TicketDetailPage() {
               </p>
               {latestRun ? (
                 <div className="ticket-detail-eval-grid">
-                  <div className="ticket-detail-eval-card">
-                    <span>回复质量</span>
-                    <strong>
-                      {latestRun.evaluation_summary_ref.has_response_quality
-                        ? formatScore(latestRun.evaluation_summary_ref.response_quality_overall_score)
-                        : "--"}
-                    </strong>
-                  </div>
-                  <div className="ticket-detail-eval-card">
-                    <span>轨迹</span>
-                    <strong>
-                      {latestRun.evaluation_summary_ref.has_trajectory_evaluation
-                        ? formatScore(latestRun.evaluation_summary_ref.trajectory_score)
-                        : "--"}
-                    </strong>
-                  </div>
-                  <div className="ticket-detail-eval-card">
-                    <span>违规数</span>
-                    <strong>{latestRun.evaluation_summary_ref.trajectory_violation_count ?? 0}</strong>
-                  </div>
+                  {hasResponseQuality(latestRun.evaluation_summary_ref) ? (
+                    <div className="ticket-detail-eval-card">
+                      <span>回复质量</span>
+                      <strong>
+                        {formatScore(latestRun.evaluation_summary_ref.response_quality_overall_score)}
+                      </strong>
+                    </div>
+                  ) : null}
+                  {hasTrajectoryEvaluation(latestRun.evaluation_summary_ref) ? (
+                    <>
+                      <div className="ticket-detail-eval-card">
+                        <span>轨迹</span>
+                        <strong>
+                          {formatScore(latestRun.evaluation_summary_ref.trajectory_score)}
+                        </strong>
+                      </div>
+                      <div className="ticket-detail-eval-card">
+                        <span>违规数</span>
+                        <strong>{latestRun.evaluation_summary_ref.trajectory_violation_count ?? 0}</strong>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </article>

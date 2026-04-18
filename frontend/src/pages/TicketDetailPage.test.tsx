@@ -272,6 +272,97 @@ describe("TicketDetailPage", () => {
     expect(screen.getByText(/在存在草稿产物之前，批准、编辑和重写按钮会保持禁用。/i)).toBeInTheDocument();
   });
 
+  it("shows only trajectory metrics when latest run has no response quality", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_partial")) {
+        return jsonResponse({
+          ticket: {
+            ticket_id: "ticket_partial",
+            business_status: "awaiting_human_review",
+            processing_status: "waiting_external",
+            claimed_by: null,
+            claimed_at: null,
+            lease_until: null,
+            priority: "high",
+            primary_route: "commercial_policy_request",
+            multi_intent: false,
+            tags: ["needs_escalation"],
+            version: 3,
+          },
+          latest_run: {
+            run_id: "run_partial",
+            trace_id: "trace_partial",
+            status: "succeeded",
+            final_action: "handoff_to_human",
+            evaluation_summary_ref: {
+              status: "partial",
+              trace_id: "trace_partial",
+              has_response_quality: false,
+              response_quality_overall_score: null,
+              has_trajectory_evaluation: true,
+              trajectory_score: 4.8,
+              trajectory_violation_count: 0,
+            },
+          },
+          latest_draft: null,
+          messages: [],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_partial/runs?page=1&page_size=20")) {
+        return jsonResponse({
+          ticket_id: "ticket_partial",
+          items: [
+            {
+              run_id: "run_partial",
+              trace_id: "trace_partial",
+              trigger_type: "manual_api",
+              triggered_by: "operator-1",
+              status: "succeeded",
+              final_action: "handoff_to_human",
+              started_at: "2026-04-17T10:15:00Z",
+              ended_at: "2026-04-17T10:15:09Z",
+              attempt_index: 1,
+              is_human_action: false,
+              evaluation_summary_ref: {
+                status: "partial",
+                trace_id: "trace_partial",
+                has_response_quality: false,
+                response_quality_overall_score: null,
+                has_trajectory_evaluation: true,
+                trajectory_score: 4.8,
+                trajectory_violation_count: 0,
+              },
+            },
+          ],
+          page: 1,
+          page_size: 20,
+          total: 1,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_partial/drafts")) {
+        return jsonResponse({
+          ticket_id: "ticket_partial",
+          items: [],
+        });
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTicketDetailPage("/tickets/ticket_partial");
+
+    expect((await screen.findAllByText(/轨迹 4\.8 · 0 条违规/i)).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("回复质量")).not.toBeInTheDocument();
+    expect(screen.getByText("轨迹")).toBeInTheDocument();
+    expect(screen.getByText("违规数")).toBeInTheDocument();
+  });
+
   it("surfaces an alert when one of the detail requests fails", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string | URL | Request) => {
       const url = String(input);
