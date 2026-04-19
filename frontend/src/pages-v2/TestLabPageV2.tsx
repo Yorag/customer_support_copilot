@@ -38,10 +38,10 @@ const SCENARIO_PRESETS: ScenarioPreset[] = [
     lane: "账单",
     scenarioLabel: "billing_refund_follow_up",
     senderEmailRaw: '"Mina Park" <mina.park@example.com>',
-    subject: "关于年度套餐重复扣费的退款跟进",
+    subject: "昨天升级后被扣了两笔年费，想确认退款时间",
     bodyText:
-      "你好，客服团队：\n\n我昨天升级后，年度套餐被扣了两次费用。请确认其中一笔是否会退款，以及大概何时能退回到我的卡上。\n\n谢谢，\nMina",
-    references: "客户反馈 4 月 16 日升级后发生年度套餐重复扣费。",
+      "我昨天把工作区升级到年度套餐，银行卡这边连续入账了两笔相同金额。\n\n后台现在只看到一个有效订阅，所以看起来像是重复扣费。想确认一下另一笔是不是会原路退回，大概需要多久能到账。\n\n如果你们需要，我可以把账单截图和卡片尾号后四位补过来。",
+    references: "客户反馈 4 月 16 日升级到年度套餐后出现重复扣费，当前系统仅显示一个有效订阅。",
   },
   {
     id: "technical-outage",
@@ -49,10 +49,10 @@ const SCENARIO_PRESETS: ScenarioPreset[] = [
     lane: "技术",
     scenarioLabel: "technical_service_outage",
     senderEmailRaw: '"Elias Chen" <elias.chen@example.com>',
-    subject: "凭据轮换后 API 返回 502",
+    subject: "生产环境从今天早上开始一直返回 502",
     bodyText:
-      "你好，团队：\n\n我们今天早上轮换凭据后，生产集成就开始返回 HTTP 502。Sandbox 依然正常。请帮忙确认是否存在事故，或者我们是否遗漏了某个迁移步骤？\n\n此致，\nElias",
-    references: "仅影响生产环境。大约在 UTC 08:30 完成凭据轮换后开始出现。",
+      "我们今天早上轮换了一次 API 凭据，之后生产环境的请求就陆续开始返回 502，现在基本已经全部失败了。\n\n奇怪的是 sandbox 还是正常的，同一套代码打到测试环境也没复现。日志里暂时看不到更明确的错误，只能看到网关层直接返回 502。\n\n想先确认一下你们这边是不是有事故，或者这次凭据轮换之后还有什么额外步骤需要处理。",
+    references: "仅影响生产环境，问题大约从 UTC 08:30 之后开始出现。sandbox 与测试环境正常。",
   },
   {
     id: "vip-escalation",
@@ -60,10 +60,10 @@ const SCENARIO_PRESETS: ScenarioPreset[] = [
     lane: "升级",
     scenarioLabel: "vip_customer_escalation",
     senderEmailRaw: '"Dana Lo" <dana.lo@example.com>',
-    subject: "高层升级：上线日队列被阻塞",
+    subject: "明天上线，但注册确认邮件现在完全发不出去",
     bodyText:
-      "客服团队：\n\n距离正式上线不到 24 小时，但我们的 onboarding 队列被卡住了，因为确认邮件完全没有发出。这需要紧急升级，并请工程师给出明确 ETA。\n\nDana",
-    references: "高价值客户。要求提供工程 ETA 和升级路径。",
+      "我们明天就要正式上线了，但刚刚发现注册后的确认邮件完全没有发出去，新的用户现在都卡在 onboarding 这一步。\n\n这不是单个账号的问题，我们连续试了几个邮箱都一样，所以需要你们尽快升级处理。团队这边最关心两件事：现在有没有临时绕过方案，以及工程侧能不能给一个明确的 ETA。\n\n如果需要拉群或者电话同步，可以马上配合。",
+    references: "高价值客户，明天上线；当前核心诉求是紧急升级、临时绕过方案和工程 ETA。",
   },
 ];
 

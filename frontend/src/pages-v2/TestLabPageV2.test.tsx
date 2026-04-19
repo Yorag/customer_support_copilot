@@ -59,11 +59,11 @@ describe("TestLabPageV2", () => {
         expect(init?.body).toBe(
           JSON.stringify({
             sender_email_raw: '"Mina Park" <mina.park@example.com>',
-            subject: "关于年度套餐重复扣费的退款跟进",
+            subject: "昨天升级后被扣了两笔年费，想确认退款时间",
             body_text:
-              "你好，客服团队：\n\n我昨天升级后，年度套餐被扣了两次费用。请确认其中一笔是否会退款，以及大概何时能退回到我的卡上。\n\n谢谢，\nMina",
+              "我昨天把工作区升级到年度套餐，银行卡这边连续入账了两笔相同金额。\n\n后台现在只看到一个有效订阅，所以看起来像是重复扣费。想确认一下另一笔是不是会原路退回，大概需要多久能到账。\n\n如果你们需要，我可以把账单截图和卡片尾号后四位补过来。",
             references:
-              "客户反馈 4 月 16 日升级后发生年度套餐重复扣费。",
+              "客户反馈 4 月 16 日升级到年度套餐后出现重复扣费，当前系统仅显示一个有效订阅。",
             auto_enqueue: true,
             scenario_label: "billing_refund_follow_up",
           }),
@@ -105,13 +105,13 @@ describe("TestLabPageV2", () => {
     expect(screen.queryByLabelText("测试实验台区域")).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /账单退款|关于年度套餐重复扣费的退款跟进/i }),
+      screen.getByRole("button", { name: /账单退款|昨天升级后被扣了两笔年费，想确认退款时间/i }),
     );
 
     expect(await screen.findByText("场景已装载")).toBeInTheDocument();
     expect(screen.getByDisplayValue('"Mina Park" <mina.park@example.com>')).toBeInTheDocument();
     expect(
-      screen.getByDisplayValue("关于年度套餐重复扣费的退款跟进"),
+      screen.getByDisplayValue("昨天升级后被扣了两笔年费，想确认退款时间"),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "注入测试邮件" }));
@@ -156,7 +156,7 @@ describe("TestLabPageV2", () => {
     renderTestLabPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /技术故障|凭据轮换后 api 返回 502/i }),
+      screen.getByRole("button", { name: /技术故障|生产环境从今天早上开始一直返回 502/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "注入测试邮件" }));
 
