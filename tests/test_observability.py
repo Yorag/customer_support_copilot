@@ -57,8 +57,21 @@ def test_eval_samples_cover_minimum_v1_surface():
         for line in sample_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert len(rows) >= 21
-    assert len({row["scenario_type"] for row in rows}) >= 8
+    assert len(rows) == 53
+    assert len({row["sample_id"] for row in rows}) == 53
+    assert {
+        row["scenario_type"] for row in rows
+    } == {
+        "knowledge_supported",
+        "knowledge_gap",
+        "technical_issue_clarification",
+        "technical_issue_detailed",
+        "commercial_policy_high_risk",
+        "commercial_policy_standard",
+        "feedback_intake",
+        "unrelated",
+        "multi_intent",
+    }
 
 
 def test_extract_usage_prefers_provider_actual():

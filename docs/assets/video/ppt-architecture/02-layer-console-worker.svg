@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <marker id="arrow" viewBox="0 0 14 14" refX="11" refY="7" markerWidth="10" markerHeight="10" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#5B6470" />
+    </marker>
+  </defs>
+
+  <line x1="620" y1="680" x2="620" y2="348" stroke="#5B6470" stroke-width="6"
+        marker-start="url(#arrow)" marker-end="url(#arrow)" />
+  <text x="655" y="525"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">query / action</text>
+
+  <line x1="780" y1="505" x2="930" y2="505" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <text x="815" y="478"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">claim / execute</text>
+
+  <rect x="460" y="690" width="320" height="110" rx="24" ry="24" fill="#EEF6FF" stroke="#1C9ED8" stroke-width="4" />
+  <text x="620" y="735"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="30"
+        font-weight="700"
+        fill="#1E2A36">Frontend Console</text>
+  <text x="620" y="772"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="21"
+        fill="#5B6470">Dashboard / Tickets / Detail / Trace</text>
+
+  <rect x="930" y="430" width="280" height="150" rx="24" ry="24" fill="#FFF0E2" stroke="#DE7B22" stroke-width="4" />
+  <text x="1070" y="485"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="34"
+        font-weight="700"
+        fill="#1E2A36">Worker</text>
+  <text x="1070" y="525"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">异步领取 queued run</text>
+  <text x="1070" y="555"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">租约、恢复、执行</text>
+</svg>

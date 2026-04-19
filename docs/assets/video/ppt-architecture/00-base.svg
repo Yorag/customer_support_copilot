@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7F3EB" />
+      <stop offset="100%" stop-color="#FCFCFA" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)" />
+  <circle cx="1640" cy="180" r="210" fill="#EEF6FF" />
+  <circle cx="280" cy="960" r="240" fill="#FFF4DA" />
+  <circle cx="1880" cy="1040" r="120" fill="#EAF8EE" />
+
+  <text x="90" y="110"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="46"
+        font-weight="700"
+        fill="#18212B">智能邮件工单引擎</text>
+
+  <text x="90" y="160"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="24"
+        fill="#5B6470">Email / API -&gt; Ticket -&gt; Worker -&gt; LangGraph Workflow -&gt; Trace &amp; Eval</text>
+
+  <text x="90" y="1000"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="18"
+        fill="#7A8491">PPT 使用建议：将 01-05 依次叠放在同一页，设置“淡化出现”或“平滑切换”。</text>
+</svg>

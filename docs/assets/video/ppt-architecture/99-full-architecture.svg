@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7F3EB" />
+      <stop offset="100%" stop-color="#FCFCFA" />
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 14 14" refX="11" refY="7" markerWidth="10" markerHeight="10" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#5B6470" />
+    </marker>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)" />
+  <circle cx="1640" cy="180" r="210" fill="#EEF6FF" />
+  <circle cx="280" cy="960" r="240" fill="#FFF4DA" />
+  <circle cx="1880" cy="1040" r="120" fill="#EAF8EE" />
+
+  <text x="90" y="110"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="46"
+        font-weight="700"
+        fill="#18212B">智能邮件工单引擎</text>
+  <text x="90" y="160"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="24"
+        fill="#5B6470">Email / API -&gt; Ticket -&gt; Worker -&gt; LangGraph Workflow -&gt; Trace &amp; Eval</text>
+
+  <rect x="90" y="330" width="260" height="110" rx="24" ry="24" fill="#FFF3DB" stroke="#E1A73B" stroke-width="4" />
+  <text x="220" y="375"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="30"
+        font-weight="700"
+        fill="#222B33">Gmail / Mailbox</text>
+  <text x="220" y="412"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="21"
+        fill="#5B6470">真实邮件入口</text>
+
+  <rect x="90" y="510" width="260" height="110" rx="24" ry="24" fill="#FFF3DB" stroke="#E1A73B" stroke-width="4" />
+  <text x="220" y="555"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="30"
+        font-weight="700"
+        fill="#222B33">Test Lab / API</text>
+  <text x="220" y="592"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="21"
+        fill="#5B6470">稳定演示入口</text>
+
+  <rect x="460" y="220" width="320" height="110" rx="24" ry="24" fill="#EAF2FF" stroke="#4D7CE6" stroke-width="4" />
+  <text x="620" y="265"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="30"
+        font-weight="700"
+        fill="#1E2A36">Control Plane API</text>
+  <text x="620" y="302"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="21"
+        fill="#5B6470">接入、入队、查询</text>
+
+  <rect x="460" y="430" width="320" height="150" rx="24" ry="24" fill="#E7F7EE" stroke="#2F9E64" stroke-width="4" />
+  <text x="620" y="485"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="34"
+        font-weight="700"
+        fill="#1E2A36">Ticket</text>
+  <text x="620" y="525"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">ticket_id / run queue</text>
+  <text x="620" y="555"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">系统先沉淀工单，再执行</text>
+
+  <rect x="460" y="690" width="320" height="110" rx="24" ry="24" fill="#EEF6FF" stroke="#1C9ED8" stroke-width="4" />
+  <text x="620" y="735"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="30"
+        font-weight="700"
+        fill="#1E2A36">Frontend Console</text>
+  <text x="620" y="772"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="21"
+        fill="#5B6470">Dashboard / Tickets / Detail / Trace</text>
+
+  <rect x="930" y="430" width="280" height="150" rx="24" ry="24" fill="#FFF0E2" stroke="#DE7B22" stroke-width="4" />
+  <text x="1070" y="485"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="34"
+        font-weight="700"
+        fill="#1E2A36">Worker</text>
+  <text x="1070" y="525"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">异步领取 queued run</text>
+  <text x="1070" y="555"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">租约、恢复、执行</text>
+
+  <rect x="1270" y="70" width="470" height="110" rx="24" ry="24" fill="#EAF7FF" stroke="#1397D4" stroke-width="4" />
+  <text x="1505" y="115"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="32"
+        font-weight="700"
+        fill="#1E2A36">Trace &amp; Eval / LangSmith</text>
+  <text x="1505" y="152"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">timeline / node trace / quality / trajectory</text>
+
+  <rect x="1270" y="220" width="470" height="500" rx="28" ry="28" fill="#FFF9DF" stroke="#C8A029" stroke-width="4" />
+  <text x="1505" y="285"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="34"
+        font-weight="700"
+        fill="#1E2A36">LangGraph Workflow</text>
+
+  <rect x="1330" y="320" width="350" height="72" rx="18" ry="18" fill="#FFFFFF" stroke="#D4B558" stroke-width="3" />
+  <text x="1505" y="365"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="28"
+        font-weight="700"
+        fill="#1E2A36">Triage / Route</text>
+
+  <rect x="1330" y="430" width="350" height="72" rx="18" ry="18" fill="#FFFFFF" stroke="#D4B558" stroke-width="3" />
+  <text x="1505" y="475"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="28"
+        font-weight="700"
+        fill="#1E2A36">Knowledge / Policy</text>
+
+  <rect x="1330" y="540" width="350" height="94" rx="18" ry="18" fill="#FFFFFF" stroke="#D4B558" stroke-width="3" />
+  <text x="1505" y="585"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="28"
+        font-weight="700"
+        fill="#1E2A36">Draft / QA</text>
+  <text x="1505" y="616"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">draft / review / rewrite loop</text>
+
+  <rect x="1330" y="672" width="350" height="72" rx="18" ry="18" fill="#FFFFFF" stroke="#D4B558" stroke-width="3" />
+  <text x="1505" y="717"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="28"
+        font-weight="700"
+        fill="#1E2A36">Handoff / Close</text>
+
+  <rect x="1040" y="800" width="240" height="120" rx="24" ry="24" fill="#F6F7F7" stroke="#7C8793" stroke-width="4" />
+  <text x="1160" y="845"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="29"
+        font-weight="700"
+        fill="#1E2A36">RAG / Policy</text>
+  <text x="1160" y="882"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">knowledge provider</text>
+
+  <rect x="1290" y="800" width="240" height="120" rx="24" ry="24" fill="#F6F7F7" stroke="#7C8793" stroke-width="4" />
+  <text x="1410" y="845"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="29"
+        font-weight="700"
+        fill="#1E2A36">Memory / Checkpoint</text>
+  <text x="1410" y="882"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">history / state resume</text>
+
+  <rect x="1540" y="800" width="270" height="120" rx="24" ry="24" fill="#F6F7F7" stroke="#7C8793" stroke-width="4" />
+  <text x="1675" y="845"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="29"
+        font-weight="700"
+        fill="#1E2A36">Human Review / Draft</text>
+  <text x="1675" y="882"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">approve / rewrite / escalate</text>
+
+  <line x1="350" y1="385" x2="460" y2="275" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="350" y1="565" x2="460" y2="275" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="620" y1="330" x2="620" y2="420" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="620" y1="680" x2="620" y2="348" stroke="#5B6470" stroke-width="6" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+  <line x1="780" y1="505" x2="930" y2="505" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="1210" y1="505" x2="1270" y2="505" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="1505" y1="220" x2="1505" y2="180" stroke="#5B6470" stroke-width="6" marker-end="url(#arrow)" />
+  <line x1="1505" y1="392" x2="1505" y2="430" stroke="#5B6470" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1505" y1="502" x2="1505" y2="540" stroke="#5B6470" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1505" y1="634" x2="1505" y2="672" stroke="#5B6470" stroke-width="5" marker-end="url(#arrow)" />
+  <path d="M 1680 585 C 1740 585 1740 490 1680 490" fill="none" stroke="#5B6470" stroke-width="4" marker-end="url(#arrow)" />
+  <line x1="1160" y1="800" x2="1415" y2="640" stroke="#5B6470" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1410" y1="800" x2="1505" y2="640" stroke="#5B6470" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1665" y1="720" x2="1590" y2="720" stroke="#5B6470" stroke-width="5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+
+  <text x="335" y="248"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">ingest / enqueue</text>
+  <text x="655" y="525"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">query / action</text>
+  <text x="815" y="478"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">claim / execute</text>
+  <text x="1220" y="478"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">run workflow</text>
+  <text x="1540" y="205"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="22"
+        fill="#5B6470">trace / eval / metrics</text>
+  <text x="1715" y="548"
+        text-anchor="middle"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">rewrite</text>
+  <text x="1095" y="750"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">retrieve / policy</text>
+  <text x="1360" y="750"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">memory / resume</text>
+  <text x="1575" y="692"
+        font-family="Microsoft YaHei, Segoe UI, sans-serif"
+        font-size="20"
+        fill="#5B6470">draft / handoff</text>
+</svg>

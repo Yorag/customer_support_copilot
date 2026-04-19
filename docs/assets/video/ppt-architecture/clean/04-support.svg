@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <style>
+      .box-text { font: 700 28px 'Microsoft YaHei', 'Segoe UI', sans-serif; fill: #1F2933; }
+      .sub-text { font: 400 20px 'Microsoft YaHei', 'Segoe UI', sans-serif; fill: #616E7C; }
+    </style>
+    <marker id="arrow" viewBox="0 0 14 14" refX="11" refY="7" markerWidth="10" markerHeight="10" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#667085" />
+    </marker>
+  </defs>
+
+  <rect x="1080" y="840" width="220" height="110" rx="24" ry="24" fill="#F6F7F8" stroke="#8A94A2" stroke-width="4" />
+  <text x="1190" y="888" text-anchor="middle" class="box-text">RAG / Policy</text>
+  <text x="1190" y="922" text-anchor="middle" class="sub-text">knowledge</text>
+
+  <rect x="1320" y="840" width="240" height="110" rx="24" ry="24" fill="#F6F7F8" stroke="#8A94A2" stroke-width="4" />
+  <text x="1440" y="888" text-anchor="middle" class="box-text">Memory</text>
+  <text x="1440" y="922" text-anchor="middle" class="sub-text">checkpoint</text>
+
+  <rect x="1580" y="840" width="250" height="110" rx="24" ry="24" fill="#F6F7F8" stroke="#8A94A2" stroke-width="4" />
+  <text x="1705" y="888" text-anchor="middle" class="box-text">Human Review</text>
+  <text x="1705" y="922" text-anchor="middle" class="sub-text">draft actions</text>
+
+  <line x1="1190" y1="840" x2="1485" y2="660" stroke="#667085" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1440" y1="840" x2="1570" y2="660" stroke="#667085" stroke-width="5" marker-end="url(#arrow)" />
+  <line x1="1705" y1="840" x2="1615" y2="788" stroke="#667085" stroke-width="5" marker-end="url(#arrow)" />
+</svg>

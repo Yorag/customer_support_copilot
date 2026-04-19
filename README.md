@@ -7,7 +7,7 @@
 ## 当前状态
 
 - 控制面最小闭环 M1 已完成：`GET /tickets`、`GET /tickets/{ticket_id}/runs`、`GET /tickets/{ticket_id}/drafts`、`POST /ops/gmail/scan-preview`、`POST /ops/gmail/scan`、`GET /ops/status`、`POST /dev/test-email`、`POST /tickets/{ticket_id}/retry` 已落地。
-- 控制台最小可演示版本 M2 已完成：Dashboard、Tickets、Ticket Detail、Trace & Eval、Gmail Ops、Test Lab、System Status 已接入真实控制面数据。
+- 控制台最小可演示版本 M2 已完成：Dashboard、Tickets、Ticket Detail、Trace & Eval、Gmail Ops、Test Lab 已接入真实控制面数据，其中原 `System Status` 信息已并入 Dashboard。
 - 前端工程位于 `frontend/`，支持独立开发、测试、构建和静态部署。
 - 当前仓库已经具备“可部署”条件，但更适合内网或受控环境。若要直接公网生产使用，仍应补齐认证、访问控制、TLS、反向代理、进程托管和密钥管理。
 
@@ -79,7 +79,7 @@ flowchart LR
 - `Trace & Eval`: run 时间线、事件台账、指标对比与 raw payload。
 - `Gmail Ops`: scan-preview、scan 与 mailbox posture。
 - `Test Lab`: 测试邮件注入与 ticket/trace 跳转。
-- `System Status`: worker、依赖、队列和失败交接摘要。
+- `Dashboard` 内含可靠性摘要：worker、依赖、队列和失败交接信号。
 
 ## 系统结构
 
@@ -106,6 +106,7 @@ flowchart LR
 - 构建知识库索引时还需要 `EMBEDDING_API_URL` 与 `EMBEDDING_MODEL`
 
 如果当前不需要 live Gmail，可在 `.env` 中设置 `GMAIL_ENABLED=false`。
+如果当前不希望启用回复质量 LLM Judge，可在 `.env` 中设置 `LLM_JUDGE_ENABLED=false`。
 
 ### 后端初始化
 
@@ -180,7 +181,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 | --- | --- |
 | `接入 / 执行` | `POST /tickets/ingest-email`, `POST /tickets/{ticket_id}/run`, `POST /tickets/{ticket_id}/retry` |
 | `列表 / 详情` | `GET /tickets`, `GET /tickets/{ticket_id}`, `GET /tickets/{ticket_id}/runs`, `GET /tickets/{ticket_id}/drafts` |
-| `人工动作` | `POST /tickets/{ticket_id}/approve`, `POST /tickets/{ticket_id}/edit-and-approve`, `POST /tickets/{ticket_id}/rewrite`, `POST /tickets/{ticket_id}/escalate`, `POST /tickets/{ticket_id}/close` |
+| `人工动作` | `POST /tickets/{ticket_id}/drafts/save`, `POST /tickets/{ticket_id}/approve`, `POST /tickets/{ticket_id}/edit-and-approve`, `POST /tickets/{ticket_id}/rewrite`, `POST /tickets/{ticket_id}/escalate`, `POST /tickets/{ticket_id}/close` |
 | `观测` | `GET /tickets/{ticket_id}/trace`, `GET /metrics/summary`, `GET /ops/status` |
 | `Gmail Ops` | `POST /ops/gmail/scan-preview`, `POST /ops/gmail/scan` |
 | `开发 / 测试` | `POST /dev/test-email`, `GET /customers/{customer_id}/memory` |
