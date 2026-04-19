@@ -5,6 +5,7 @@ import type {
   CloseTicketRequest,
   EditAndApproveTicketRequest,
   EscalateTicketRequest,
+  GenerateDraftRequest,
   GmailScanPreviewRequest,
   GmailScanPreviewResponse,
   GmailScanRequest,
@@ -12,6 +13,7 @@ import type {
   MetricsSummaryResponse,
   OpsStatusResponse,
   RetryTicketRequest,
+  SaveDraftRequest,
   RewriteTicketRequest,
   RunTicketResponse,
   TicketActionResponse,
@@ -73,9 +75,23 @@ export function createControlPlaneApi(
     retryTicket(ticketId: string, payload: RetryTicketRequest) {
       return client.post<RunTicketResponse>(`/tickets/${ticketId}/retry`, payload);
     },
+    generateTicketDraft(ticketId: string, actorId: string, payload: GenerateDraftRequest) {
+      return client.post<RunTicketResponse>(
+        `/tickets/${ticketId}/drafts/generate`,
+        payload,
+        createActorHeaders(actorId),
+      );
+    },
     approveTicket(ticketId: string, actorId: string, payload: ApproveTicketRequest) {
       return client.post<TicketActionResponse>(
         `/tickets/${ticketId}/approve`,
+        payload,
+        createActorHeaders(actorId),
+      );
+    },
+    saveTicketDraft(ticketId: string, actorId: string, payload: SaveDraftRequest) {
+      return client.post<TicketActionResponse>(
+        `/tickets/${ticketId}/drafts/save`,
         payload,
         createActorHeaders(actorId),
       );

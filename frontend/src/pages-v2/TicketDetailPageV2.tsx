@@ -17,7 +17,8 @@ import {
   useCloseTicket,
   useEditAndApproveTicket,
   useEscalateTicket,
-  useRewriteTicket,
+  useGenerateTicketDraft,
+  useSaveTicketDraft,
   useTicketDrafts,
   useTicketRuns,
   useTicketSnapshot,
@@ -278,6 +279,10 @@ function parseRewriteReasons(value: string) {
     .filter((item) => item.length > 0);
 }
 
+function normalizeDraftBody(value?: string | null) {
+  return (value ?? "").replace(/\r\n/g, "\n").trim();
+}
+
 function formatActionResult(
   title: string,
   result: {
@@ -322,10 +327,11 @@ export function TicketDetailPageV2() {
   const runsQuery = useTicketRuns(deferredTicketId, 1, RUN_HISTORY_PAGE_SIZE);
   const draftsQuery = useTicketDrafts(deferredTicketId);
   const approveMutation = useApproveTicket(deferredTicketId);
+  const saveDraftMutation = useSaveTicketDraft(deferredTicketId);
   const editAndApproveMutation = useEditAndApproveTicket(deferredTicketId);
-  const rewriteMutation = useRewriteTicket(deferredTicketId);
   const escalateMutation = useEscalateTicket(deferredTicketId);
   const closeMutation = useCloseTicket(deferredTicketId);
+  const generateDraftMutation = useGenerateTicketDraft(deferredTicketId);
 
   const snapshot = snapshotQuery.data;
   const runs = runsQuery.data?.items ?? [];
@@ -335,6 +341,7 @@ export function TicketDetailPageV2() {
   const latestDraft = drafts.at(-1) ?? null;
   const currentDraftId = latestDraft?.draft_id ?? snapshot?.latest_draft?.draft_id ?? null;
   const currentDraftStatus = latestDraft?.qa_status ?? snapshot?.latest_draft?.qa_status ?? null;
+  const currentDraftBody = latestDraft?.content_text ?? "";
   const latestInboundMessage = [...messages]
     .reverse()
     .find((message) => message.direction === "inbound");
@@ -349,10 +356,12 @@ export function TicketDetailPageV2() {
     currentDraftStatus,
     runsQuery.data?.total ?? 0,
   );
+  const draftDirty = normalizeDraftBody(manualReplyText) !== normalizeDraftBody(currentDraftBody);
   const actionsBusy =
+    generateDraftMutation.isPending ||
     approveMutation.isPending ||
+    saveDraftMutation.isPending ||
     editAndApproveMutation.isPending ||
-    rewriteMutation.isPending ||
     escalateMutation.isPending ||
     closeMutation.isPending;
 
@@ -412,6 +421,36 @@ export function TicketDetailPageV2() {
     }
   }
 
+  async function handleGenerateDraft() {
+    if (!ticketVersion || !actorId.trim()) {
+      return;
+    }
+
+    const isRegenerate = Boolean(currentDraftId);
+    try {
+      const result = await generateDraftMutation.mutateAsync({
+        actorId: actorId.trim(),
+        payload: {
+          ticket_version: ticketVersion,
+          mode: isRegenerate ? "regenerate" : "create",
+          source_draft_id: currentDraftId,
+          comment: operatorComment.trim() || null,
+        },
+      });
+      setActionNotice({
+        tone: "success",
+        title: isRegenerate ? "已提交重新生成草稿" : "已提交创建草稿",
+        detail: `运行 ${shortenId(result.run_id)} 已入队，当前状态 ${labelForCode(result.processing_status)}。`,
+      });
+    } catch (error) {
+      setActionNotice({
+        tone: "error",
+        title: isRegenerate ? "重新生成草稿失败" : "创建草稿失败",
+        detail: getErrorMessage(error, "草稿生成请求失败。"),
+      });
+    }
+  }
+
   function syncManualReplyFromLatestDraft() {
     if (!latestDraft) {
       return;
@@ -420,7 +459,32 @@ export function TicketDetailPageV2() {
     setManualReplyText(latestDraft.content_text);
   }
 
-  async function handleSaveHumanReply(closeAfterSave = false) {
+  async function handleSaveDraft() {
+    if (!ticketVersion || !currentDraftId || !actorId.trim() || !manualReplyText.trim()) {
+      return;
+    }
+
+    try {
+      const result = await saveDraftMutation.mutateAsync({
+        actorId: actorId.trim(),
+        payload: {
+          ticket_version: ticketVersion,
+          draft_id: currentDraftId,
+          comment: operatorComment.trim() || null,
+          edited_content_text: manualReplyText.trim(),
+        },
+      });
+      setActionNotice(formatActionResult("草稿已保存", result));
+    } catch (error) {
+      setActionNotice({
+        tone: "error",
+        title: "草稿保存失败",
+        detail: getErrorMessage(error, "草稿保存请求失败。"),
+      });
+    }
+  }
+
+  async function handleSaveAndClose() {
     if (!ticketVersion || !currentDraftId || !actorId.trim() || !manualReplyText.trim()) {
       return;
     }
@@ -448,14 +512,9 @@ export function TicketDetailPageV2() {
     } catch (error) {
       setActionNotice({
         tone: "error",
-        title: "人工回复保存失败",
-        detail: getErrorMessage(error, "人工回复保存请求失败。"),
+        title: "保存并关闭失败",
+        detail: getErrorMessage(error, "保存人工回复并批准失败。"),
       });
-      return;
-    }
-
-    if (!closeAfterSave) {
-      setActionNotice(formatActionResult("人工回复已保存并批准", approvalResult));
       return;
     }
 
@@ -463,7 +522,7 @@ export function TicketDetailPageV2() {
       setActionNotice({
         tone: "error",
         title: "缺少关闭原因",
-        detail: "保存人工回复并关闭工单前，必须填写关闭原因。",
+        detail: "保存并关闭工单前，必须填写关闭原因。",
       });
       return;
     }
@@ -487,7 +546,7 @@ export function TicketDetailPageV2() {
   }
 
   async function handleRewrite() {
-    if (!ticketVersion || !currentDraftId || !actorId.trim()) {
+    if (!ticketVersion || !actorId.trim()) {
       return;
     }
 
@@ -502,21 +561,26 @@ export function TicketDetailPageV2() {
     }
 
     try {
-      const result = await rewriteMutation.mutateAsync({
+      const result = await generateDraftMutation.mutateAsync({
         actorId: actorId.trim(),
         payload: {
           ticket_version: ticketVersion,
-          draft_id: currentDraftId,
+          mode: currentDraftId ? "regenerate" : "create",
+          source_draft_id: currentDraftId,
           comment: operatorComment.trim() || null,
-          rewrite_reasons: reasons,
+          rewrite_guidance: reasons,
         },
       });
-      setActionNotice(formatActionResult("已发起重写请求", result));
+      setActionNotice({
+        tone: "success",
+        title: "已提交带指导的草稿重生成",
+        detail: `运行 ${shortenId(result.run_id)} 已入队，当前状态 ${labelForCode(result.processing_status)}。`,
+      });
     } catch (error) {
       setActionNotice({
         tone: "error",
-        title: "重写请求失败",
-        detail: getErrorMessage(error, "重写请求失败。"),
+        title: "按原因重写失败",
+        detail: getErrorMessage(error, "带指导的草稿重生成请求失败。"),
       });
     }
   }
@@ -535,12 +599,12 @@ export function TicketDetailPageV2() {
           target_queue: targetQueue.trim(),
         },
       });
-      setActionNotice(formatActionResult("已记录转人工队列动作", result));
+      setActionNotice(formatActionResult("已记录外部升级动作", result));
     } catch (error) {
       setActionNotice({
         tone: "error",
-        title: "转人工队列失败",
-        detail: getErrorMessage(error, "转人工队列请求失败。"),
+        title: "外部升级失败",
+        detail: getErrorMessage(error, "外部升级请求失败。"),
       });
     }
   }
@@ -778,6 +842,78 @@ export function TicketDetailPageV2() {
               />
             )}
           </Panel>
+
+          <Panel
+            label="运行交接"
+            title="最新运行"
+            className="v2-ticket-run-panel"
+            description={latestRun ? undefined : "暂无可查看的运行。"}
+            actions={
+              latestRun ? (
+                <button type="button" className="v2-button" onClick={openTrace}>
+                  打开 Trace
+                </button>
+              ) : null
+            }
+          >
+            <section className="v2-ticket-run-grid">
+              <div className="v2-ticket-run-card">
+                <p className="v2-panel-label">运行</p>
+                <strong className="v2-code">
+                  {latestRun ? latestRun.run_id : "当前没有关联运行"}
+                </strong>
+                {latestRun ? (
+                  <p>
+                    {labelForCode(latestRun.status)} ·{" "}
+                    {latestRun.final_action ? labelForCode(latestRun.final_action) : "最终动作待定"}
+                  </p>
+                ) : (
+                  <p>暂无运行记录。</p>
+                )}
+              </div>
+              <div className="v2-ticket-run-card">
+                <p className="v2-panel-label">Trace</p>
+                <strong className="v2-code">{latestRun?.trace_id ?? "--"}</strong>
+                {!latestRun ? <p>暂无 Trace 关联。</p> : null}
+              </div>
+              <div className="v2-ticket-run-card v2-ticket-run-card-wide">
+                <p className="v2-panel-label">评估摘要</p>
+                <strong>{latestRun ? describeEvalStatus(latestRun.evaluation_summary_ref) : "评估结果暂不可用"}</strong>
+                {!latestRun ? <p>暂无评估摘要。</p> : null}
+                {latestRun && !hasResponseQuality(latestRun.evaluation_summary_ref) ? (
+                  <p>当前运行没有回复质量评分，只展示常规运行与轨迹信息。</p>
+                ) : null}
+              </div>
+            </section>
+
+            <details className="v2-ticket-inline-drawer">
+              <summary>
+                {runs.length > 0 ? `运行历史 ${runsQuery.data?.total ?? runs.length} 次` : "运行历史"}
+              </summary>
+              {runs.length > 0 ? (
+                <section className="v2-divider-list" aria-label="运行历史卷带">
+                  {runs.map((run) => (
+                    <article key={run.run_id} className="v2-divider-row">
+                      <strong>{run.run_id}</strong>
+                      <p>
+                        尝试 {run.attempt_index} · {labelForCode(run.status)} ·{" "}
+                        {run.final_action ? labelForCode(run.final_action) : "暂无最终动作"}
+                      </p>
+                      <p>
+                        {labelForCode(run.trigger_type)} · {run.triggered_by ?? "系统"} ·{" "}
+                        {describeEvalStatus(run.evaluation_summary_ref)}
+                      </p>
+                    </article>
+                  ))}
+                </section>
+              ) : (
+                <EmptyState
+                  label="暂无运行历史"
+                  title="这个工单还没有任何已记录尝试"
+                />
+              )}
+            </details>
+          </Panel>
         </div>
 
         <div className="v2-ticket-detail-side">
@@ -877,20 +1013,6 @@ export function TicketDetailPageV2() {
                     placeholder="reviewer-console"
                   />
                 </Field>
-                <Field label="人工队列">
-                  <input
-                    value={targetQueue}
-                    onChange={(event) => setTargetQueue(event.target.value)}
-                    placeholder="human_review"
-                  />
-                </Field>
-                <Field label="关闭原因">
-                  <input
-                    value={closeReason}
-                    onChange={(event) => setCloseReason(event.target.value)}
-                    placeholder="resolved_manually"
-                  />
-                </Field>
                 <Field label="操作备注" className="v2-ticket-field-wide">
                   <textarea
                     value={operatorComment}
@@ -904,8 +1026,8 @@ export function TicketDetailPageV2() {
               <section className="v2-ticket-stage-block v2-ticket-editor-stage">
                 <div className="v2-ticket-section-head">
                   <div>
-                    <p className="v2-panel-label">人工回复</p>
-                    <h3 className="v2-ticket-section-title">回复编辑</h3>
+                    <p className="v2-panel-label">草稿编辑</p>
+                    <h3 className="v2-ticket-section-title">人工编辑当前草稿</h3>
                   </div>
                   <div className="v2-action-row">
                     <StatusTag tone="muted">
@@ -915,26 +1037,26 @@ export function TicketDetailPageV2() {
                       type="button"
                       className="v2-button"
                       onClick={syncManualReplyFromLatestDraft}
-                      disabled={!latestDraft || actionsBusy}
+                      disabled={!latestDraft || actionsBusy || !draftDirty}
                     >
-                      载入最新草稿
-                    </button>
-                    <button
-                      type="button"
-                      className="v2-button"
-                      onClick={() => setManualReplyText("")}
-                      disabled={actionsBusy}
-                    >
-                      清空编辑区
+                      恢复当前稿
                     </button>
                   </div>
                 </div>
 
                 {!currentDraftId ? (
                   <InlineNotice
-                    tone="error"
-                    title="人工回复暂不可提交"
-                    detail="需要先有一份草稿，才能保存人工回复。"
+                    tone="neutral"
+                    title="当前还没有草稿"
+                    detail="可以先创建草稿，再编辑并批准。"
+                  />
+                ) : null}
+
+                {currentDraftId && draftDirty ? (
+                  <InlineNotice
+                    tone="neutral"
+                    title="编辑区有未保存改动"
+                    detail="保存草稿会生成新版本，并把这版内容作为新的当前草稿。"
                   />
                 ) : null}
 
@@ -951,73 +1073,46 @@ export function TicketDetailPageV2() {
                   <button
                     type="button"
                     className="v2-button is-primary"
-                    onClick={() => void handleSaveHumanReply(false)}
-                    disabled={
-                      !ticketVersion ||
-                      !currentDraftId ||
-                      !actorId.trim() ||
-                      !manualReplyText.trim() ||
-                      actionsBusy
-                    }
+                    onClick={() => void handleGenerateDraft()}
+                    disabled={!ticketVersion || !actorId.trim() || actionsBusy}
                   >
-                    保存为人工版本并批准
+                    {currentDraftId ? "重新生成草稿" : "创建草稿"}
                   </button>
                   <button
                     type="button"
                     className="v2-button"
-                    onClick={() => void handleSaveHumanReply(true)}
+                    onClick={() => void handleSaveDraft()}
                     disabled={
                       !ticketVersion ||
                       !currentDraftId ||
                       !actorId.trim() ||
                       !manualReplyText.trim() ||
-                      !closeReason.trim() ||
+                      !draftDirty ||
                       actionsBusy
                     }
                   >
-                    保存后关闭工单
+                    保存草稿
+                  </button>
+                  <button
+                    type="button"
+                    className="v2-button"
+                    onClick={() => void handleApprove()}
+                    disabled={
+                      !ticketVersion ||
+                      !currentDraftId ||
+                      !actorId.trim() ||
+                      draftDirty ||
+                      actionsBusy
+                    }
+                  >
+                    批准当前草稿
                   </button>
                 </div>
               </section>
 
-              <div className="v2-action-row v2-ticket-action-buttons">
-                <button
-                  type="button"
-                  className="v2-button is-primary"
-                  onClick={() => void handleApprove()}
-                  disabled={!ticketVersion || !currentDraftId || !actorId.trim() || actionsBusy}
-                >
-                  批准当前草稿
-                </button>
-                <button
-                  type="button"
-                  className="v2-button"
-                  onClick={() => void handleRewrite()}
-                  disabled={!ticketVersion || !currentDraftId || !actorId.trim() || actionsBusy}
-                >
-                  请求重写
-                </button>
-                <button
-                  type="button"
-                  className="v2-button"
-                  onClick={() => void handleEscalate()}
-                  disabled={!ticketVersion || !actorId.trim() || !targetQueue.trim() || actionsBusy}
-                >
-                  转人工队列
-                </button>
-                <button
-                  type="button"
-                  className="v2-button is-danger"
-                  onClick={() => void handleClose()}
-                  disabled={!ticketVersion || !actorId.trim() || !closeReason.trim() || actionsBusy}
-                >
-                  关闭工单
-                </button>
-              </div>
-
               <div className="v2-ticket-drawer-stack">
                 <details className="v2-ticket-inline-drawer">
-                  <summary>请求重写</summary>
+                  <summary>更多操作</summary>
                   <Field label="重写原因">
                     <textarea
                       value={rewriteReasons}
@@ -1026,80 +1121,66 @@ export function TicketDetailPageV2() {
                       rows={4}
                     />
                   </Field>
+                  <Field label="外部队列">
+                    <input
+                      value={targetQueue}
+                      onChange={(event) => setTargetQueue(event.target.value)}
+                      placeholder="human_review"
+                    />
+                  </Field>
+                  <div className="v2-action-row v2-ticket-action-buttons">
+                    <button
+                      type="button"
+                      className="v2-button"
+                      onClick={() => void handleEscalate()}
+                      disabled={!ticketVersion || !actorId.trim() || !targetQueue.trim() || actionsBusy}
+                    >
+                      外部升级
+                    </button>
+                  </div>
+                  <Field label="关闭原因">
+                    <input
+                      value={closeReason}
+                      onChange={(event) => setCloseReason(event.target.value)}
+                      placeholder="resolved_manually"
+                    />
+                  </Field>
+                  <div className="v2-action-row v2-ticket-action-buttons">
+                    <button
+                      type="button"
+                      className="v2-button"
+                      onClick={() => void handleRewrite()}
+                      disabled={!ticketVersion || !currentDraftId || !actorId.trim() || actionsBusy}
+                    >
+                      按原因重写
+                    </button>
+                    <button
+                      type="button"
+                      className="v2-button"
+                      onClick={() => void handleSaveAndClose()}
+                      disabled={
+                        !ticketVersion ||
+                        !currentDraftId ||
+                        !actorId.trim() ||
+                        !manualReplyText.trim() ||
+                        !closeReason.trim() ||
+                        actionsBusy
+                      }
+                    >
+                      保存并批准后关闭
+                    </button>
+                    <button
+                      type="button"
+                      className="v2-button is-danger"
+                      onClick={() => void handleClose()}
+                      disabled={!ticketVersion || !actorId.trim() || !closeReason.trim() || actionsBusy}
+                    >
+                      直接关闭工单
+                    </button>
+                  </div>
                 </details>
               </div>
             </section>
-          </Panel>
-
-          <Panel
-            label="运行交接"
-            title="最新运行"
-            description={latestRun ? undefined : "暂无可查看的运行。"}
-            actions={
-              latestRun ? (
-                <button type="button" className="v2-button" onClick={openTrace}>
-                  打开 Trace
-                </button>
-              ) : null
-            }
-          >
-            <section className="v2-ticket-run-grid">
-              <div className="v2-ticket-run-card">
-                <p className="v2-panel-label">运行</p>
-                <strong className="v2-code">
-                  {latestRun ? latestRun.run_id : "当前没有关联运行"}
-                </strong>
-                {latestRun ? (
-                  <p>
-                    {labelForCode(latestRun.status)} ·{" "}
-                    {latestRun.final_action ? labelForCode(latestRun.final_action) : "最终动作待定"}
-                  </p>
-                ) : (
-                  <p>暂无运行记录。</p>
-                )}
-              </div>
-              <div className="v2-ticket-run-card">
-                <p className="v2-panel-label">Trace</p>
-                <strong className="v2-code">{latestRun?.trace_id ?? "--"}</strong>
-                {!latestRun ? <p>暂无 Trace 关联。</p> : null}
-              </div>
-              <div className="v2-ticket-run-card v2-ticket-run-card-wide">
-                <p className="v2-panel-label">评估摘要</p>
-                <strong>{latestRun ? describeEvalStatus(latestRun.evaluation_summary_ref) : "评估结果暂不可用"}</strong>
-                {!latestRun ? <p>暂无评估摘要。</p> : null}
-                {latestRun && !hasResponseQuality(latestRun.evaluation_summary_ref) ? (
-                  <p>当前运行没有回复质量评分，只展示常规运行与轨迹信息。</p>
-                ) : null}
-              </div>
-            </section>
-
-            <details className="v2-ticket-inline-drawer">
-              <summary>
-                {runs.length > 0 ? `运行历史 ${runsQuery.data?.total ?? runs.length} 次` : "运行历史"}
-              </summary>
-              {runs.length > 0 ? (
-                <section className="v2-divider-list" aria-label="运行历史卷带">
-                  {runs.map((run) => (
-                    <article key={run.run_id} className="v2-divider-row">
-                      <strong>{run.run_id}</strong>
-                      <p>
-                        尝试 {run.attempt_index} · {labelForCode(run.status)} ·{" "}
-                        {run.final_action ? labelForCode(run.final_action) : "暂无最终动作"}
-                      </p>
-                      <p>
-                        {labelForCode(run.trigger_type)} · {run.triggered_by ?? "系统"} ·{" "}
-                        {describeEvalStatus(run.evaluation_summary_ref)}
-                      </p>
-                    </article>
-                  ))}
-                </section>
-              ) : (
-                <EmptyState
-                  label="暂无运行历史"
-                  title="这个工单还没有任何已记录尝试"
-                />
-              )}
-            </details>
           </Panel>
         </div>
       </section>

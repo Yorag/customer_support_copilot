@@ -10,7 +10,7 @@ describe("Ticket detail route shell state", () => {
     render(<App router={router} />);
 
     expect(
-      await screen.findByRole("heading", { name: "当前草稿与人工决策" }),
+      await screen.findByRole("heading", { name: "工单详情" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("全局状态条")).toHaveTextContent("OPS-03");
     expect(screen.getByLabelText("工单详情区域")).toHaveTextContent("版本");

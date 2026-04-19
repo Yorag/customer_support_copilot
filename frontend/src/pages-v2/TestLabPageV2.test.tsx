@@ -119,7 +119,8 @@ describe("TestLabPageV2", () => {
     expect(await screen.findByText("注入已接受")).toBeInTheDocument();
     const receiptSummary = screen.getByLabelText("注入回执摘要");
     expect(within(receiptSummary).getByText("ticket_lab_2001")).toBeInTheDocument();
-    expect(within(receiptSummary).getByText("运行: run_lab_2001")).toBeInTheDocument();
+    expect(within(receiptSummary).getByText("run_lab_2001")).toBeInTheDocument();
+    expect(within(receiptSummary).getByText("trace_lab_2001")).toBeInTheDocument();
 
     const linkRow = screen.getByLabelText("注入结果链接");
     expect(within(linkRow).getByRole("link", { name: "打开工单" })).toHaveAttribute(
@@ -164,5 +165,61 @@ describe("TestLabPageV2", () => {
     expect(
       screen.getByText("The test email endpoint is disabled in this environment."),
     ).toBeInTheDocument();
+  });
+
+  it("renders long ticket, run, and trace ids with code styling in the receipt", async () => {
+    const longTicketId = "t_01KPJ2CKM5J711KFTPM6BV5YS4";
+    const longRunId = "run_01KPJ2CNWYQQY7KDTBGP61XBMH";
+    const longTraceId = "trace_01KPJ2CNWYHPBFJR7GRMENQM3D";
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.endsWith("/dev/test-email")) {
+        return jsonResponse(
+          {
+            ticket: {
+              ticket_id: longTicketId,
+              created: true,
+              business_status: "triaged",
+              processing_status: "queued",
+              version: 2,
+            },
+            run: {
+              run_id: longRunId,
+              trace_id: longTraceId,
+              processing_status: "queued",
+            },
+            test_metadata: {
+              scenario_label: "technical_service_outage",
+              auto_enqueue: true,
+              source_channel: "dev_test_email",
+            },
+          },
+          202,
+        );
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTestLabPage();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /技术故障|生产环境从今天早上开始一直返回 502/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "注入测试邮件" }));
+
+    expect(await screen.findByText("注入已接受")).toBeInTheDocument();
+
+    const receiptSummary = screen.getByLabelText("注入回执摘要");
+    const codeNodes = Array.from(receiptSummary.querySelectorAll(".v2-code")).map((node) =>
+      node.textContent?.trim(),
+    );
+
+    expect(codeNodes).toContain(longTicketId);
+    expect(codeNodes).toContain(longRunId);
+    expect(codeNodes).toContain(longTraceId);
   });
 });

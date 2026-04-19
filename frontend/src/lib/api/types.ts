@@ -309,10 +309,25 @@ export type RunTicketResponse = {
   processing_status: string;
 };
 
+export type GenerateDraftRequest = {
+  ticket_version: number;
+  mode: "create" | "regenerate";
+  source_draft_id?: string | null;
+  comment?: string | null;
+  rewrite_guidance?: string[];
+};
+
 export type ApproveTicketRequest = {
   ticket_version: number;
   draft_id: string;
   comment?: string | null;
+};
+
+export type SaveDraftRequest = {
+  ticket_version: number;
+  draft_id: string;
+  comment?: string | null;
+  edited_content_text: string;
 };
 
 export type EditAndApproveTicketRequest = {

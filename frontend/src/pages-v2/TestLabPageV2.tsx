@@ -291,7 +291,7 @@ export function TestLabPageV2() {
 
           {submission ? (
             <Panel
-              title={submission.ticket.ticket_id}
+              title="注入回执"
               description="工单与 Trace 交接结果。"
               actions={
                 <StatusTag tone="accent">
@@ -301,21 +301,47 @@ export function TestLabPageV2() {
             >
               <div className="v2-stack">
                 <div className="v2-summary-grid" aria-label="注入回执摘要">
-                  <Panel title={submission.ticket.ticket_id}>
-                    <p>{submission.ticket.created ? "已创建新工单。" : "复用了已有工单。"}</p>
-                  </Panel>
-                  <Panel
-                    title={`状态: ${labelForCode(submission.ticket.business_status)} / ${labelForCode(submission.ticket.processing_status)}`}
-                  >
+                  <article className="v2-test-lab-receipt-card">
+                    <p className="v2-panel-label">工单</p>
+                    <strong className="v2-test-lab-receipt-title v2-code">
+                      {submission.ticket.ticket_id}
+                    </strong>
+                    <p>
+                      {submission.ticket.created ? "已创建新工单。" : "复用了已有工单。"}
+                    </p>
+                  </article>
+
+                  <article className="v2-test-lab-receipt-card">
+                    <p className="v2-panel-label">当前状态</p>
+                    <strong className="v2-test-lab-receipt-title">
+                      {labelForCode(submission.ticket.business_status)} /{" "}
+                      {labelForCode(submission.ticket.processing_status)}
+                    </strong>
                     <p>工单版本 {submission.ticket.version}。</p>
-                  </Panel>
-                  <Panel title={submission.run ? `运行: ${submission.run.run_id}` : "运行: 未入队"}>
+                  </article>
+
+                  <article className="v2-test-lab-receipt-card">
+                    <p className="v2-panel-label">运行与 Trace</p>
+                    {submission.run ? (
+                      <div className="v2-test-lab-receipt-meta">
+                        <div className="v2-test-lab-receipt-meta-item">
+                          <span>运行</span>
+                          <strong className="v2-code">{submission.run.run_id}</strong>
+                        </div>
+                        <div className="v2-test-lab-receipt-meta-item">
+                          <span>Trace</span>
+                          <strong className="v2-code">{submission.run.trace_id}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <strong className="v2-test-lab-receipt-title">未入队</strong>
+                    )}
                     <p>
                       {submission.run
-                        ? `Trace ${submission.run.trace_id} 已可进入审查。`
+                        ? "运行已创建，Trace 已可进入审查。"
                         : "本次注入未创建运行。"}
                     </p>
-                  </Panel>
+                  </article>
                 </div>
 
                 <div className="v2-test-lab-receipt-actions" aria-label="注入结果链接">

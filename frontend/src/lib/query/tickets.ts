@@ -6,6 +6,8 @@ import type {
   CloseTicketRequest,
   EditAndApproveTicketRequest,
   EscalateTicketRequest,
+  GenerateDraftRequest,
+  SaveDraftRequest,
   RewriteTicketRequest,
   TicketListQuery,
 } from "@/lib/api/types";
@@ -63,6 +65,31 @@ export function useApproveTicket(ticketId: string) {
   return useMutation({
     mutationFn: ({ actorId, payload }: { actorId: string; payload: ApproveTicketRequest }) =>
       controlPlaneApi.approveTicket(ticketId, actorId, payload),
+    onSuccess: invalidate,
+  });
+}
+
+export function useGenerateTicketDraft(ticketId: string) {
+  const invalidate = useInvalidateTicketDetail(ticketId);
+
+  return useMutation({
+    mutationFn: ({
+      actorId,
+      payload,
+    }: {
+      actorId: string;
+      payload: GenerateDraftRequest;
+    }) => controlPlaneApi.generateTicketDraft(ticketId, actorId, payload),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSaveTicketDraft(ticketId: string) {
+  const invalidate = useInvalidateTicketDetail(ticketId);
+
+  return useMutation({
+    mutationFn: ({ actorId, payload }: { actorId: string; payload: SaveDraftRequest }) =>
+      controlPlaneApi.saveTicketDraft(ticketId, actorId, payload),
     onSuccess: invalidate,
   });
 }

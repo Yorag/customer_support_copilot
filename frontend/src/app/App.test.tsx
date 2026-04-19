@@ -62,12 +62,14 @@ describe("App", () => {
     render(<App router={router} />);
 
     const workspace = await screen.findByLabelText("工单列表工作区");
+    const navigation = screen.getByRole("navigation", { name: "主导航" });
 
-    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+    expect(navigation).toBeInTheDocument();
     expect(screen.getByText("运营控制台")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /总览仪表盘/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /系统状态/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /工单列表/i })).toHaveClass("is-active");
+    expect(within(navigation).getByText("筛选工单，进入处理详情。")).toBeInTheDocument();
     expect(screen.getByLabelText("全局状态条")).toHaveTextContent("OPS-02");
     expect(within(workspace).getByText("筛选工单")).toBeInTheDocument();
     expect(

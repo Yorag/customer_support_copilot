@@ -50,12 +50,13 @@ const ticketDetailHandle: ConsoleRouteHandle = {
   contextItems: [
     "读取工单快照和最新运行状态。",
     "检查草稿与评估结果。",
-    "执行批准、重写、升级和关闭。",
+    "执行保存草稿、批准、重写、升级和关闭。",
   ],
   relatedEndpoints: [
     "GET /tickets/{ticket_id}",
     "GET /tickets/{ticket_id}/runs",
     "GET /tickets/{ticket_id}/drafts",
+    "POST /tickets/{ticket_id}/drafts/save",
     "POST /tickets/{ticket_id}/approve",
     "POST /tickets/{ticket_id}/edit-and-approve",
     "POST /tickets/{ticket_id}/rewrite",

@@ -232,9 +232,8 @@ describe("TicketDetailPageV2", () => {
     expect(screen.getByText("最新运行")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "打开 Trace" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批准当前草稿" })).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: "保存为人工版本并批准" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "重新生成草稿" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "保存草稿" })).toBeDisabled();
 
     fireEvent.click(screen.getByText("运行历史 2 次"));
     const runHistory = await screen.findByLabelText("运行历史卷带");
@@ -307,9 +306,12 @@ describe("TicketDetailPageV2", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("该工单当前没有任何草稿版本")).toBeInTheDocument();
     expect(screen.getByText("暂无可查看的运行。")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("reviewer-console")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "创建草稿" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "批准当前草稿" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "保存为人工版本并批准" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "请求重写" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存草稿" })).toBeDisabled();
+    fireEvent.click(screen.getByText("更多操作"));
+    expect(screen.getByRole("button", { name: "按原因重写" })).toBeDisabled();
   });
 
   it("renders long run and trace ids inside the handoff cards", async () => {
@@ -405,6 +407,194 @@ describe("TicketDetailPageV2", () => {
     );
     expect(codeNodes).toContain(longRunId);
     expect(codeNodes).toContain(longTraceId);
+  });
+
+  it("saves an edited draft and keeps approval blocked until the new version loads", async () => {
+    let snapshotRequestCount = 0;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_reply")) {
+        snapshotRequestCount += 1;
+
+        return jsonResponse({
+          ticket: {
+            ticket_id: "ticket_reply",
+            business_status: "awaiting_human_review",
+            processing_status: "waiting_external",
+            claimed_by: null,
+            claimed_at: null,
+            lease_until: null,
+            priority: "high",
+            primary_route: "technical_issue",
+            multi_intent: false,
+            tags: [],
+            version: snapshotRequestCount === 1 ? 4 : 5,
+          },
+          latest_run: {
+            run_id: snapshotRequestCount === 1 ? "run_reply_1" : "run_reply_2",
+            trace_id: snapshotRequestCount === 1 ? "trace_reply_1" : "trace_reply_2",
+            status: "succeeded",
+            final_action: "handoff_to_human",
+            evaluation_summary_ref: {
+              status: "complete",
+              trace_id: snapshotRequestCount === 1 ? "trace_reply_1" : "trace_reply_2",
+              has_response_quality: true,
+              response_quality_overall_score: 4.2,
+              has_trajectory_evaluation: true,
+              trajectory_score: 4.3,
+              trajectory_violation_count: 0,
+            },
+          },
+          latest_draft: {
+            draft_id: snapshotRequestCount === 1 ? "draft_reply_v1" : "draft_reply_v2",
+            qa_status: snapshotRequestCount === 1 ? "passed" : "pending",
+          },
+          messages: [
+            {
+              ticket_message_id: "msg_reply_customer",
+              source_message_id: "msg_reply_source",
+              direction: "inbound",
+              message_type: "customer_email",
+              sender_email: "customer@example.com",
+              recipient_emails: ["support@example.com"],
+              subject: "Need timeline",
+              body_text: "Please give me a concrete ETA.",
+              reply_to_source_message_id: null,
+              customer_visible: true,
+              message_timestamp: "2026-04-17T10:14:00Z",
+              metadata: {
+                sender_email_raw: "\"Customer\" <customer@example.com>",
+              },
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_reply/runs?page=1&page_size=20")) {
+        return jsonResponse({
+          ticket_id: "ticket_reply",
+          items: [
+            {
+              run_id: snapshotRequestCount === 1 ? "run_reply_1" : "run_reply_2",
+              trace_id: snapshotRequestCount === 1 ? "trace_reply_1" : "trace_reply_2",
+              trigger_type: "human_action",
+              triggered_by: "reviewer-console",
+              status: "succeeded",
+              final_action: snapshotRequestCount === 1 ? "handoff_to_human" : "no_op",
+              started_at: "2026-04-17T10:20:00Z",
+              ended_at: "2026-04-17T10:20:10Z",
+              attempt_index: 2,
+              is_human_action: true,
+              evaluation_summary_ref: {
+                status: "complete",
+                trace_id: snapshotRequestCount === 1 ? "trace_reply_1" : "trace_reply_2",
+                has_response_quality: true,
+                response_quality_overall_score: 4.6,
+                has_trajectory_evaluation: true,
+                trajectory_score: 4.6,
+                trajectory_violation_count: 0,
+              },
+            },
+          ],
+          page: 1,
+          page_size: 20,
+          total: 1,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_reply/drafts")) {
+        return jsonResponse({
+          ticket_id: "ticket_reply",
+          items:
+            snapshotRequestCount <= 1
+              ? [
+                  {
+                    draft_id: "draft_reply_v1",
+                    run_id: "run_reply_1",
+                    version_index: 1,
+                    draft_type: "reply",
+                    qa_status: "passed",
+                    content_text: "Initial agent draft",
+                    source_evidence_summary: null,
+                    gmail_draft_id: "gmail-draft-reply-1",
+                    created_at: "2026-04-17T10:15:05Z",
+                  },
+                ]
+              : [
+                  {
+                    draft_id: "draft_reply_v1",
+                    run_id: "run_reply_1",
+                    version_index: 1,
+                    draft_type: "reply",
+                    qa_status: "passed",
+                    content_text: "Initial agent draft",
+                    source_evidence_summary: null,
+                    gmail_draft_id: "gmail-draft-reply-1",
+                    created_at: "2026-04-17T10:15:05Z",
+                  },
+                  {
+                    draft_id: "draft_reply_v2",
+                    run_id: "run_reply_2",
+                    version_index: 2,
+                    draft_type: "reply",
+                    qa_status: "pending",
+                    content_text: "Human revised reply with concrete ETA.",
+                    source_evidence_summary: null,
+                    gmail_draft_id: null,
+                    created_at: "2026-04-17T10:20:05Z",
+                  },
+                ],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_reply/drafts/save")) {
+        expect(init?.method).toBe("POST");
+        expect(init?.headers).toMatchObject({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Actor-Id": "reviewer-console",
+        });
+        expect(init?.body).toBe(
+          JSON.stringify({
+            ticket_version: 4,
+            draft_id: "draft_reply_v1",
+            comment: null,
+            edited_content_text: "Human revised reply with concrete ETA.",
+          }),
+        );
+
+        return jsonResponse({
+          ticket_id: "ticket_reply",
+          review_id: "review_reply_save_1",
+          business_status: "awaiting_human_review",
+          processing_status: "waiting_external",
+          version: 5,
+        });
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTicketDetailPage("/tickets/ticket_reply");
+
+    expect(await screen.findByDisplayValue("Initial agent draft")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("人工回复正文"), {
+      target: { value: "Human revised reply with concrete ETA." },
+    });
+    expect(screen.getByText("编辑区有未保存改动")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "批准当前草稿" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    expect(await screen.findByText("草稿已保存")).toBeInTheDocument();
+    expect(screen.getByText(/待人工审核 · 等待外部处理 · 工单版本 5/i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Human revised reply with concrete ETA.")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "批准当前草稿" })).toBeEnabled();
   });
 
   it("submits a human reply edit and then closes the ticket", async () => {
@@ -659,7 +849,8 @@ describe("TicketDetailPageV2", () => {
     fireEvent.change(screen.getByLabelText("人工回复正文"), {
       target: { value: "Human revised reply with concrete ETA." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "保存后关闭工单" }));
+    fireEvent.click(screen.getByText("更多操作"));
+    fireEvent.click(screen.getByRole("button", { name: "保存并批准后关闭" }));
 
     expect(await screen.findByText("人工回复已保存并关闭工单")).toBeInTheDocument();
     expect(
@@ -669,6 +860,250 @@ describe("TicketDetailPageV2", () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue("Human revised reply with concrete ETA.")).toBeInTheDocument();
     });
+  });
+
+  it("queues draft generation directly from the detail page when no draft exists", async () => {
+    let snapshotRequestCount = 0;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_generate")) {
+        snapshotRequestCount += 1;
+
+        return jsonResponse(
+          snapshotRequestCount === 1
+            ? {
+                ticket: {
+                  ticket_id: "ticket_generate",
+                  business_status: "awaiting_human_review",
+                  processing_status: "waiting_external",
+                  claimed_by: null,
+                  claimed_at: null,
+                  lease_until: null,
+                  priority: "high",
+                  primary_route: "commercial_policy_request",
+                  multi_intent: false,
+                  tags: ["needs_escalation"],
+                  version: 5,
+                },
+                latest_run: null,
+                latest_draft: null,
+                messages: [],
+              }
+            : {
+                ticket: {
+                  ticket_id: "ticket_generate",
+                  business_status: "triaged",
+                  processing_status: "queued",
+                  claimed_by: null,
+                  claimed_at: null,
+                  lease_until: null,
+                  priority: "high",
+                  primary_route: "commercial_policy_request",
+                  multi_intent: false,
+                  tags: ["needs_escalation"],
+                  version: 6,
+                },
+                latest_run: {
+                  run_id: "run_generate_1",
+                  trace_id: "trace_generate_1",
+                  status: "queued",
+                  final_action: null,
+                  evaluation_summary_ref: {
+                    status: "not_available",
+                    trace_id: "trace_generate_1",
+                    has_response_quality: false,
+                    response_quality_overall_score: null,
+                    has_trajectory_evaluation: false,
+                    trajectory_score: null,
+                    trajectory_violation_count: null,
+                  },
+                },
+                latest_draft: null,
+                messages: [],
+              },
+        );
+      }
+
+      if (url.endsWith("/tickets/ticket_generate/runs?page=1&page_size=20")) {
+        return jsonResponse({
+          ticket_id: "ticket_generate",
+          items:
+            snapshotRequestCount === 1
+              ? []
+              : [
+                  {
+                    run_id: "run_generate_1",
+                    trace_id: "trace_generate_1",
+                    trigger_type: "manual_api",
+                    triggered_by: "reviewer-console",
+                    status: "queued",
+                    final_action: null,
+                    started_at: null,
+                    ended_at: null,
+                    attempt_index: 1,
+                    is_human_action: false,
+                    evaluation_summary_ref: {
+                      status: "not_available",
+                      trace_id: "trace_generate_1",
+                      has_response_quality: false,
+                      response_quality_overall_score: null,
+                      has_trajectory_evaluation: false,
+                      trajectory_score: null,
+                      trajectory_violation_count: null,
+                    },
+                  },
+                ],
+          page: 1,
+          page_size: 20,
+          total: snapshotRequestCount === 1 ? 0 : 1,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_generate/drafts")) {
+        return jsonResponse({
+          ticket_id: "ticket_generate",
+          items: [],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_generate/drafts/generate")) {
+        expect(init?.method).toBe("POST");
+        expect(init?.headers).toMatchObject({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Actor-Id": "reviewer-console",
+        });
+        expect(init?.body).toBe(
+          JSON.stringify({
+            ticket_version: 5,
+            mode: "create",
+            source_draft_id: null,
+            comment: null,
+          }),
+        );
+        return jsonResponse({
+          ticket_id: "ticket_generate",
+          run_id: "run_generate_1",
+          trace_id: "trace_generate_1",
+          processing_status: "queued",
+        }, 202);
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTicketDetailPage("/tickets/ticket_generate");
+
+    expect(await screen.findByDisplayValue("reviewer-console")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "创建草稿" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "创建草稿" }));
+
+    expect(await screen.findByText("已提交创建草稿")).toBeInTheDocument();
+    expect(screen.getByText(/运行 run_generate_1 已入队/i)).toBeInTheDocument();
+  });
+
+  it("sends rewrite guidance through draft generation instead of the legacy rewrite endpoint", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/tickets/ticket_guided")) {
+        return jsonResponse({
+          ticket: {
+            ticket_id: "ticket_guided",
+            business_status: "awaiting_human_review",
+            processing_status: "waiting_external",
+            claimed_by: null,
+            claimed_at: null,
+            lease_until: null,
+            priority: "high",
+            primary_route: "commercial_policy_request",
+            multi_intent: false,
+            tags: ["needs_escalation"],
+            version: 9,
+          },
+          latest_run: null,
+          latest_draft: {
+            draft_id: "draft_guided_v1",
+            qa_status: "passed",
+          },
+          messages: [],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_guided/runs?page=1&page_size=20")) {
+        return jsonResponse({
+          ticket_id: "ticket_guided",
+          items: [],
+          page: 1,
+          page_size: 20,
+          total: 0,
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_guided/drafts")) {
+        return jsonResponse({
+          ticket_id: "ticket_guided",
+          items: [
+            {
+              draft_id: "draft_guided_v1",
+              run_id: "run_guided_0",
+              version_index: 1,
+              draft_type: "reply",
+              qa_status: "passed",
+              content_text: "Initial guided draft",
+              source_evidence_summary: null,
+              gmail_draft_id: "gmail-guided-1",
+              created_at: "2026-04-17T10:15:05Z",
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith("/tickets/ticket_guided/drafts/generate")) {
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe(
+          JSON.stringify({
+            ticket_version: 9,
+            mode: "regenerate",
+            source_draft_id: "draft_guided_v1",
+            comment: null,
+            rewrite_guidance: [
+              "Keep the tone calm.",
+              "Avoid commitment wording.",
+            ],
+          }),
+        );
+        return jsonResponse({
+          ticket_id: "ticket_guided",
+          run_id: "run_guided_1",
+          trace_id: "trace_guided_1",
+          processing_status: "queued",
+        }, 202);
+      }
+
+      if (url.endsWith("/tickets/ticket_guided/rewrite")) {
+        throw new Error("Legacy rewrite endpoint should not be called.");
+      }
+
+      throw new Error(`Unhandled request in test: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTicketDetailPage("/tickets/ticket_guided");
+
+    expect(await screen.findByDisplayValue("reviewer-console")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("更多操作"));
+    fireEvent.change(screen.getByLabelText("重写原因"), {
+      target: { value: "Keep the tone calm.\nAvoid commitment wording." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "按原因重写" }));
+
+    expect(await screen.findByText("已提交带指导的草稿重生成")).toBeInTheDocument();
+    expect(screen.getByText(/运行 run_guided_1 已入队/i)).toBeInTheDocument();
   });
 
   it("shows trajectory-only evaluation copy when latest run has no response quality", async () => {

@@ -109,7 +109,7 @@ ol {
 
 .v2-shell {
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   gap: 0.95rem;
   min-height: 100vh;
   padding: 0.9rem;
@@ -122,11 +122,11 @@ ol {
   display: grid;
   gap: 0.85rem;
   min-height: calc(100vh - 2rem);
-  padding: 0.9rem 0.72rem;
+  padding: 0.92rem 0.78rem;
   border: 1px solid var(--v2-line);
   border-radius: calc(var(--v2-radius) + 2px);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 247, 244, 0.9)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 247, 244, 0.92)),
     var(--v2-bg-wash);
   box-shadow: var(--v2-shadow-soft);
 }
@@ -167,22 +167,26 @@ ol {
 
 .v2-nav {
   display: grid;
-  gap: 0.18rem;
+  gap: 0.24rem;
   align-content: start;
 }
 
 .v2-nav-link {
   display: grid;
-  gap: 0;
-  padding: 0.62rem 0.64rem;
+  gap: 0.08rem;
+  padding: 0.68rem 0.7rem;
   border: 1px solid transparent;
-  border-radius: var(--v2-radius-sm);
+  border-radius: 12px;
   background: transparent;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .v2-nav-link:hover {
   border-color: var(--v2-line);
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .v2-nav-link.is-active {
@@ -220,7 +224,7 @@ ol {
 }
 
 .v2-nav-link span {
-  display: none;
+  color: var(--v2-muted);
 }
 
 .v2-main {
@@ -923,7 +927,7 @@ ol {
   display: grid;
   grid-template-columns: minmax(0, 1.72fr) minmax(360px, 0.98fr);
   gap: 0.72rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .v2-ticket-detail-main,
@@ -941,6 +945,14 @@ ol {
 
 .v2-ticket-detail-main {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+  align-self: stretch;
+}
+
+.v2-ticket-run-panel {
+  margin-top: auto;
 }
 
 .v2-ticket-focus-grid {
@@ -1199,6 +1211,14 @@ ol {
 
 .v2-ticket-action-buttons {
   align-items: center;
+}
+
+.v2-ticket-editor-stage .v2-ticket-action-buttons {
+  justify-content: flex-start;
+}
+
+.v2-ticket-drawer-stack .v2-ticket-action-buttons {
+  justify-content: flex-start;
 }
 
 .v2-ticket-editor-stage {
@@ -1870,6 +1890,56 @@ ol {
 .v2-test-lab-form-actions {
   justify-content: space-between;
   align-items: center;
+}
+
+.v2-test-lab-receipt-card {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.72rem 0.76rem;
+  border: 1px solid var(--v2-line);
+  border-radius: var(--v2-radius-sm);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(249, 248, 245, 0.72));
+  box-shadow: var(--v2-shadow-line);
+}
+
+.v2-test-lab-receipt-title,
+.v2-test-lab-receipt-card .v2-code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.v2-test-lab-receipt-title {
+  font-size: 0.95rem;
+  line-height: 1.34;
+  font-weight: 650;
+}
+
+.v2-test-lab-receipt-card p:last-child {
+  color: var(--v2-muted);
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.v2-test-lab-receipt-meta {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.v2-test-lab-receipt-meta-item {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.v2-test-lab-receipt-meta-item span {
+  color: var(--v2-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .v2-code {
