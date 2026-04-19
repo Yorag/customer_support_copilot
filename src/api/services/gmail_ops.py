@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.api.service_errors import GmailDisabledError
-from src.config import get_settings
 from src.db.models import AppMetadata
 from src.tickets.message_log import IngestEmailPayload
 
@@ -56,8 +55,7 @@ class GmailOpsServiceMixin(TicketApiServiceBase):
         *,
         max_results: int | None,
     ) -> GmailScanPreviewPayload:
-        settings = get_settings()
-        if not settings.gmail.enabled:
+        if not self._container.gmail_enabled:
             raise GmailDisabledError()
         scan_result = self._container.gmail_client.scan_inbox(max_results=max_results)
         self._record_scan_metadata(
@@ -87,8 +85,7 @@ class GmailOpsServiceMixin(TicketApiServiceBase):
         max_results: int | None,
         enqueue: bool,
     ) -> GmailScanPayload:
-        settings = get_settings()
-        if not settings.gmail.enabled:
+        if not self._container.gmail_enabled:
             raise GmailDisabledError()
         recorded_at = datetime.now(timezone.utc)
         scan_result = self._container.gmail_client.scan_inbox(max_results=max_results)

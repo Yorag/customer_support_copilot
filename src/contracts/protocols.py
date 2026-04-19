@@ -74,3 +74,8 @@ class TraceExporterProtocol(Protocol):
         extra_metadata: dict[str, Any] | None = None,
     ) -> None:
         ...
+
+
+class MemoryExtractorProtocol(Protocol):
+    def extract(self, *, case_context: dict[str, Any]) -> Any:
+        ...

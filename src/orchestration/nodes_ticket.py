@@ -14,6 +14,7 @@ from ..contracts.core import (
     MessageType,
     RunFinalAction,
     TicketBusinessStatus,
+    TicketProcessingStatus,
     utc_now,
 )
 
@@ -150,25 +151,36 @@ class TicketExecutionNodesMixin:
                     "matched_rules": matched_rules,
                 },
             )
+        update_fields = {
+            "primary_route": triage_output["primary_route"],
+            "secondary_routes": triage_output["secondary_routes"],
+            "tags": triage_output["tags"],
+            "priority": triage_output["priority"],
+            "intent_confidence": triage_output["intent_confidence"],
+            "response_strategy": triage_output["response_strategy"],
+            "multi_intent": triage_output["multi_intent"],
+            "needs_clarification": triage_output["needs_clarification"],
+            "needs_escalation": triage_output["needs_escalation"],
+            "routing_reason": triage_output["routing_reason"],
+            "risk_reasons": escalation_reasons,
+        }
+        if ticket.business_status != TicketBusinessStatus.TRIAGED.value:
+            status_update = TicketStatusUpdate(
+                business_status=TicketBusinessStatus.TRIAGED,
+                processing_status=TicketProcessingStatus.RUNNING,
+                fields=update_fields,
+                clear_error=True,
+            )
+        else:
+            status_update = TicketStatusUpdate(
+                fields=update_fields,
+                clear_error=True,
+            )
+
         routed = self._require_state_service().update_ticket_statuses(
             ticket.ticket_id,
             expected_version=ticket.version,
-            update=TicketStatusUpdate(
-                fields={
-                    "primary_route": triage_output["primary_route"],
-                    "secondary_routes": triage_output["secondary_routes"],
-                    "tags": triage_output["tags"],
-                    "priority": triage_output["priority"],
-                    "intent_confidence": triage_output["intent_confidence"],
-                    "response_strategy": triage_output["response_strategy"],
-                    "multi_intent": triage_output["multi_intent"],
-                    "needs_clarification": triage_output["needs_clarification"],
-                    "needs_escalation": triage_output["needs_escalation"],
-                    "routing_reason": triage_output["routing_reason"],
-                    "risk_reasons": escalation_reasons,
-                },
-                clear_error=True,
-            ),
+            update=status_update,
         )
         self._record_node_event(
             ticket=routed,
@@ -424,11 +436,23 @@ class TicketExecutionNodesMixin:
         started_at = utc_now()
         ticket = self._require_ticket(state)
         run = self._require_run()
+        llm_started_at = utc_now()
         extracted = self._require_memory_service().extract_memory_updates(
             ticket=ticket,
             run=run,
             case_context=state.get("case_context") or {},
         )
+        if extracted.llm_invocation is not None:
+            self._record_llm_invocation(
+                ticket=ticket,
+                node_name="extract_memory_updates",
+                call_name="memory_extraction",
+                started_at=llm_started_at,
+                invocation=extracted.llm_invocation,
+                metadata={
+                    "fallback_used": extracted.llm_fallback_used,
+                },
+            )
         payload = self._require_memory_service().serialize_extraction_result(extracted)
         self._record_node_event(
             ticket=ticket,
@@ -437,6 +461,11 @@ class TicketExecutionNodesMixin:
             metadata={
                 "has_customer_id": bool(extracted.customer_id),
                 "event_count": len(extracted.events),
+                "logic_type": (
+                    "llm_structured_extraction"
+                    if extracted.llm_invocation is not None
+                    else "deterministic_extraction"
+                ),
             },
         )
         return {

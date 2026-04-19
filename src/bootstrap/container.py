@@ -8,6 +8,7 @@ from src.config import get_settings
 from src.rag.provider import KnowledgeProviderProtocol
 from src.contracts.protocols import (
     GmailClientProtocol,
+    MemoryExtractorProtocol,
     PolicyProviderProtocol,
     TicketStoreProtocol,
     TraceExporterProtocol,
@@ -74,6 +75,12 @@ def _build_trace_exporter() -> TraceExporterProtocol:
     return LangSmithTraceExporter()
 
 
+def _build_memory_extractor() -> MemoryExtractorProtocol:
+    from src.memory.extractor import LlmMemoryExtractor
+
+    return LlmMemoryExtractor()
+
+
 @dataclass
 class ServiceContainer:
     agents_factory: Callable[[], object] = _build_agents
@@ -87,6 +94,7 @@ class ServiceContainer:
     ticket_store_factory: Callable[[], TicketStoreProtocol] = _build_ticket_store
     checkpointer_factory: Callable[[], object] = _build_checkpointer
     trace_exporter_factory: Callable[[], TraceExporterProtocol] = _build_trace_exporter
+    memory_extractor_factory: Callable[[], MemoryExtractorProtocol] = _build_memory_extractor
     _gmail_client: GmailClientProtocol | None = field(
         default=None,
         init=False,
@@ -127,6 +135,11 @@ class ServiceContainer:
         init=False,
         repr=False,
     )
+    _memory_extractor: MemoryExtractorProtocol | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
 
     def _get_or_create(self, attr_name: str, factory: Callable[[], T]) -> T:
         instance = getattr(self, attr_name)
@@ -151,6 +164,10 @@ class ServiceContainer:
         return self._get_or_create("_gmail_client", self.gmail_client_factory)
 
     @property
+    def gmail_enabled(self) -> bool:
+        return self.gmail_client.__class__.__name__ != "NullGmailClient"
+
+    @property
     def knowledge_provider(self) -> KnowledgeProviderProtocol:
         return self._get_or_create(
             "_knowledge_provider",
@@ -172,6 +189,10 @@ class ServiceContainer:
     @property
     def trace_exporter(self) -> TraceExporterProtocol:
         return self._get_or_create("_trace_exporter", self.trace_exporter_factory)
+
+    @property
+    def memory_extractor(self) -> MemoryExtractorProtocol:
+        return self._get_or_create("_memory_extractor", self.memory_extractor_factory)
 
 
 def create_default_service_container() -> ServiceContainer:

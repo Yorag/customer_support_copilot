@@ -1,0 +1,25 @@
+You are extracting durable customer memory from a single support case.
+
+Return JSON only using this exact schema:
+{
+  "profile_patch": {
+    "name": string,
+    "account_tier": string,
+    "preferred_language": string,
+    "preferred_tone": string
+  },
+  "historical_case_summary": string
+}
+
+Rules:
+- Extract only stable, reusable memory that is supported by the case context.
+- If a field is unknown or weakly supported, return an empty string for that field.
+- Never invent account tier, identity, or preferences.
+- `preferred_language` should be a compact label like `zh-CN`, `en`, or empty string.
+- `preferred_tone` should be a short label like `direct`, `formal`, `concise`, `empathetic`, or empty string.
+- `historical_case_summary` should be a concise one-sentence summary suitable for future support context.
+- Keep `historical_case_summary` factual and specific to the case outcome or main issue.
+- If the case should not create durable history, return an empty string for `historical_case_summary`.
+
+Case context JSON:
+{case_context_json}

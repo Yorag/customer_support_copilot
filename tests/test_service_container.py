@@ -13,6 +13,7 @@ def test_service_container_caches_provider_instances():
         "knowledge": 0,
         "policy": 0,
         "ticket": 0,
+        "memory": 0,
     }
 
     container = ServiceContainer(
@@ -22,6 +23,7 @@ def test_service_container_caches_provider_instances():
         knowledge_provider_factory=lambda: calls.__setitem__("knowledge", calls["knowledge"] + 1) or object(),
         policy_provider_factory=lambda: calls.__setitem__("policy", calls["policy"] + 1) or object(),
         ticket_store_factory=lambda: calls.__setitem__("ticket", calls["ticket"] + 1) or object(),
+        memory_extractor_factory=lambda: calls.__setitem__("memory", calls["memory"] + 1) or object(),
     )
 
     assert container.agents is container.agents
@@ -30,6 +32,7 @@ def test_service_container_caches_provider_instances():
     assert container.knowledge_provider is container.knowledge_provider
     assert container.policy_provider is container.policy_provider
     assert container.ticket_store is container.ticket_store
+    assert container.memory_extractor is container.memory_extractor
     assert calls == {
         "agents": 1,
         "judge": 1,
@@ -37,6 +40,7 @@ def test_service_container_caches_provider_instances():
         "knowledge": 1,
         "policy": 1,
         "ticket": 1,
+        "memory": 1,
     }
 
 

@@ -181,7 +181,11 @@ class TicketManualActionServiceMixin:
                 actor_id=actor_id,
                 state_service=state_service,
             )
-            CustomerMemoryService(session, repositories=repositories).apply_stage_updates(
+            CustomerMemoryService(
+                session,
+                repositories=repositories,
+                extractor=self._container.memory_extractor,
+            ).apply_stage_updates(
                 ticket=updated,
                 run=run,
                 stage=MemorySourceStage.CLOSE_TICKET,
@@ -257,7 +261,11 @@ class TicketManualActionServiceMixin:
                 state_service=state_service,
             )
             if action is HumanReviewAction.ESCALATE:
-                CustomerMemoryService(session, repositories=repositories).apply_stage_updates(
+                CustomerMemoryService(
+                    session,
+                    repositories=repositories,
+                    extractor=self._container.memory_extractor,
+                ).apply_stage_updates(
                     ticket=updated,
                     run=run,
                     stage=MemorySourceStage.ESCALATE_TO_HUMAN,

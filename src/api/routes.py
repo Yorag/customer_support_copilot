@@ -251,10 +251,11 @@ def ingest_email(
 def preview_gmail_scan(
     request: GmailScanPreviewRequest,
     service: TicketApiService = Depends(get_ticket_api_service),
+    container=Depends(get_container),
 ) -> GmailScanPreviewResponse:
     result = service.preview_gmail_scan(max_results=request.max_results)
     return GmailScanPreviewResponse(
-        gmail_enabled=get_settings().gmail.enabled,
+        gmail_enabled=container.gmail_enabled,
         requested_max_results=result.requested_max_results,
         summary=GmailScanPreviewSummary(
             candidate_threads=result.candidate_threads,
@@ -283,6 +284,7 @@ def preview_gmail_scan(
 def scan_gmail(
     request: GmailScanRequest,
     service: TicketApiService = Depends(get_ticket_api_service),
+    container=Depends(get_container),
 ) -> GmailScanResponse:
     result = service.scan_gmail(
         max_results=request.max_results,
@@ -291,7 +293,7 @@ def scan_gmail(
     return GmailScanResponse(
         scan_id=result.scan_id,
         status="accepted",
-        gmail_enabled=get_settings().gmail.enabled,
+        gmail_enabled=container.gmail_enabled,
         requested_max_results=result.requested_max_results,
         enqueue=request.enqueue,
         summary=GmailScanSummary(

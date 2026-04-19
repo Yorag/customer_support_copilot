@@ -43,7 +43,7 @@ class OpsStatusPayload:
 class RuntimeStatusServiceMixin(TicketApiServiceBase):
     def get_ops_status(self) -> OpsStatusPayload:
         current_settings = get_settings()
-        gmail_enabled = current_settings.gmail.enabled
+        gmail_enabled = self._container.gmail_enabled
         gmail_account_email = current_settings.gmail.my_email
 
         with self._store.session_scope() as session:

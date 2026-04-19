@@ -19,6 +19,9 @@ from src.contracts.core import (
 )
 from src.db.models import CustomerMemoryEvent, CustomerMemoryProfile, Ticket, TicketRun
 from src.db.repositories import RepositoryBundle, build_repository_bundle
+from src.llm.runtime import LlmInvocationResult
+
+from .extractor import MemoryExtractionCandidate
 
 
 def _default_profile() -> dict[str, Any]:
@@ -55,6 +58,8 @@ class MemoryExtractionResult:
     business_flags_patch: dict[str, Any]
     historical_case_ref: dict[str, Any] | None
     events: tuple[MemoryEventDraft, ...]
+    llm_invocation: LlmInvocationResult | None = None
+    llm_fallback_used: bool = False
 
 
 class CustomerMemoryService:
@@ -63,9 +68,11 @@ class CustomerMemoryService:
         session: Session,
         *,
         repositories: RepositoryBundle | None = None,
+        extractor=None,
     ) -> None:
         self._session = session
         self._repositories = repositories or build_repository_bundle(session)
+        self._extractor = extractor
 
     def collect_case_context(
         self,
@@ -129,10 +136,20 @@ class CustomerMemoryService:
             customer_id = identity.customer_id if identity is not None else None
 
         stage = MemorySourceStage(case_context["stage"])
-        profile_patch = self._extract_profile_patch(ticket, case_context)
+        llm_candidate = self._extract_with_llm(case_context)
+        profile_patch = self._extract_profile_patch(
+            ticket,
+            case_context,
+            llm_candidate=llm_candidate,
+        )
         business_flags_patch = self._extract_business_flags_patch(ticket, case_context, stage)
         risk_tags_to_add = self._extract_risk_tags(ticket)
-        historical_case_ref = self._extract_historical_case_ref(ticket, case_context, stage)
+        historical_case_ref = self._extract_historical_case_ref(
+            ticket,
+            case_context,
+            stage,
+            llm_candidate=llm_candidate,
+        )
 
         events: list[MemoryEventDraft] = []
         if profile_patch:
@@ -180,6 +197,8 @@ class CustomerMemoryService:
             business_flags_patch=business_flags_patch,
             historical_case_ref=historical_case_ref,
             events=tuple(events),
+            llm_invocation=llm_candidate.llm_invocation if llm_candidate is not None else None,
+            llm_fallback_used=bool(llm_candidate.fallback_used) if llm_candidate is not None else False,
         )
 
     def validate_memory_updates(
@@ -207,6 +226,8 @@ class CustomerMemoryService:
                     )
                     for item in updates.get("events") or ()
                 ),
+                llm_invocation=None,
+                llm_fallback_used=bool(updates.get("llm_fallback_used", False)),
             )
         if updates.customer_id is None:
             return None
@@ -254,6 +275,7 @@ class CustomerMemoryService:
                 if updates.historical_case_ref is not None
                 else None
             ),
+            "llm_fallback_used": updates.llm_fallback_used,
             "events": [
                 {
                     "source_stage": event.source_stage.value,
@@ -371,18 +393,29 @@ class CustomerMemoryService:
         self,
         ticket: Ticket,
         case_context: Mapping[str, Any],
+        *,
+        llm_candidate: MemoryExtractionCandidate | None = None,
     ) -> dict[str, Any]:
         existing_profile = case_context.get("customer_profile") or {}
         existing_profile_fields = dict(existing_profile.get("profile") or {})
         subject = (ticket.subject or "").lower()
         preferred_language = existing_profile_fields.get("preferred_language", "unknown")
+        llm_profile_patch = (
+            llm_candidate.output.profile_patch.model_dump(mode="json")
+            if llm_candidate is not None
+            else {}
+        )
         if preferred_language == "unknown":
-            if any(token in subject for token in ("退款", "发票", "账户", "故障")):
+            if llm_profile_patch.get("preferred_language"):
+                preferred_language = str(llm_profile_patch["preferred_language"])
+            elif any(token in subject for token in ("退款", "发票", "账户", "故障")):
                 preferred_language = "zh-CN"
             else:
                 preferred_language = "en"
 
         account_tier = existing_profile_fields.get("account_tier", "unknown")
+        if account_tier == "unknown" and llm_profile_patch.get("account_tier"):
+            account_tier = str(llm_profile_patch["account_tier"])
         if ticket.priority in {
             TicketPriority.HIGH.value,
             TicketPriority.CRITICAL.value,
@@ -390,10 +423,17 @@ class CustomerMemoryService:
             account_tier = "priority"
 
         return {
-            "name": existing_profile_fields.get("name", ""),
+            "name": self._first_non_blank(
+                existing_profile_fields.get("name", ""),
+                llm_profile_patch.get("name", ""),
+            ),
             "account_tier": account_tier,
             "preferred_language": preferred_language,
-            "preferred_tone": existing_profile_fields.get("preferred_tone", "direct"),
+            "preferred_tone": self._first_non_blank(
+                existing_profile_fields.get("preferred_tone", ""),
+                llm_profile_patch.get("preferred_tone", ""),
+                "direct",
+            ),
         }
 
     def _extract_business_flags_patch(
@@ -438,6 +478,8 @@ class CustomerMemoryService:
         ticket: Ticket,
         case_context: Mapping[str, Any],
         stage: MemorySourceStage,
+        *,
+        llm_candidate: MemoryExtractionCandidate | None = None,
     ) -> dict[str, Any] | None:
         if stage not in {
             MemorySourceStage.AWAITING_CUSTOMER_INPUT,
@@ -446,16 +488,24 @@ class CustomerMemoryService:
         }:
             return None
 
-        summary_parts = [ticket.routing_reason or f"route={ticket.primary_route or 'unknown'}"]
-        summary_parts.extend(
-            part
-            for part in (
-                self._optional_summary_part(case_context.get("review_comment")),
-                self._optional_summary_part(case_context.get("human_handoff_summary")),
-                self._optional_summary_part(case_context.get("draft_text"), max_length=120),
-            )
-            if part
+        llm_summary = ""
+        if llm_candidate is not None:
+            llm_summary = llm_candidate.output.historical_case_summary.strip()
+        summary_parts = (
+            [llm_summary]
+            if llm_summary
+            else [ticket.routing_reason or f"route={ticket.primary_route or 'unknown'}"]
         )
+        if not llm_summary:
+            summary_parts.extend(
+                part
+                for part in (
+                    self._optional_summary_part(case_context.get("review_comment")),
+                    self._optional_summary_part(case_context.get("human_handoff_summary")),
+                    self._optional_summary_part(case_context.get("draft_text"), max_length=120),
+                )
+                if part
+            )
 
         if stage is MemorySourceStage.AWAITING_CUSTOMER_INPUT:
             outcome = "awaiting_customer_input"
@@ -471,6 +521,21 @@ class CustomerMemoryService:
             "summary": " | ".join(part for part in summary_parts if part),
             "outcome": outcome,
         }
+
+    def _extract_with_llm(
+        self,
+        case_context: Mapping[str, Any],
+    ) -> MemoryExtractionCandidate | None:
+        if self._extractor is None:
+            return None
+        return self._extractor.extract(case_context=dict(case_context))
+
+    def _first_non_blank(self, *values: Any) -> str:
+        for value in values:
+            text = str(value or "").strip()
+            if text:
+                return text
+        return ""
 
     def _serialize_profile(
         self,

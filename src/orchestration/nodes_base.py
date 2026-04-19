@@ -53,7 +53,11 @@ class BaseNodes:
         self._worker_id = worker_id
         self._trace_recorder = trace_recorder
         self._memory_service = (
-            CustomerMemoryService(session, repositories=repositories)
+            CustomerMemoryService(
+                session,
+                repositories=repositories,
+                extractor=getattr(self.services, "memory_extractor", None),
+            )
             if session is not None and repositories is not None
             else None
         )

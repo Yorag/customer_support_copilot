@@ -230,6 +230,56 @@ class KnowledgePolicyOutput(BaseModel):
     )
 
 
+class MemoryProfilePatchOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        default="",
+        description="Stable customer name if explicitly stated or strongly implied; otherwise empty string.",
+    )
+    account_tier: str = Field(
+        default="",
+        description="Stable account tier or segment if clearly supported by the case context; otherwise empty string.",
+    )
+    preferred_language: str = Field(
+        default="",
+        description="Preferred language code or label inferred from the case context when reliable; otherwise empty string.",
+    )
+    preferred_tone: str = Field(
+        default="",
+        description="Preferred support tone inferred from the customer's communication style when reliable; otherwise empty string.",
+    )
+
+    @field_validator(
+        "name",
+        "account_tier",
+        "preferred_language",
+        "preferred_tone",
+        mode="after",
+    )
+    @classmethod
+    def _strip_profile_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class MemoryExtractionOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile_patch: MemoryProfilePatchOutput = Field(
+        default_factory=MemoryProfilePatchOutput,
+        description="Candidate profile patch containing only stable customer-level memory.",
+    )
+    historical_case_summary: str = Field(
+        default="",
+        description="One-sentence durable summary of the case for customer history, or empty string if not appropriate.",
+    )
+
+    @field_validator("historical_case_summary", mode="after")
+    @classmethod
+    def _strip_history_summary(cls, value: str) -> str:
+        return value.strip()
+
+
 class DraftingOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

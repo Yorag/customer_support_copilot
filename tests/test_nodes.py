@@ -8,12 +8,16 @@ from src.contracts.core import EntityIdPrefix, generate_prefixed_id
 from src.contracts.outputs import (
     DraftingOutput,
     KnowledgePolicyOutput,
+    MemoryExtractionOutput,
+    MemoryProfilePatchOutput,
     QaHandoffOutput,
     TriageOutput,
 )
+from src.llm.runtime import LlmInvocationResult, LlmUsage
 from src.db.base import Base
 from src.db.repositories import build_repository_bundle
 from src.db.models import Ticket, TicketRun
+from src.memory import MemoryExtractionCandidate
 from src.db.session import build_engine, create_session_factory, session_scope
 from src.orchestration.nodes_ticket import TicketNodes
 from src.orchestration.state import build_ticket_run_state
@@ -57,6 +61,18 @@ class FakeTicketStore:
 
     def session_scope(self):
         raise AssertionError("session_scope should not be used in this test")
+
+
+class FakeMemoryExtractor:
+    def __init__(self, candidate: MemoryExtractionCandidate | None = None) -> None:
+        self._candidate = candidate or MemoryExtractionCandidate(
+            output=MemoryExtractionOutput(),
+            llm_invocation=None,
+            fallback_used=True,
+        )
+
+    def extract(self, *, case_context: dict[str, object]) -> MemoryExtractionCandidate:
+        return self._candidate
 
 
 class FakeAgents:
@@ -251,11 +267,12 @@ class FakeAgents:
 
 
 class FakeServices:
-    def __init__(self, gmail_client):
+    def __init__(self, gmail_client, *, memory_extractor=None):
         self.gmail_client = gmail_client
         self.knowledge_provider = FakeKnowledgeProvider()
         self.policy_provider = FakePolicyProvider()
         self.ticket_store = FakeTicketStore()
+        self.memory_extractor = memory_extractor or FakeMemoryExtractor()
 
 
 def test_route_ticket_prioritizes_escalation_and_policy_secondary_intent():
@@ -364,6 +381,89 @@ def _build_ticket_execution_nodes(sample_email_payload, *, triage_output: Triage
         nodes = TicketNodes(
             agents=TicketExecutionAgents(),
             service_container=FakeServices(FakeGmailClient()),
+            session=session,
+            repositories=repositories,
+            state_service=state_service,
+            message_log=message_log,
+            run=run,
+            worker_id="worker-1",
+        )
+        yield nodes, ticket, run, session
+
+
+@contextmanager
+def _build_ticket_execution_nodes_with_memory(
+    sample_email_payload,
+    *,
+    triage_output: TriageOutput,
+    memory_candidate: MemoryExtractionCandidate,
+):
+    class TicketExecutionAgents(FakeAgents):
+        def triage_email_with_rules(self, *, subject, email, context=None):
+            return SimpleNamespace(output=triage_output, escalation_reasons=[])
+
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    with session_scope(session_factory) as session:
+        ticket = Ticket(
+            ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+            source_thread_id="thread-node-test",
+            source_message_id=sample_email_payload["messageId"],
+            gmail_thread_id="thread-node-test",
+            customer_id="cust_email_customer_example_com",
+            customer_email="customer@example.com",
+            customer_email_raw='"Customer" <customer@example.com>',
+            subject=sample_email_payload["subject"],
+            latest_message_excerpt=sample_email_payload["body"],
+            business_status="new",
+            processing_status="running",
+            priority="medium",
+            secondary_routes=[],
+            tags=[],
+            multi_intent=False,
+            needs_clarification=False,
+            needs_escalation=False,
+            risk_reasons=[],
+            lease_owner="worker-1",
+            lease_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            current_run_id="run-node-test",
+        )
+        run = TicketRun(
+            run_id="run-node-test",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+            attempt_index=1,
+        )
+        session.add(ticket)
+        session.add(run)
+        session.flush()
+        message_log = MessageLogService(session)
+        message_log.ingest_inbound_email(
+            SimpleNamespace(
+                source_channel="gmail",
+                source_thread_id="thread-node-test",
+                source_message_id=sample_email_payload["messageId"],
+                sender_email_raw=sample_email_payload["sender"],
+                subject=sample_email_payload["subject"],
+                body_text=sample_email_payload["body"],
+                message_timestamp=datetime.now(timezone.utc),
+                references=sample_email_payload["references"],
+                attachments=[],
+            )
+        )
+        session.flush()
+        repositories = build_repository_bundle(session)
+        state_service = TicketStateService(session, repositories=repositories)
+        nodes = TicketNodes(
+            agents=TicketExecutionAgents(),
+            service_container=FakeServices(
+                FakeGmailClient(),
+                memory_extractor=FakeMemoryExtractor(memory_candidate),
+            ),
             session=session,
             repositories=repositories,
             state_service=state_service,
@@ -620,3 +720,80 @@ def test_ticket_execution_nodes_route_technical_issue_to_clarification(sample_em
         assert state["final_action"] == "request_clarification"
         assert state["clarification_history"][0]["source"] == "clarify_request"
         assert state["memory_updates"]["historical_case_ref"]["outcome"] == "awaiting_customer_input"
+
+
+def test_extract_memory_updates_uses_llm_candidate_and_records_trace(sample_email_payload):
+    triage_output = TriageOutput(
+        primary_route="knowledge_request",
+        secondary_routes=[],
+        tags=[],
+        response_strategy="answer",
+        multi_intent=False,
+        intent_confidence=0.91,
+        priority="medium",
+        needs_clarification=False,
+        needs_escalation=False,
+        routing_reason="Knowledge request.",
+    )
+    invocation = LlmInvocationResult(
+        parsed_output=MemoryExtractionOutput(
+            profile_patch=MemoryProfilePatchOutput(
+                name="Customer",
+                account_tier="enterprise",
+                preferred_language="zh-CN",
+                preferred_tone="formal",
+            ),
+            historical_case_summary="Customer requested product guidance in Chinese and expects a formal tone.",
+        ),
+        raw_text="{}",
+        model="gpt-4o-mini",
+        provider="openai-compatible",
+        usage=LlmUsage(
+            prompt_tokens=80,
+            completion_tokens=24,
+            total_tokens=104,
+            token_source="provider_actual",
+        ),
+        request_id="req_memory_1",
+        finish_reason="stop",
+    )
+    memory_candidate = MemoryExtractionCandidate(
+        output=invocation.parsed_output,
+        llm_invocation=invocation,
+        fallback_used=False,
+    )
+
+    with _build_ticket_execution_nodes_with_memory(
+        sample_email_payload,
+        triage_output=triage_output,
+        memory_candidate=memory_candidate,
+    ) as (nodes, ticket, run, session):
+        state = build_ticket_run_state(
+            ticket_id=ticket.ticket_id,
+            business_status=ticket.business_status,
+            processing_status=ticket.processing_status,
+            ticket_version=ticket.version,
+            trace_id=run.trace_id,
+            run_id=run.run_id,
+        )
+        state.update(nodes.load_ticket_context(state))
+        state.update(nodes.load_memory(state))
+        state.update(nodes.triage_ticket(state))
+        state.update(nodes.knowledge_lookup(state))
+        state.update(nodes.draft_reply(state))
+        state.update(nodes.qa_review(state))
+        state.update(nodes.create_gmail_draft(state))
+        state.update(nodes.collect_case_context(state))
+        state.update(nodes.extract_memory_updates(state))
+        state.update(nodes.validate_memory_updates(state))
+
+        assert state["memory_updates"]["profile"]["preferred_language"] == "zh-CN"
+        assert state["memory_updates"]["profile"]["preferred_tone"] == "formal"
+        assert state["memory_updates"]["historical_case_ref"]["summary"] == (
+            "Customer requested product guidance in Chinese and expects a formal tone."
+        )
+
+        trace_events = build_repository_bundle(session).trace_events.list_by_run(run.run_id)
+        llm_events = [event for event in trace_events if event.event_name == "llm.memory_extraction"]
+        assert len(llm_events) == 1
+        assert llm_events[0].event_metadata["total_tokens"] == 104
