@@ -138,6 +138,14 @@ def test_prepare_checkpoint_context_records_checkpoint_metadata() -> None:
             started_at=now - timedelta(seconds=20),
             attempt_index=1,
         )
+        run.app_metadata = {
+            "draft_request": {
+                "mode": "regenerate",
+                "source_draft_id": "draft_source_1",
+                "comment": "Keep the tone calm.",
+                "rewrite_guidance": ["Avoid commitment wording."],
+            }
+        }
         ticket.current_run_id = run.run_id
         ticket.lease_owner = "req-resume"
         ticket.lease_expires_at = now + timedelta(minutes=5)
@@ -165,6 +173,12 @@ def test_prepare_checkpoint_context_records_checkpoint_metadata() -> None:
 
         assert context["restore_mode"] == "resume"
         assert run.app_metadata == {
+            "draft_request": {
+                "mode": "regenerate",
+                "source_draft_id": "draft_source_1",
+                "comment": "Keep the tone calm.",
+                "rewrite_guidance": ["Avoid commitment wording."],
+            },
             "checkpoint": {
                 "thread_id": ticket.ticket_id,
                 "checkpoint_ns": run.run_id,
@@ -199,6 +213,14 @@ def test_prepare_checkpoint_context_updates_resume_state_metadata() -> None:
             started_at=now - timedelta(seconds=20),
             attempt_index=1,
         )
+        run.app_metadata = {
+            "draft_request": {
+                "mode": "regenerate",
+                "source_draft_id": "draft_source_1",
+                "comment": "Keep the tone calm.",
+                "rewrite_guidance": ["Avoid commitment wording."],
+            }
+        }
         ticket.current_run_id = run.run_id
         ticket.lease_owner = "req-resume"
         ticket.lease_expires_at = now + timedelta(minutes=5)

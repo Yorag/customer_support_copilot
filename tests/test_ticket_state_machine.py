@@ -755,6 +755,67 @@ def test_apply_edit_and_approve_creates_new_draft_artifact():
         assert max(draft.version_index for draft in drafts) == 2
 
 
+def test_apply_save_draft_creates_pending_draft_and_keeps_review_state():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        ticket = _build_ticket(
+            business_status="awaiting_human_review",
+            processing_status="waiting_external",
+            version=5,
+        )
+        run = _build_run(ticket.ticket_id, trigger_type="human_action", attempt_index=2)
+        session.add(ticket)
+        session.flush()
+        run.ticket_id = ticket.ticket_id
+        session.add(run)
+        session.flush()
+
+        existing_draft = DraftArtifact(
+            draft_id=generate_prefixed_id(EntityIdPrefix.DRAFT),
+            ticket_id=ticket.ticket_id,
+            run_id=run.run_id,
+            version_index=1,
+            draft_type="reply",
+            content_text="Old draft",
+            qa_status="passed",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(existing_draft)
+        session.flush()
+
+        service = TicketStateService(session)
+        updated_ticket, review = service.apply_manual_review_action(
+            ticket_id=ticket.ticket_id,
+            action=HumanReviewAction.SAVE_DRAFT,
+            reviewer_id="reviewer-2",
+            ticket_version_at_review=5,
+            draft_id=existing_draft.draft_id,
+            comment="save draft only",
+            edited_content_text="Edited but still pending review",
+            run_id=run.run_id,
+        )
+        session.flush()
+
+        drafts = (
+            session.query(DraftArtifact)
+            .filter_by(ticket_id=ticket.ticket_id)
+            .order_by(DraftArtifact.version_index.asc())
+            .all()
+        )
+
+        assert review.action == "save_draft"
+        assert updated_ticket.business_status == "awaiting_human_review"
+        assert updated_ticket.processing_status == "waiting_external"
+        assert updated_ticket.version == 6
+        assert len(drafts) == 2
+        assert drafts[-1].version_index == 2
+        assert drafts[-1].qa_status == "pending"
+        assert drafts[-1].content_text == "Edited but still pending review"
+
+
 def test_apply_rewrite_review_requeues_ticket():
     engine = build_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -816,6 +877,42 @@ def test_apply_escalate_review_moves_ticket_to_waiting_external():
         assert updated_ticket.business_status == "escalated"
         assert updated_ticket.processing_status == "waiting_external"
         assert updated_ticket.version == 5
+
+
+def test_enqueue_ticket_run_allows_review_reentry_only_for_draft_generation_flow():
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        ticket = _build_ticket(
+            business_status="awaiting_human_review",
+            processing_status="waiting_external",
+            version=4,
+        )
+        session.add(ticket)
+        session.flush()
+
+        service = TicketStateService(session)
+
+        with pytest.raises(InvalidStateTransitionError):
+            service.enqueue_ticket_run(
+                ticket.ticket_id,
+                run_id="run-blocked",
+                expected_version=4,
+            )
+
+        updated = service.enqueue_ticket_run(
+            ticket.ticket_id,
+            run_id="run-allowed",
+            expected_version=4,
+            allow_review_reentry=True,
+        )
+
+        assert updated.business_status == "triaged"
+        assert updated.processing_status == "queued"
+        assert updated.current_run_id == "run-allowed"
+        assert updated.version == 5
 
 
 def test_processing_state_machine_rejects_invalid_transition():

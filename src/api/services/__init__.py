@@ -11,6 +11,7 @@ from src.api.service_errors import (
 
 from .base import TicketApiServiceBase
 from .commands import TicketCommandServiceMixin
+from .draft_actions import TicketDraftActionServiceMixin
 from .dev_tools import DevToolsServiceMixin
 from .gmail_ops import GmailOpsServiceMixin
 from .common import (
@@ -29,6 +30,7 @@ class TicketApiService(
     DevToolsServiceMixin,
     RuntimeStatusServiceMixin,
     GmailOpsServiceMixin,
+    TicketDraftActionServiceMixin,
     TicketManualActionServiceMixin,
     TicketQueryServiceMixin,
     TicketCommandServiceMixin,

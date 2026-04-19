@@ -24,6 +24,29 @@ from .common import IdempotencyService
 
 
 class TicketManualActionServiceMixin:
+    def save_ticket_draft(
+        self,
+        *,
+        ticket_id: str,
+        ticket_version: int,
+        draft_id: str,
+        comment: str | None,
+        edited_content_text: str,
+        actor_id: str,
+        idempotency_key: str | None = None,
+    ) -> tuple[Ticket, str]:
+        return self._save_edited_draft(
+            ticket_id=ticket_id,
+            ticket_version=ticket_version,
+            draft_id=draft_id,
+            comment=comment,
+            edited_content_text=edited_content_text,
+            actor_id=actor_id,
+            action=HumanReviewAction.SAVE_DRAFT,
+            final_action=RunFinalAction.NO_OP.value,
+            idempotency_key=idempotency_key,
+        )
+
     def approve_ticket(
         self,
         *,
@@ -55,9 +78,33 @@ class TicketManualActionServiceMixin:
         actor_id: str,
         idempotency_key: str | None = None,
     ) -> tuple[Ticket, str]:
+        return self._save_edited_draft(
+            ticket_id=ticket_id,
+            ticket_version=ticket_version,
+            draft_id=draft_id,
+            comment=comment,
+            edited_content_text=edited_content_text,
+            actor_id=actor_id,
+            action=HumanReviewAction.EDIT_AND_APPROVE,
+            final_action=RunFinalAction.HANDOFF_TO_HUMAN.value,
+            idempotency_key=idempotency_key,
+        )
+
+    def _save_edited_draft(
+        self,
+        *,
+        ticket_id: str,
+        ticket_version: int,
+        draft_id: str,
+        comment: str | None,
+        edited_content_text: str,
+        actor_id: str,
+        action: HumanReviewAction,
+        final_action: str,
+        idempotency_key: str | None = None,
+    ) -> tuple[Ticket, str]:
         key_to_use = idempotency_key or (
-            f"manual:{ticket_id}:{HumanReviewAction.EDIT_AND_APPROVE.value}:"
-            f"{ticket_version}:{draft_id}:{actor_id}"
+            f"manual:{ticket_id}:{action.value}:{ticket_version}:{draft_id}:{actor_id}"
         )
         with self._store.session_scope() as session:
             idempotency = IdempotencyService(session)
@@ -79,7 +126,7 @@ class TicketManualActionServiceMixin:
             )
             updated, review = state_service.apply_manual_review_action(
                 ticket_id=ticket_id,
-                action=HumanReviewAction.EDIT_AND_APPROVE,
+                action=action,
                 reviewer_id=actor_id,
                 ticket_version_at_review=ticket_version,
                 draft_id=draft_id,
@@ -89,7 +136,7 @@ class TicketManualActionServiceMixin:
             )
             self._complete_action_run(
                 run=run,
-                final_action=RunFinalAction.HANDOFF_TO_HUMAN.value,
+                final_action=final_action,
             )
             session.flush()
             idempotency.record(
@@ -99,7 +146,7 @@ class TicketManualActionServiceMixin:
                     "review_id": review.review_id,
                     "run_id": run.run_id,
                     "trace_id": run.trace_id,
-                    "action": HumanReviewAction.EDIT_AND_APPROVE.value,
+                    "action": action.value,
                 },
             )
             return updated, review.review_id

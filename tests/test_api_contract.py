@@ -2161,6 +2161,41 @@ def test_edit_and_approve_returns_review_and_creates_new_draft_version():
         )
 
 
+def test_save_draft_returns_review_and_keeps_ticket_awaiting_human_review():
+    app, store = _build_app()
+    client = TestClient(app)
+    ticket, _, draft = _seed_review_ticket(store)
+
+    response = client.post(
+        f"/tickets/{ticket.ticket_id}/drafts/save",
+        json={
+            "ticket_version": 7,
+            "draft_id": draft.draft_id,
+            "comment": "Saved operator edits.",
+            "edited_content_text": "Hello, this is a saved but unapproved rewrite.",
+        },
+        headers={"X-Actor-Id": "reviewer-2"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["business_status"] == "awaiting_human_review"
+    assert payload["processing_status"] == "waiting_external"
+    assert "review_id" in payload
+
+    with store.session_scope() as session:
+        drafts = (
+            session.query(DraftArtifact)
+            .filter(DraftArtifact.ticket_id == ticket.ticket_id)
+            .order_by(DraftArtifact.version_index.asc())
+            .all()
+        )
+        assert len(drafts) == 2
+        assert drafts[-1].version_index == 2
+        assert drafts[-1].qa_status == "pending"
+        assert drafts[-1].content_text == "Hello, this is a saved but unapproved rewrite."
+
+
 def test_rewrite_and_escalate_follow_contract_states():
     app, store = _build_app()
     client = TestClient(app)
@@ -2210,6 +2245,66 @@ def test_rewrite_and_escalate_follow_contract_states():
     assert escalate_payload["business_status"] == "escalated"
     assert escalate_payload["processing_status"] == "waiting_external"
     assert "review_id" in escalate_payload
+
+
+def test_generate_draft_from_ticket_detail_requeues_review_ticket():
+    app, store = _build_app()
+    client = TestClient(app)
+    ticket = _create_ticket(
+        store,
+        business_status="awaiting_human_review",
+        processing_status="waiting_external",
+        version=5,
+        primary_route="commercial_policy_request",
+        subject="Need manual review",
+        latest_message_excerpt="Please review this request manually.",
+    )
+
+    response = client.post(
+        f"/tickets/{ticket.ticket_id}/drafts/generate",
+        json={
+            "ticket_version": 5,
+            "mode": "create",
+            "source_draft_id": None,
+            "comment": "Create a first draft directly in the detail page.",
+            "rewrite_guidance": ["Keep the tone calm.", "Avoid refund commitment wording."],
+        },
+        headers={"X-Actor-Id": "reviewer-console", "X-Request-Id": "req-generate-draft"},
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["ticket_id"] == ticket.ticket_id
+    assert payload["processing_status"] == "queued"
+
+    snapshot = client.get(f"/tickets/{ticket.ticket_id}")
+    assert snapshot.status_code == 200
+    snapshot_payload = snapshot.json()
+    assert snapshot_payload["ticket"]["business_status"] == "triaged"
+    assert snapshot_payload["ticket"]["processing_status"] == "queued"
+    assert snapshot_payload["latest_run"]["status"] == "queued"
+
+    with store.session_scope() as session:
+        new_run = (
+            session.query(TicketRun)
+            .filter(TicketRun.ticket_id == ticket.ticket_id)
+            .order_by(TicketRun.created_at.desc(), TicketRun.run_id.desc())
+            .first()
+        )
+        assert new_run is not None
+        assert new_run.trigger_type == "manual_api"
+        assert new_run.triggered_by == "reviewer-console"
+        assert new_run.app_metadata == {
+            "draft_request": {
+                "mode": "create",
+                "source_draft_id": None,
+                "comment": "Create a first draft directly in the detail page.",
+                "rewrite_guidance": [
+                    "Keep the tone calm.",
+                    "Avoid refund commitment wording.",
+                ],
+            }
+        }
 
 
 def test_manual_actions_require_actor_header():

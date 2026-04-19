@@ -179,10 +179,6 @@ class DraftingAgentMixin:
         allowed_actions: list[str] | None = None,
         disallowed_actions: list[str] | None = None,
     ) -> DraftingOutput:
-        guidance_text = ""
-        if rewrite_guidance:
-            guidance_text = "\n\nRewrite guidance:\n- " + "\n- ".join(rewrite_guidance)
-
         greeting = "Hello,"
         closing = "\n\nBest regards"
 
@@ -232,7 +228,7 @@ class DraftingAgentMixin:
                 "Out-of-scope drafting stays concise and avoids inventing unsupported assistance."
             )
 
-        draft_text = f"{greeting}\n\n{body}{guidance_text}{closing}"
+        draft_text = f"{greeting}\n\n{body}{closing}"
         return DraftingOutput(
             draft_text=draft_text,
             draft_rationale=rationale,

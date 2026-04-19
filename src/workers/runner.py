@@ -97,6 +97,7 @@ class TicketRunner:
         actor_id: str | None,
         request_id: str | None,
         state_service: TicketStateService,
+        allow_review_reentry: bool = False,
     ) -> RunEnqueueResult:
         ticket = self._repositories.tickets.get(ticket_id)
         if ticket is None:
@@ -125,6 +126,7 @@ class TicketRunner:
             run_id=run.run_id,
             expected_version=ticket_version,
             force_retry=force_retry,
+            allow_review_reentry=allow_review_reentry,
         )
         return RunEnqueueResult(ticket=queued_ticket, run=run)
 
@@ -445,7 +447,9 @@ class TicketRunner:
             "restore_mode": restore_mode,
             "last_checkpoint_node": last_checkpoint_node,
         }
-        run.app_metadata = {"checkpoint": checkpoint_metadata}
+        app_metadata = dict(run.app_metadata or {})
+        app_metadata["checkpoint"] = checkpoint_metadata
+        run.app_metadata = app_metadata
         did_resume = restore_mode == "resume"
         if did_resume and state_snapshot.config is not None:
             restored_values = dict(state_snapshot.values or {})

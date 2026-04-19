@@ -107,6 +107,7 @@ class GraphState(TypedDict, total=False):
     final_action: Optional[str]
     human_handoff_summary: Optional[str]
     qa_result: Optional[dict[str, Any]]
+    manual_draft_guidance: list[str]
     trace_id: Optional[str]
     latency_metrics: dict[str, Any]
     resource_metrics: dict[str, Any]
@@ -175,6 +176,7 @@ def build_initial_graph_state() -> GraphState:
         "final_action": None,
         "human_handoff_summary": None,
         "qa_result": None,
+        "manual_draft_guidance": [],
         "trace_id": None,
         "latency_metrics": {},
         "resource_metrics": {},

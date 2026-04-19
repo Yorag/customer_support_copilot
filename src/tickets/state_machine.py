@@ -106,6 +106,7 @@ _ALLOWED_BUSINESS_STATUS_TRANSITIONS: dict[
         TicketBusinessStatus.FAILED,
     ),
     TicketBusinessStatus.AWAITING_HUMAN_REVIEW: (
+        TicketBusinessStatus.TRIAGED,
         TicketBusinessStatus.APPROVED,
         TicketBusinessStatus.REJECTED,
         TicketBusinessStatus.ESCALATED,
@@ -156,6 +157,7 @@ _ALLOWED_PROCESSING_STATUS_TRANSITIONS: dict[
 }
 
 _MANUAL_ACTION_ALLOWED_BUSINESS_STATUSES: dict[str, tuple[TicketBusinessStatus, ...]] = {
+    HumanReviewAction.SAVE_DRAFT.value: (TicketBusinessStatus.AWAITING_HUMAN_REVIEW,),
     HumanReviewAction.APPROVE.value: (TicketBusinessStatus.AWAITING_HUMAN_REVIEW,),
     HumanReviewAction.EDIT_AND_APPROVE.value: (
         TicketBusinessStatus.AWAITING_HUMAN_REVIEW,
@@ -400,6 +402,7 @@ class TicketStateService:
         run_id: str,
         expected_version: int | None = None,
         force_retry: bool = False,
+        allow_review_reentry: bool = False,
     ) -> Ticket:
         ticket = self._get_ticket_for_update(
             ticket_id,
@@ -414,9 +417,17 @@ class TicketStateService:
                 force_retry=force_retry,
             )
 
+        disallowed_statuses = _NON_RUNNABLE_BUSINESS_STATUSES
+        if allow_review_reentry:
+            disallowed_statuses = {
+                status
+                for status in _NON_RUNNABLE_BUSINESS_STATUSES
+                if status is not TicketBusinessStatus.AWAITING_HUMAN_REVIEW
+            }
+
         self._assert_business_status_not_in(
             ticket,
-            disallowed_statuses=_NON_RUNNABLE_BUSINESS_STATUSES,
+            disallowed_statuses=disallowed_statuses,
             target_status=TicketProcessingStatus.QUEUED.value,
             reason="Ticket is not in a runnable business state.",
         )
@@ -438,6 +449,7 @@ class TicketStateService:
         if TicketBusinessStatus(ticket.business_status) in {
             TicketBusinessStatus.NEW,
             TicketBusinessStatus.REJECTED,
+            TicketBusinessStatus.AWAITING_HUMAN_REVIEW,
         } or TicketProcessingStatus(ticket.processing_status) in _RETRIABLE_RESET_PROCESSING_STATUSES:
             target_business_status = TicketBusinessStatus.TRIAGED
         else:
@@ -797,14 +809,17 @@ class TicketStateService:
         )
         self._repositories.human_reviews.add(review)
 
-        if normalized_action is HumanReviewAction.EDIT_AND_APPROVE:
+        if normalized_action in {
+            HumanReviewAction.SAVE_DRAFT,
+            HumanReviewAction.EDIT_AND_APPROVE,
+        }:
             if not run_id:
                 raise CoreSchemaError(
-                    "edit_and_approve requires run_id to create a new DraftArtifact."
+                    f"{normalized_action.value} requires run_id to create a new DraftArtifact."
                 )
             if not edited_content_text:
                 raise CoreSchemaError(
-                    "edit_and_approve requires edited_content_text."
+                    f"{normalized_action.value} requires edited_content_text."
                 )
             new_draft = DraftArtifact(
                 draft_id=generate_prefixed_id(EntityIdPrefix.DRAFT),
@@ -814,7 +829,11 @@ class TicketStateService:
                 draft_type=DraftType.REPLY.value,
                 content_text=edited_content_text,
                 content_html=edited_content_html,
-                qa_status=DraftQaStatus.PASSED.value,
+                qa_status=(
+                    DraftQaStatus.PENDING.value
+                    if normalized_action is HumanReviewAction.SAVE_DRAFT
+                    else DraftQaStatus.PASSED.value
+                ),
                 idempotency_key=None,
                 created_at=utc_now(),
             )
@@ -825,6 +844,8 @@ class TicketStateService:
                 business_status=TicketBusinessStatus.APPROVED,
                 processing_status=TicketProcessingStatus.COMPLETED,
             )
+        elif normalized_action is HumanReviewAction.SAVE_DRAFT:
+            update = TicketStatusUpdate()
         elif normalized_action is HumanReviewAction.REJECT_FOR_REWRITE:
             update = TicketStatusUpdate(
                 business_status=TicketBusinessStatus.REJECTED,

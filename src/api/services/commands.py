@@ -75,6 +75,7 @@ class TicketCommandServiceMixin:
                 actor_id=actor_id,
                 request_id=request_id,
                 state_service=state_service,
+                allow_review_reentry=False,
             )
             session.flush()
             idempotency.record(

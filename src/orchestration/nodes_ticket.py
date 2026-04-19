@@ -59,6 +59,7 @@ class TicketExecutionNodesMixin:
             "normalized_email": active_email.body,
             "attachments": attachments,
             "thread_summary": self._summarize_thread(inbound_context.messages),
+            "manual_draft_guidance": self._load_manual_draft_guidance(),
             "current_node": "load_ticket_context",
         }
         self._record_node_event(
@@ -509,6 +510,8 @@ class TicketExecutionNodesMixin:
         rewrite_guidance = []
         if state.get("qa_result") and state["qa_result"].get("rewrite_guidance"):
             rewrite_guidance = list(state["qa_result"]["rewrite_guidance"])
+        manual_draft_guidance = list(state.get("manual_draft_guidance") or [])
+        rewrite_guidance = [*manual_draft_guidance, *rewrite_guidance]
 
         agent_result = self.agents.drafting_agent_detailed(
             customer_email=ticket.customer_email,
@@ -564,6 +567,23 @@ class TicketExecutionNodesMixin:
             "applied_response_strategy": payload["applied_response_strategy"],
             "current_node": "draft_reply",
         }
+
+    def _load_manual_draft_guidance(self) -> list[str]:
+        run = self._require_run()
+        draft_request = ((run.app_metadata or {}).get("draft_request") or {})
+        guidance = list(draft_request.get("rewrite_guidance") or [])
+        comment = draft_request.get("comment")
+        if isinstance(comment, str) and comment.strip():
+            guidance.append(f"Operator note: {comment.strip()}")
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for item in guidance:
+            normalized = str(item).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+        return deduped
 
     def qa_review(self, state: GraphState) -> GraphState:
         print(Fore.YELLOW + "QA review...\n" + Style.RESET_ALL)

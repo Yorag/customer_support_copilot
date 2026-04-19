@@ -520,6 +520,147 @@ def test_ticket_execution_nodes_route_knowledge_request_to_gmail_draft(sample_em
         assert state["memory_updates"]["historical_case_ref"]["outcome"] == "draft_created"
 
 
+def test_draft_reply_includes_manual_draft_guidance_from_run_metadata(sample_email_payload):
+    captured: dict[str, object] = {}
+
+    class TicketExecutionAgents(FakeAgents):
+        def drafting_agent_detailed(
+            self,
+            *,
+            customer_email,
+            subject,
+            primary_route,
+            response_strategy,
+            normalized_email,
+            knowledge_summary,
+            policy_notes,
+            rewrite_guidance=None,
+            allowed_actions=None,
+            disallowed_actions=None,
+        ):
+            captured["rewrite_guidance"] = list(rewrite_guidance or [])
+            return super().drafting_agent_detailed(
+                customer_email=customer_email,
+                subject=subject,
+                primary_route=primary_route,
+                response_strategy=response_strategy,
+                normalized_email=normalized_email,
+                knowledge_summary=knowledge_summary,
+                policy_notes=policy_notes,
+                rewrite_guidance=rewrite_guidance,
+                allowed_actions=allowed_actions,
+                disallowed_actions=disallowed_actions,
+            )
+
+    triage_output = TriageOutput(
+        primary_route="knowledge_request",
+        secondary_routes=[],
+        tags=[],
+        response_strategy="answer",
+        multi_intent=False,
+        intent_confidence=0.91,
+        priority="medium",
+        needs_clarification=False,
+        needs_escalation=False,
+        routing_reason="Knowledge request.",
+    )
+
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    with session_scope(session_factory) as session:
+        ticket = Ticket(
+            ticket_id=generate_prefixed_id(EntityIdPrefix.TICKET),
+            source_thread_id="thread-node-guidance",
+            source_message_id=sample_email_payload["messageId"],
+            gmail_thread_id="thread-node-guidance",
+            customer_id="cust_email_customer_example_com",
+            customer_email="customer@example.com",
+            customer_email_raw='"Customer" <customer@example.com>',
+            subject=sample_email_payload["subject"],
+            latest_message_excerpt=sample_email_payload["body"],
+            business_status="triaged",
+            processing_status="running",
+            priority="medium",
+            secondary_routes=[],
+            tags=[],
+            multi_intent=False,
+            needs_clarification=False,
+            needs_escalation=False,
+            risk_reasons=[],
+            lease_owner="worker-1",
+            lease_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            current_run_id="run-node-guidance",
+        )
+        run = TicketRun(
+            run_id="run-node-guidance",
+            ticket_id=ticket.ticket_id,
+            trace_id=generate_prefixed_id(EntityIdPrefix.TRACE),
+            trigger_type="manual_api",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+            attempt_index=1,
+            app_metadata={
+                "draft_request": {
+                    "mode": "regenerate",
+                    "source_draft_id": "draft_prev_1",
+                    "comment": "Keep the tone calm.",
+                    "rewrite_guidance": [
+                        "Avoid commitment wording.",
+                        "Acknowledge the delay without admitting fault.",
+                    ],
+                }
+            },
+        )
+        session.add(ticket)
+        session.add(run)
+        session.flush()
+        message_log = MessageLogService(session)
+        message_log.ingest_inbound_email(
+            SimpleNamespace(
+                source_channel="gmail",
+                source_thread_id="thread-node-guidance",
+                source_message_id=sample_email_payload["messageId"],
+                sender_email_raw=sample_email_payload["sender"],
+                subject=sample_email_payload["subject"],
+                body_text=sample_email_payload["body"],
+                message_timestamp=datetime.now(timezone.utc),
+                references=sample_email_payload["references"],
+                attachments=[],
+            )
+        )
+        session.flush()
+        repositories = build_repository_bundle(session)
+        state_service = TicketStateService(session, repositories=repositories)
+        nodes = TicketNodes(
+            agents=TicketExecutionAgents(),
+            service_container=FakeServices(FakeGmailClient()),
+            session=session,
+            repositories=repositories,
+            state_service=state_service,
+            message_log=message_log,
+            run=run,
+            worker_id="worker-1",
+        )
+        state = build_ticket_run_state(
+            ticket_id=ticket.ticket_id,
+            business_status=ticket.business_status,
+            processing_status=ticket.processing_status,
+            ticket_version=ticket.version,
+            trace_id=run.trace_id,
+            run_id=run.run_id,
+        )
+        state.update(nodes.load_ticket_context(state))
+        state.update(nodes.load_memory(state))
+        state.update(nodes.draft_reply(state))
+
+        assert captured["rewrite_guidance"] == [
+            "Avoid commitment wording.",
+            "Acknowledge the delay without admitting fault.",
+            "Operator note: Keep the tone calm.",
+        ]
+
+
 def test_triage_ticket_updates_routing_fields_without_retriaging_state():
     triage_output = TriageOutput(
         primary_route="knowledge_request",

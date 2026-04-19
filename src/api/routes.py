@@ -23,6 +23,7 @@ from .schemas import (
     CloseTicketRequest,
     CustomerMemoryResponse,
     EditAndApproveTicketRequest,
+    GenerateDraftRequest,
     EscalateTicketRequest,
     GmailScanPreviewRequest,
     GmailScanPreviewResponse,
@@ -42,6 +43,7 @@ from .schemas import (
     OpsStatusResponse,
     OpsStatusWorker,
     RetryTicketRequest,
+    SaveDraftRequest,
     RewriteTicketRequest,
     RunTicketRequest,
     RunTicketResponse,
@@ -614,6 +616,38 @@ def get_ticket(
 
 
 @router.post(
+    "/tickets/{ticket_id}/drafts/generate",
+    response_model=RunTicketResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@_map_service_errors
+def generate_ticket_draft(
+    ticket_id: str,
+    request: GenerateDraftRequest,
+    context: RequestContext = Depends(get_request_context),
+    service: TicketApiService = Depends(get_ticket_api_service),
+) -> RunTicketResponse:
+    actor_id = _require_actor_id(context)
+    result = service.generate_ticket_draft(
+        ticket_id=ticket_id,
+        ticket_version=request.ticket_version,
+        actor_id=actor_id,
+        request_id=context.request_id,
+        idempotency_key=context.idempotency_key,
+        mode=request.mode,
+        source_draft_id=request.source_draft_id,
+        comment=request.comment,
+        rewrite_guidance=request.rewrite_guidance,
+    )
+    return RunTicketResponse(
+        ticket_id=result.ticket.ticket_id,
+        run_id=result.run.run_id,
+        trace_id=result.run.trace_id,
+        processing_status=result.ticket.processing_status,
+    )
+
+
+@router.post(
     "/tickets/{ticket_id}/run",
     response_model=RunTicketResponse,
     status_code=status.HTTP_202_ACCEPTED,
@@ -666,6 +700,37 @@ def retry_ticket(
         run_id=result.run.run_id,
         trace_id=result.run.trace_id,
         processing_status=result.ticket.processing_status,
+    )
+
+
+@router.post(
+    "/tickets/{ticket_id}/drafts/save",
+    response_model=TicketActionResponse,
+    response_model_exclude_none=True,
+)
+@_map_service_errors
+def save_ticket_draft(
+    ticket_id: str,
+    request: SaveDraftRequest,
+    context: RequestContext = Depends(get_request_context),
+    service: TicketApiService = Depends(get_ticket_api_service),
+) -> TicketActionResponse:
+    actor_id = _require_actor_id(context)
+    ticket, review_id = service.save_ticket_draft(
+        ticket_id=ticket_id,
+        ticket_version=request.ticket_version,
+        draft_id=request.draft_id,
+        comment=request.comment,
+        edited_content_text=request.edited_content_text,
+        actor_id=actor_id,
+        idempotency_key=context.idempotency_key,
+    )
+    return TicketActionResponse(
+        ticket_id=ticket.ticket_id,
+        review_id=review_id,
+        business_status=ticket.business_status,
+        processing_status=ticket.processing_status,
+        version=ticket.version,
     )
 
 

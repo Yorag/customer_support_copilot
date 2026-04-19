@@ -187,6 +187,7 @@ class DraftQaStatus(StringEnum):
 
 
 class HumanReviewAction(StringEnum):
+    SAVE_DRAFT = "save_draft"
     APPROVE = "approve"
     EDIT_AND_APPROVE = "edit_and_approve"
     REJECT_FOR_REWRITE = "reject_for_rewrite"

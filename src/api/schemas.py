@@ -82,6 +82,29 @@ class RunTicketResponse(ApiModel):
     processing_status: str
 
 
+class GenerateDraftRequest(ApiModel):
+    ticket_version: int = Field(ge=1)
+    mode: Literal["create", "regenerate"] = "create"
+    source_draft_id: Optional[str] = None
+    comment: Optional[str] = None
+    rewrite_guidance: List[str] = Field(default_factory=list)
+
+    @field_validator("source_draft_id")
+    @classmethod
+    def validate_source_draft_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return _require_non_blank(value, field_name="source_draft_id")
+
+    @field_validator("rewrite_guidance")
+    @classmethod
+    def validate_rewrite_guidance(cls, value: List[str]) -> List[str]:
+        return [
+            _require_non_blank(item, field_name="rewrite_guidance")
+            for item in value
+        ]
+
+
 class ApproveTicketRequest(ApiModel):
     ticket_version: int = Field(ge=1)
     draft_id: str
@@ -91,6 +114,18 @@ class ApproveTicketRequest(ApiModel):
     @classmethod
     def validate_draft_id(cls, value: str) -> str:
         return _require_non_blank(value, field_name="draft_id")
+
+
+class SaveDraftRequest(ApiModel):
+    ticket_version: int = Field(ge=1)
+    draft_id: str
+    comment: Optional[str] = None
+    edited_content_text: str
+
+    @field_validator("draft_id", "edited_content_text")
+    @classmethod
+    def validate_required_text(cls, value: str, info) -> str:
+        return _require_non_blank(value, field_name=info.field_name)
 
 
 class EditAndApproveTicketRequest(ApiModel):
