@@ -19,11 +19,16 @@ from src.triage import TriageContext, TriageDecisionService
 class FakeRuntime:
     triage_output: TriageOutput | None = None
     failure: Exception | None = None
+    parsed_output_overrides: dict[str, object | None] | None = None
 
     def invoke_structured(self, prompt, *, schema, inputs):
         if self.failure is not None:
             raise self.failure
         parsed = self._parsed_output(schema)
+        if parsed is None:
+            raise ValueError(
+                f"Structured output parsing failed: parsed output is null for {schema.__name__}."
+            )
         return LlmInvocationResult(
             parsed_output=parsed,
             raw_text=str(parsed),
@@ -40,6 +45,9 @@ class FakeRuntime:
         )
 
     def _parsed_output(self, schema):
+        override = (self.parsed_output_overrides or {}).get(schema.__name__)
+        if schema.__name__ in (self.parsed_output_overrides or {}):
+            return override
         if schema is TriageOutput:
             return self.triage_output or TriageOutput(
                 primary_route="knowledge_request",
@@ -326,6 +334,30 @@ def test_agents_drafting_role_uses_selected_strategy(monkeypatch):
 
     assert result.applied_response_strategy.value == "policy_constrained"
     assert "policy" in result.draft_text.lower()
+
+
+def test_agents_drafting_role_falls_back_when_structured_output_is_missing(monkeypatch):
+    monkeypatch.setattr(
+        "src.agents.LlmRuntime",
+        lambda temperature=0.1: FakeRuntime(
+            parsed_output_overrides={"DraftingOutput": None},
+        ),
+    )
+    agents = Agents()
+
+    result = agents.drafting_agent(
+        customer_email="liwei@example.com",
+        subject="API issue",
+        primary_route="technical_issue",
+        response_strategy="troubleshooting",
+        normalized_email="The API returns a 500 when I try to authenticate.",
+        knowledge_summary="Please ask the customer for the request timestamp and request ID.",
+        policy_notes="",
+    )
+
+    assert result.applied_response_strategy.value == "troubleshooting"
+    assert "technical problem" in result.draft_text.lower()
+    assert "request timestamp" in result.draft_text.lower()
 
 
 def test_agents_qa_handoff_role_escalates_when_risk_requires_manual_review(monkeypatch):

@@ -65,8 +65,14 @@ class LlmRuntime:
         runnable = prompt | self._model.with_structured_output(schema, include_raw=True)
         response = runnable.invoke(inputs)
         parsed_output = response["parsed"]
+        parsing_error = response.get("parsing_error")
         raw_message = response.get("raw")
         raw_text = _extract_raw_text(raw_message)
+        _raise_if_missing_structured_output(
+            parsed_output=parsed_output,
+            parsing_error=parsing_error,
+            raw_text=raw_text,
+        )
         usage = extract_usage(
             raw_message,
             prompt_texts=_collect_prompt_texts(inputs),
@@ -91,8 +97,14 @@ class LlmRuntime:
         runnable = self._model.with_structured_output(schema, include_raw=True)
         response = runnable.invoke(text)
         parsed_output = response["parsed"]
+        parsing_error = response.get("parsing_error")
         raw_message = response.get("raw")
         raw_text = _extract_raw_text(raw_message)
+        _raise_if_missing_structured_output(
+            parsed_output=parsed_output,
+            parsing_error=parsing_error,
+            raw_text=raw_text,
+        )
         usage = extract_usage(
             raw_message,
             prompt_texts=[text],
@@ -243,6 +255,22 @@ def _extract_raw_text(response: Any) -> str:
     if response is None:
         return ""
     return str(response)
+
+
+def _raise_if_missing_structured_output(
+    *,
+    parsed_output: Any,
+    parsing_error: Any,
+    raw_text: str,
+) -> None:
+    if parsed_output is not None:
+        return
+    if isinstance(parsing_error, Exception):
+        raise parsing_error
+
+    detail = str(parsing_error).strip() if parsing_error is not None else "parsed output is null"
+    suffix = f" Raw text: {raw_text}" if raw_text else ""
+    raise ValueError(f"Structured output parsing failed: {detail}.{suffix}")
 
 
 def _collect_prompt_texts(inputs: Any) -> list[str]:
