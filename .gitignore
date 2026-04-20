@@ -39,6 +39,7 @@ token.json
 db_backup_*/
 tests/samples/eval/*.tmp.json
 docs/qa/
+docs/assets/video/ppt-architecture/
 evals/*.json
 frontend/vite.config.js
 frontend/vite.config.d.ts
